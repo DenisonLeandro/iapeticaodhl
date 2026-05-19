@@ -1,82 +1,48 @@
 ## Diagnóstico
 
-Na URL publicada (`https://iapeticaodhl.lovable.app/`), o console mostra um único erro fatal:
+A causa provável da tela preta não é o Lovable Cloud em si: o backend está ativo e saudável. O problema está no código de inicialização do frontend.
 
-```
-Uncaught Error: supabaseUrl is required.
-   at new SupabaseClient ...
-```
+Pontos encontrados:
 
-O que está acontecendo:
+- `src/integrations/supabase/client.ts` é auto-gerado e lê apenas:
+  - `import.meta.env.VITE_SUPABASE_URL`
+  - `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`
+- `src/lib/backend/client.ts` importa esse client auto-gerado no topo do arquivo.
+- Por causa desse import estático, quando `VITE_SUPABASE_URL` não existe no build publicado, o erro `supabaseUrl is required` acontece antes da aplicação conseguir renderizar qualquer fallback ou redirecionamento.
+- As variáveis públicas existem no ambiente local do preview, mas o build publicado ainda pode estar sem elas ou usando um artefato anterior.
 
-1. `src/integrations/supabase/client.ts` (arquivo auto-gerado) chama `createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {...})` no **top-level do módulo**.
-2. No build publicado em produção, `import.meta.env.VITE_SUPABASE_URL` está chegando vazio → `createClient` lança a exceção imediatamente, durante o `import`.
-3. Esse erro acontece **antes do React montar** (é um erro de avaliação de módulo, não de render). Portanto:
-   - `ErrorBoundary` **não captura** (ele só pega erros em render/lifecycle de filhos).
-   - Nenhum `<Navigate>` é executado → não há redirect para `/login` nem `/dashboard`.
-   - O usuário só vê o `body { background: hsl(222 47% 6%) }` definido em `index.css` → **tela preta**.
+## Plano de correção
 
-A memória do projeto (`Resilience` / `Supabase Client`) já registra exatamente este aprendizado: *"Lazy load Supabase client in main.tsx to prevent blank screens"*. Essa proteção existia e foi perdida — hoje `main.tsx` importa `App` estaticamente, e `App.tsx` → `AuthContext` → `lib/backend/client.ts` → `integrations/supabase/client.ts` em cadeia síncrona no top-level.
+1. **Não editar `.env` nem o client auto-gerado**
+   - Lovable Cloud injeta essas variáveis automaticamente.
+   - `.env`, `src/integrations/supabase/client.ts` e `src/integrations/supabase/types.ts` não devem ser editados manualmente.
 
-Confirmação visual: screenshot da raiz publicada = tela 100% preta, sem fallback de erro, sem login.
+2. **Refatorar `src/lib/backend/client.ts` para ser seguro no import**
+   - Remover o import estático de `@/integrations/supabase/client`.
+   - Criar funções puras para resolver a configuração pública:
+     - usar `VITE_SUPABASE_URL` quando existir;
+     - opcionalmente derivar a URL a partir de `VITE_SUPABASE_PROJECT_ID` como fallback;
+     - aceitar `VITE_SUPABASE_PUBLISHABLE_KEY` e, se necessário, `VITE_SUPABASE_ANON_KEY`.
+   - Só instanciar/importar o client quando a configuração estiver válida.
 
-## Correção
+3. **Criar um client resiliente apontado para o Lovable Cloud do projeto**
+   - Em vez de depender cegamente do auto-gerado durante o boot, o wrapper pode criar um único client com a URL/chave públicas resolvidas.
+   - Isso mantém apenas uma instância do client no app e evita tela preta quando o arquivo auto-gerado recebe env incompleta.
 
-Restaurar o padrão de carregamento resiliente em `src/main.tsx` para que o erro de configuração seja capturado e a UI de fallback do `ErrorBoundary` apareça em vez da tela preta.
+4. **Ajustar `src/main.tsx` para checar a configuração sem carregar o client**
+   - `getBackendConfigStatus()` deve funcionar sem importar/instanciar o client.
+   - Se estiver tudo OK, carrega `App` normalmente.
+   - Se estiver faltando configuração, renderiza uma tela de erro amigável em vez de tela preta.
 
-### Mudança única: `src/main.tsx`
+5. **Atualizar os testes de env**
+   - Corrigir o teste que hoje espera `mod.supabase` existir mesmo sem env, pois isso é justamente o que quebra a renderização.
+   - Validar:
+     - URL ausente + project ID ausente → `missing_url`;
+     - URL ausente + project ID presente → `ok`;
+     - chave ausente → `missing_key`;
+     - import do wrapper sem env não deve lançar erro.
 
-Substituir o import estático de `App` por um carregamento dinâmico **depois** de validar as variáveis de ambiente. Estrutura:
-
-```tsx
-import { createRoot } from "react-dom/client";
-import { Suspense, lazy } from "react";
-import { ErrorBoundary } from "./components/ErrorBoundary";
-import { getBackendConfigStatus } from "./lib/backend/client";
-import "./index.css";
-
-const root = createRoot(document.getElementById("root")!);
-
-function BootError() {
-  // reaproveita ErrorBoundary em estado de erro forçado
-  throw new Error("Backend não configurado");
-}
-
-if (getBackendConfigStatus() !== "ok") {
-  root.render(
-    <ErrorBoundary>
-      <BootError />
-    </ErrorBoundary>
-  );
-} else {
-  const App = lazy(() => import("./App"));
-  root.render(
-    <ErrorBoundary>
-      <Suspense fallback={null}>
-        <App />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
-```
-
-Por que isso resolve:
-
-- `getBackendConfigStatus()` lê `import.meta.env` sem instanciar o client Supabase — é seguro mesmo com env vazia.
-- Quando a env está faltando, mostramos a tela de erro amigável do `ErrorBoundary` (já existente, com fundo claro e botão "Recarregar página") em vez de tela preta silenciosa.
-- Quando a env está OK, o `import("./App")` dinâmico carrega `AuthContext`/`supabase` e o redirect `/` → `/login` ou `/dashboard` funciona normalmente.
-- Qualquer erro que ainda escape em render/lifecycle continua coberto pelo `ErrorBoundary`.
-
-### Fora de escopo
-
-- Não vou tocar em `src/integrations/supabase/client.ts` (auto-gerado, proibido editar).
-- Não vou alterar `App.tsx`, `AuthContext` ou rotas — a lógica deles já está correta; o problema é puramente de boot.
-- Não vou mexer no `index.css` ou no tema escuro.
-
-### Verificação após implementar
-
-1. Abrir o preview e confirmar que `/` redireciona para `/login` (ou `/dashboard` se logado).
-2. Conferir o console — nenhum erro `supabaseUrl is required`.
-3. Após o usuário publicar a nova versão, abrir `https://iapeticaodhl.lovable.app/` e confirmar:
-   - Se env estiver presente no build publicado → redirect funciona.
-   - Se ainda estiver faltando → aparece o card de "Erro de Configuração" em vez de tela preta, deixando claro o problema (e permitindo investigar o pipeline de publish em seguida).
+6. **Validação**
+   - Rodar os testes relevantes de ambiente/boot.
+   - Conferir que a rota `/` redireciona para `/login` sem sessão e para `/dashboard` com sessão.
+   - Após a implementação, será necessário clicar em **Update** no Publish para a correção frontend ir para a versão publicada.
