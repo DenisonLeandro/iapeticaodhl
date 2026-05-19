@@ -2,7 +2,7 @@
 // Direct AI Client — Lovable-compatible alternative to Edge Function
 // =============================================================================
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/backend/client';
 import type {
   AIGenerateRequest,
   AIGenerateResponse,

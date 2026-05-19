@@ -1,48 +1,41 @@
 ## Diagnóstico
 
-A causa provável da tela preta não é o Lovable Cloud em si: o backend está ativo e saudável. O problema está no código de inicialização do frontend.
+O backend hospedado está saudável, mas o frontend publicado ainda pode quebrar porque parte do código continua importando o cliente auto-gerado diretamente de `@/integrations/supabase/client`. Esse arquivo depende exclusivamente de `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no momento do import; quando alguma variável não chega no bundle publicado, o app cai antes de montar React.
 
-Pontos encontrados:
-
-- `src/integrations/supabase/client.ts` é auto-gerado e lê apenas:
-  - `import.meta.env.VITE_SUPABASE_URL`
-  - `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`
-- `src/lib/backend/client.ts` importa esse client auto-gerado no topo do arquivo.
-- Por causa desse import estático, quando `VITE_SUPABASE_URL` não existe no build publicado, o erro `supabaseUrl is required` acontece antes da aplicação conseguir renderizar qualquer fallback ou redirecionamento.
-- As variáveis públicas existem no ambiente local do preview, mas o build publicado ainda pode estar sem elas ou usando um artefato anterior.
+Também há um segundo erro visível: `useAuth deve ser usado dentro de um AuthProvider`, indicando que a ordem dos providers/rotas precisa ser endurecida para evitar renderização fora do contexto durante falhas de boot.
 
 ## Plano de correção
 
-1. **Não editar `.env` nem o client auto-gerado**
-   - Lovable Cloud injeta essas variáveis automaticamente.
-   - `.env`, `src/integrations/supabase/client.ts` e `src/integrations/supabase/types.ts` não devem ser editados manualmente.
+1. **Centralizar todo acesso ao backend**
+   - Trocar os imports restantes de `@/integrations/supabase/client` para `@/lib/backend/client` nos arquivos que ainda usam o cliente frágil.
+   - Manter `src/integrations/supabase/client.ts` intocado, pois é auto-gerado.
 
-2. **Refatorar `src/lib/backend/client.ts` para ser seguro no import**
-   - Remover o import estático de `@/integrations/supabase/client`.
-   - Criar funções puras para resolver a configuração pública:
-     - usar `VITE_SUPABASE_URL` quando existir;
-     - opcionalmente derivar a URL a partir de `VITE_SUPABASE_PROJECT_ID` como fallback;
-     - aceitar `VITE_SUPABASE_PUBLISHABLE_KEY` e, se necessário, `VITE_SUPABASE_ANON_KEY`.
-   - Só instanciar/importar o client quando a configuração estiver válida.
+2. **Fixar fallback do Lovable Cloud atual no frontend**
+   - Atualizar `src/lib/backend/client.ts` para resolver a URL do backend nesta ordem:
+     1. `VITE_SUPABASE_URL`
+     2. `VITE_SUPABASE_PROJECT_ID`
+     3. fallback explícito para o backend Lovable Cloud deste projeto
+   - Resolver a chave pública nesta ordem:
+     1. `VITE_SUPABASE_PUBLISHABLE_KEY`
+     2. `VITE_SUPABASE_ANON_KEY`
+     3. fallback público do projeto atual
+   - Isso não envolve segredo privado; é configuração pública necessária para o frontend conectar ao backend.
 
-3. **Criar um client resiliente apontado para o Lovable Cloud do projeto**
-   - Em vez de depender cegamente do auto-gerado durante o boot, o wrapper pode criar um único client com a URL/chave públicas resolvidas.
-   - Isso mantém apenas uma instância do client no app e evita tela preta quando o arquivo auto-gerado recebe env incompleta.
+3. **Remover tela de erro indevida quando o Cloud existe**
+   - Ajustar `getBackendConfigStatus()` para retornar `ok` usando os fallbacks acima.
+   - Assim a raiz `/` volta a renderizar o app e redirecionar para `/login` ou `/dashboard`.
 
-4. **Ajustar `src/main.tsx` para checar a configuração sem carregar o client**
-   - `getBackendConfigStatus()` deve funcionar sem importar/instanciar o client.
-   - Se estiver tudo OK, carrega `App` normalmente.
-   - Se estiver faltando configuração, renderiza uma tela de erro amigável em vez de tela preta.
+4. **Endurecer o boot/AuthProvider**
+   - Garantir que `HomeRedirect`, `ProtectedRoute` e rotas protegidas só renderizem dentro de `AuthProvider`.
+   - Se necessário, revisar a composição em `App.tsx` para eliminar o erro `useAuth deve ser usado dentro de um AuthProvider`.
 
-5. **Atualizar os testes de env**
-   - Corrigir o teste que hoje espera `mod.supabase` existir mesmo sem env, pois isso é justamente o que quebra a renderização.
-   - Validar:
-     - URL ausente + project ID ausente → `missing_url`;
-     - URL ausente + project ID presente → `ok`;
-     - chave ausente → `missing_key`;
-     - import do wrapper sem env não deve lançar erro.
+5. **Atualizar os testes de ambiente**
+   - Cobrir os cenários:
+     - sem URL mas com fallback do projeto atual → `ok`
+     - sem chave mas com fallback público do projeto atual → `ok`
+     - import do client sem env não deve derrubar o app
 
-6. **Validação**
-   - Rodar os testes relevantes de ambiente/boot.
-   - Conferir que a rota `/` redireciona para `/login` sem sessão e para `/dashboard` com sessão.
-   - Após a implementação, será necessário clicar em **Update** no Publish para a correção frontend ir para a versão publicada.
+6. **Validar**
+   - Conferir que não resta nenhum import direto do cliente auto-gerado em código de runtime.
+   - Validar em preview que `/` não mostra mais erro de configuração e segue para `/login` sem sessão.
+   - Depois da aprovação e implementação, será necessário clicar em **Update** na publicação para levar a correção ao domínio publicado.
