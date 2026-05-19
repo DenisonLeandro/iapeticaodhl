@@ -11,6 +11,14 @@ import type { Database } from "@/integrations/supabase/types";
 
 export type BackendConfigStatus = "ok" | "missing_url" | "missing_key";
 
+// Public Lovable Cloud fallbacks for this project. These are NOT secrets —
+// they are the same publishable URL/key that Lovable injects into the bundle,
+// hardcoded so a missing env var in the published bundle does not break boot.
+const FALLBACK_PROJECT_ID = "bfeimbmrizznmnzopqzt";
+const FALLBACK_URL = `https://${FALLBACK_PROJECT_ID}.supabase.co`;
+const FALLBACK_PUBLISHABLE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZWltYm1yaXp6bm1uem9wcXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDg2NTEsImV4cCI6MjA5NDc4NDY1MX0.hM2qs8iT4OIvjXC8wnqLiO8OjzOdpPtVSdbJdyJiEXM";
+
 function resolveUrl(): string | null {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   if (url) return url;
@@ -18,14 +26,14 @@ function resolveUrl(): string | null {
     | string
     | undefined;
   if (projectId) return `https://${projectId}.supabase.co`;
-  return null;
+  return FALLBACK_URL;
 }
 
 function resolveKey(): string | null {
   const key =
     (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
     (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined);
-  return key || null;
+  return key || FALLBACK_PUBLISHABLE_KEY;
 }
 
 export function getBackendConfigStatus(): BackendConfigStatus {
