@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS publications_org_external_id_unique ON public.publications (organization_id, external_id);

@@ -1,0 +1,3 @@
+CREATE POLICY "Users can view org client files" ON storage.objects FOR SELECT USING (bucket_id = 'client-documents' AND (storage.foldername(name))[1] IN (SELECT p.organization_id::text FROM public.profiles p WHERE p.id = auth.uid()));
+CREATE POLICY "Users can upload org client files" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'client-documents' AND (storage.foldername(name))[1] IN (SELECT p.organization_id::text FROM public.profiles p WHERE p.id = auth.uid()));
+CREATE POLICY "Users can delete org client files" ON storage.objects FOR DELETE USING (bucket_id = 'client-documents' AND (storage.foldername(name))[1] IN (SELECT p.organization_id::text FROM public.profiles p WHERE p.id = auth.uid()));

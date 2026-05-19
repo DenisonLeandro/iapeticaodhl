@@ -1,0 +1,1 @@
+ALTER TYPE public.llm_provider_type ADD VALUE IF NOT EXISTS 'lovable' BEFORE 'openai';
