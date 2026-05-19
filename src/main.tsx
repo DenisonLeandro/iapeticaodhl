@@ -6,8 +6,7 @@ import "./index.css";
 
 const root = createRoot(document.getElementById("root")!);
 
-function BootError() {
-  // Triggers ErrorBoundary fallback (shows config-aware message).
+function BootError(): never {
   throw new Error("Backend not configured");
 }
 
