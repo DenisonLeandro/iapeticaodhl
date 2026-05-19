@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import AdminRoute from "@/components/auth/AdminRoute";
 import { AppLayout } from "@/components/layout";
-import Index from "./pages/Index.tsx";
+
 import AuthPanel from "./components/auth/AuthPanel";
 import Dashboard from "./pages/Dashboard.tsx";
 import UsersPage from "./pages/settings/UsersPage.tsx";
@@ -33,18 +33,7 @@ const queryClient = new QueryClient();
 
 function HomeRedirect() {
   const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
+  if (loading) return null;
   return <Navigate to={user ? "/dashboard" : "/login"} replace />;
 }
 
