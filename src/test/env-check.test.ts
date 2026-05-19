@@ -54,10 +54,11 @@ describe("Backend client wrapper", () => {
     vi.stubEnv("VITE_SUPABASE_URL", "");
     vi.stubEnv("VITE_SUPABASE_PROJECT_ID", "");
     vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+    vi.stubEnv("VITE_SUPABASE_ANON_KEY", "");
 
-    // This should NOT throw — lazy init
+    // With bundled fallbacks, the wrapper still resolves to ok and never throws.
     const mod = await import("../lib/backend/client");
-    expect(mod.getBackendConfigStatus).toBeDefined();
+    expect(mod.getBackendConfigStatus()).toBe("ok");
     expect(mod.supabase).toBeDefined();
   });
 
