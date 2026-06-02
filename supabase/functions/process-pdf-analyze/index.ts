@@ -1,6 +1,7 @@
 // =============================================================================
 // Edge Function: process-pdf-analyze
-// Extrai texto de PDFs em client_files e gera análise jurídica via Lovable AI.
+// Extrai texto de PDFs em client_files e gera análise jurídica via Lovable AI,
+// sempre sob a perspectiva da parte representada pelo escritório.
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,16 +14,59 @@ const corsHeaders = {
 };
 
 const MODEL = "google/gemini-2.5-flash";
-const MAX_CHARS_TOTAL = 1_500_000;        // limite duro
-const SINGLE_PASS_MAX_CHARS = 250_000;    // até aqui vai em uma chamada
+const MAX_CHARS_TOTAL = 1_500_000;
+const SINGLE_PASS_MAX_CHARS = 250_000;
 const CHUNK_SIZE = 200_000;
-const EXTRACTED_TEXT_STORE_LIMIT = 200_000; // não inchar a tabela
-const SCANNED_TEXT_THRESHOLD = 200;        // < isso, considera escaneado
+const EXTRACTED_TEXT_STORE_LIMIT = 200_000;
+const SCANNED_TEXT_THRESHOLD = 200;
 
 const SCANNED_MSG =
   "Este PDF parece estar escaneado e não possui texto extraível. Para análise com IA, envie uma versão pesquisável/OCR ou divida os documentos principais.";
 
+const ALLOWED_PARTIES = [
+  "autor",
+  "reu",
+  "recorrente",
+  "recorrido",
+  "exequente",
+  "executado",
+  "terceiro",
+  "outro",
+] as const;
+type RepresentedParty = (typeof ALLOWED_PARTIES)[number];
+
+const PARTY_LABEL: Record<RepresentedParty, string> = {
+  autor: "Autor / Requerente / Reclamante",
+  reu: "Réu / Requerido / Reclamada",
+  recorrente: "Recorrente",
+  recorrido: "Recorrido",
+  exequente: "Exequente",
+  executado: "Executado",
+  terceiro: "Terceiro interessado",
+  outro: "Parte representada (não classificada)",
+};
+
+const OPPOSING_HINT: Record<RepresentedParty, string> = {
+  autor: "Réu / Requerido / Reclamada",
+  reu: "Autor / Requerente / Reclamante",
+  recorrente: "Recorrido",
+  recorrido: "Recorrente",
+  exequente: "Executado",
+  executado: "Exequente",
+  terceiro: "Demais partes do processo",
+  outro: "Polo contrário ao representado",
+};
+
+function normalizeParty(v: unknown): RepresentedParty {
+  return typeof v === "string" && (ALLOWED_PARTIES as readonly string[]).includes(v)
+    ? (v as RepresentedParty)
+    : "autor";
+}
+
 interface AnalysisJson {
+  parte_representada: RepresentedParty;
+  parte_contraria: string;
+  perspectiva_da_analise: string;
   resumo_geral: string;
   partes_identificadas: string[];
   fase_processual: string;
@@ -31,73 +75,127 @@ interface AnalysisJson {
   documentos_relevantes: string[];
   decisoes_despachos: string[];
   provas_identificadas: string[];
-  pontos_favoraveis: string[];
-  pontos_de_risco: string[];
+  pontos_favoraveis_a_parte_representada: string[];
+  pontos_de_risco_para_parte_representada: string[];
+  estrategia_recomendada_para_parte_representada: string;
   sugestao_de_peticao_cabivel: string;
   informacoes_nao_encontradas: string[];
   observacoes: string;
   resumo_advogado?: string;
 }
 
-const ANALYSIS_TOOL = {
-  type: "function",
-  function: {
-    name: "save_analysis",
-    description: "Salva a análise estruturada do processo judicial.",
-    parameters: {
-      type: "object",
-      properties: {
-        resumo_geral: { type: "string", description: "Resumo geral do processo (3-6 parágrafos)." },
-        partes_identificadas: { type: "array", items: { type: "string" } },
-        fase_processual: { type: "string" },
-        pedidos_principais: { type: "array", items: { type: "string" } },
-        teses_da_parte_contraria: { type: "array", items: { type: "string" } },
-        documentos_relevantes: { type: "array", items: { type: "string" } },
-        decisoes_despachos: { type: "array", items: { type: "string" } },
-        provas_identificadas: { type: "array", items: { type: "string" } },
-        pontos_favoraveis: { type: "array", items: { type: "string" } },
-        pontos_de_risco: { type: "array", items: { type: "string" } },
-        sugestao_de_peticao_cabivel: { type: "string" },
-        informacoes_nao_encontradas: { type: "array", items: { type: "string" } },
-        observacoes: { type: "string" },
-        resumo_advogado: {
-          type: "string",
-          description:
-            "Resumo executivo em markdown para o advogado, contendo: resumo do processo, fase, principais pedidos, pontos fortes, riscos, providências sugeridas.",
+function buildAnalysisTool(party: RepresentedParty) {
+  return {
+    type: "function",
+    function: {
+      name: "save_analysis",
+      description: "Salva a análise estruturada do processo judicial sob a perspectiva da parte representada.",
+      parameters: {
+        type: "object",
+        properties: {
+          parte_representada: {
+            type: "string",
+            enum: [...ALLOWED_PARTIES],
+            description: `Parte representada pelo escritório. Use exatamente "${party}".`,
+          },
+          parte_contraria: {
+            type: "string",
+            description: "Polo contrário identificado no processo (nome/identificação quando possível).",
+          },
+          perspectiva_da_analise: {
+            type: "string",
+            description: `Frase curta deixando explícito que a análise foi feita sob a perspectiva de ${PARTY_LABEL[party]}.`,
+          },
+          resumo_geral: { type: "string", description: "Resumo geral do processo (3-6 parágrafos)." },
+          partes_identificadas: { type: "array", items: { type: "string" } },
+          fase_processual: { type: "string" },
+          pedidos_principais: { type: "array", items: { type: "string" } },
+          teses_da_parte_contraria: {
+            type: "array",
+            items: { type: "string" },
+            description: "Argumentos/teses do polo contrário ao representado.",
+          },
+          documentos_relevantes: { type: "array", items: { type: "string" } },
+          decisoes_despachos: { type: "array", items: { type: "string" } },
+          provas_identificadas: { type: "array", items: { type: "string" } },
+          pontos_favoraveis_a_parte_representada: {
+            type: "array",
+            items: { type: "string" },
+            description: `Fatos, provas, precedentes ou aspectos processuais favoráveis a ${PARTY_LABEL[party]}.`,
+          },
+          pontos_de_risco_para_parte_representada: {
+            type: "array",
+            items: { type: "string" },
+            description: `Fragilidades, riscos ou pontos de ataque contra ${PARTY_LABEL[party]}.`,
+          },
+          estrategia_recomendada_para_parte_representada: {
+            type: "string",
+            description: `Estratégia processual recomendada para defender os interesses de ${PARTY_LABEL[party]}.`,
+          },
+          sugestao_de_peticao_cabivel: {
+            type: "string",
+            description: `Tipo de peça mais adequado neste momento, sempre no interesse de ${PARTY_LABEL[party]}.`,
+          },
+          informacoes_nao_encontradas: { type: "array", items: { type: "string" } },
+          observacoes: { type: "string" },
+          resumo_advogado: {
+            type: "string",
+            description:
+              "Resumo executivo em markdown para o advogado. DEVE começar exatamente com a linha: **Análise realizada sob a perspectiva de: " +
+              PARTY_LABEL[party] +
+              ".**",
+          },
         },
+        required: [
+          "parte_representada",
+          "parte_contraria",
+          "perspectiva_da_analise",
+          "resumo_geral",
+          "partes_identificadas",
+          "fase_processual",
+          "pedidos_principais",
+          "teses_da_parte_contraria",
+          "documentos_relevantes",
+          "decisoes_despachos",
+          "provas_identificadas",
+          "pontos_favoraveis_a_parte_representada",
+          "pontos_de_risco_para_parte_representada",
+          "estrategia_recomendada_para_parte_representada",
+          "sugestao_de_peticao_cabivel",
+          "informacoes_nao_encontradas",
+          "observacoes",
+          "resumo_advogado",
+        ],
+        additionalProperties: false,
       },
-      required: [
-        "resumo_geral",
-        "partes_identificadas",
-        "fase_processual",
-        "pedidos_principais",
-        "teses_da_parte_contraria",
-        "documentos_relevantes",
-        "decisoes_despachos",
-        "provas_identificadas",
-        "pontos_favoraveis",
-        "pontos_de_risco",
-        "sugestao_de_peticao_cabivel",
-        "informacoes_nao_encontradas",
-        "observacoes",
-        "resumo_advogado",
-      ],
-      additionalProperties: false,
     },
-  },
-};
+  };
+}
 
-const SYSTEM_PROMPT = `Você é um advogado brasileiro sênior analisando o PDF integral de um processo judicial.
+function buildSystemPrompt(party: RepresentedParty) {
+  return `Você é um advogado brasileiro sênior, com forte atuação em Direito do Trabalho, analisando o PDF de um processo judicial.
+
+PERSPECTIVA OBRIGATÓRIA
+- O escritório que solicita a análise representa: ${PARTY_LABEL[party]} (valor técnico: "${party}").
+- Polo contrário esperado: ${OPPOSING_HINT[party]}.
+- TODA a análise deve ser feita defendendo os interesses de ${PARTY_LABEL[party]}.
+- Pontos favoráveis = favoráveis a ${PARTY_LABEL[party]}.
+- Pontos de risco = riscos PARA ${PARTY_LABEL[party]}.
+- Teses da parte contrária = argumentos do polo oposto a ${PARTY_LABEL[party]}.
+- Estratégia e sugestão de petição = para defender ${PARTY_LABEL[party]}.
+- NUNCA presuma que representamos a parte contrária.
 
 Regras rígidas:
 - NÃO invente fatos, partes, datas ou documentos.
-- NÃO presuma a existência de documentos que não aparecem no texto.
 - Diferencie claramente fatos alegados de fatos comprovados.
 - Quando uma informação não estiver no texto, liste em "informacoes_nao_encontradas".
-- Use linguagem jurídica técnica, em português do Brasil.
+- Use linguagem jurídica técnica em português do Brasil, contemplando terminologia trabalhista quando aplicável (reclamante/reclamada).
 - Quando possível, indique a origem aproximada (ex.: "fls. 12", "pág. ~34", "decisão de 03/2024").
-- Lembre no campo "observacoes" que a revisão final é obrigatória pelo advogado responsável.
-- Responda SEMPRE chamando a tool save_analysis. Não escreva texto fora da tool.`;
+- O campo "observacoes" deve lembrar que a revisão final é obrigatória pelo advogado responsável.
+- Responda SEMPRE chamando a tool save_analysis. Não escreva texto fora da tool.
+- O campo resumo_advogado DEVE começar exatamente com:
+  "**Análise realizada sob a perspectiva de: ${PARTY_LABEL[party]}.**"`;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,7 +216,8 @@ function chunkText(text: string, size: number): string[] {
   return chunks;
 }
 
-async function callAI(messages: unknown[], apiKey: string) {
+async function callAI(messages: unknown[], party: RepresentedParty, apiKey: string) {
+  const tool = buildAnalysisTool(party);
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -128,17 +227,13 @@ async function callAI(messages: unknown[], apiKey: string) {
     body: JSON.stringify({
       model: MODEL,
       messages,
-      tools: [ANALYSIS_TOOL],
+      tools: [tool],
       tool_choice: { type: "function", function: { name: "save_analysis" } },
     }),
   });
 
-  if (resp.status === 429) {
-    throw new Error("RATE_LIMIT");
-  }
-  if (resp.status === 402) {
-    throw new Error("NO_CREDITS");
-  }
+  if (resp.status === 429) throw new Error("RATE_LIMIT");
+  if (resp.status === 402) throw new Error("NO_CREDITS");
   if (!resp.ok) {
     const t = await resp.text();
     throw new Error(`AI gateway error ${resp.status}: ${t.slice(0, 300)}`);
@@ -150,6 +245,8 @@ async function callAI(messages: unknown[], apiKey: string) {
     throw new Error("AI não retornou tool_call save_analysis.");
   }
   const args = JSON.parse(toolCall.function.arguments) as AnalysisJson;
+  // Garante perspectiva correta mesmo se a IA divergir
+  args.parte_representada = party;
   const usage = {
     input: data.usage?.prompt_tokens ?? 0,
     output: data.usage?.completion_tokens ?? 0,
@@ -157,8 +254,9 @@ async function callAI(messages: unknown[], apiKey: string) {
   return { analysis: args, usage };
 }
 
-async function analyzeSinglePass(text: string, apiKey: string) {
-  const userPrompt = `Abaixo está o texto integral (ou consolidado) de um processo judicial. Analise e chame a tool save_analysis preenchendo TODOS os campos.
+async function analyzeSinglePass(text: string, party: RepresentedParty, apiKey: string) {
+  const userPrompt = `Abaixo está o texto integral (ou consolidado) de um processo judicial.
+Analise SOB A PERSPECTIVA de ${PARTY_LABEL[party]} e chame a tool save_analysis preenchendo TODOS os campos.
 
 ==== TEXTO DO PROCESSO ====
 ${text}
@@ -166,14 +264,15 @@ ${text}
 
   return callAI(
     [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(party) },
       { role: "user", content: userPrompt },
     ],
+    party,
     apiKey,
   );
 }
 
-async function analyzeChunked(text: string, apiKey: string) {
+async function analyzeChunked(text: string, party: RepresentedParty, apiKey: string) {
   const chunks = chunkText(text, CHUNK_SIZE);
   const partials: string[] = [];
   let totalInput = 0;
@@ -181,16 +280,16 @@ async function analyzeChunked(text: string, apiKey: string) {
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    const prompt = `Você está analisando o BLOCO ${i + 1}/${chunks.length} de um processo judicial extenso.
+    const prompt = `Você está analisando o BLOCO ${i + 1}/${chunks.length} de um processo judicial extenso, SOB A PERSPECTIVA de ${PARTY_LABEL[party]}.
 
 NESTE BLOCO, extraia em bullets concisos:
 - Partes mencionadas
-- Pedidos identificados
-- Teses/argumentos da parte contrária
+- Pedidos identificados (de qual polo)
+- Teses/argumentos do polo contrário a ${PARTY_LABEL[party]}
 - Documentos citados
 - Decisões/despachos
 - Provas mencionadas
-- Pontos favoráveis e de risco aparentes
+- Pontos favoráveis a ${PARTY_LABEL[party]} e pontos de risco para ${PARTY_LABEL[party]}
 - Trechos relevantes (com referência aproximada de página, se houver)
 
 Não conclua nada definitivo — outros blocos virão depois.
@@ -208,7 +307,10 @@ ${chunk}
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: "system", content: "Você é um advogado brasileiro extraindo bullets factuais de blocos de um processo. Não invente nada." },
+          {
+            role: "system",
+            content: `Você é um advogado brasileiro extraindo bullets factuais de blocos de um processo, sob a perspectiva de ${PARTY_LABEL[party]}. Não invente nada.`,
+          },
           { role: "user", content: prompt },
         ],
       }),
@@ -226,9 +328,8 @@ ${chunk}
     totalOutput += data.usage?.completion_tokens ?? 0;
   }
 
-  // Reduce: consolidar
   const consolidated = partials.join("\n\n");
-  const finalRes = await analyzeSinglePass(consolidated, apiKey);
+  const finalRes = await analyzeSinglePass(consolidated, party, apiKey);
   finalRes.usage.input += totalInput;
   finalRes.usage.output += totalOutput;
   return finalRes;
@@ -243,7 +344,6 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // ---- auth ----
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return corsJson({ error: "Unauthorized" }, 401);
@@ -267,7 +367,6 @@ Deno.serve(async (req) => {
   }
   const userId = claimsData.claims.sub as string;
 
-  // org do usuário
   const { data: profile, error: profileErr } = await userClient
     .from("profiles")
     .select("organization_id")
@@ -278,8 +377,7 @@ Deno.serve(async (req) => {
   }
   const userOrgId = profile.organization_id as string;
 
-  // ---- body ----
-  let body: { file_id?: string };
+  let body: { file_id?: string; represented_party?: string };
   try {
     body = await req.json();
   } catch {
@@ -290,10 +388,11 @@ Deno.serve(async (req) => {
     return corsJson({ error: "file_id obrigatório" }, 400);
   }
 
-  // ---- carregar arquivo ----
   const { data: fileRec, error: fileErr } = await admin
     .from("client_files")
-    .select("id, organization_id, client_id, case_id, file_type, file_name, storage_path")
+    .select(
+      "id, organization_id, client_id, case_id, file_type, file_name, storage_path, represented_party",
+    )
     .eq("id", fileId)
     .single();
 
@@ -305,12 +404,26 @@ Deno.serve(async (req) => {
     return corsJson({ error: "Apenas arquivos PDF podem ser analisados" }, 400);
   }
 
-  // ---- marcar processing ----
+  // Resolve perspectiva: case > arquivo > body > default "autor".
+  let casePartyRaw: string | null = null;
+  if (fileRec.case_id) {
+    const { data: caseRow } = await admin
+      .from("cases")
+      .select("represented_party")
+      .eq("id", fileRec.case_id)
+      .single();
+    casePartyRaw = (caseRow?.represented_party as string | null) ?? null;
+  }
+  const resolvedParty = normalizeParty(
+    casePartyRaw ?? fileRec.represented_party ?? body.represented_party ?? "autor",
+  );
+
   await admin
     .from("client_files")
     .update({
       processing_status: "processing",
       error_message: null,
+      represented_party: resolvedParty,
       updated_at: new Date().toISOString(),
     })
     .eq("id", fileId);
@@ -347,6 +460,7 @@ Deno.serve(async (req) => {
           file_id: fileId,
           client_id: fileRec.client_id,
           case_id: fileRec.case_id,
+          represented_party: resolvedParty,
           chars: params.chars,
           status: params.status,
           error: params.error,
@@ -358,7 +472,6 @@ Deno.serve(async (req) => {
   };
 
   try {
-    // ---- download ----
     const { data: blob, error: dlErr } = await admin.storage
       .from("client-documents")
       .download(fileRec.storage_path);
@@ -366,7 +479,6 @@ Deno.serve(async (req) => {
 
     const buf = new Uint8Array(await blob.arrayBuffer());
 
-    // ---- extrair texto ----
     let text = "";
     try {
       const pdf = await getDocumentProxy(buf);
@@ -390,19 +502,26 @@ Deno.serve(async (req) => {
     }
 
     if (text.length > MAX_CHARS_TOTAL) {
-      const msg = "Este processo é muito extenso para análise em uma única operação. Divida em volumes (ex.: inicial + contestação + decisões principais) e envie separadamente.";
+      const msg =
+        "Este processo é muito extenso para análise em uma única operação. Divida em volumes (ex.: inicial + contestação + decisões principais) e envie separadamente.";
       await markError(msg);
       await logUsage({ status: "error", chars: text.length, tokensIn: 0, tokensOut: 0, error: "too_large" });
       return corsJson({ status: "error", error: "too_large", message: msg }, 200);
     }
 
-    // ---- analisar ----
     const { analysis, usage } =
       text.length <= SINGLE_PASS_MAX_CHARS
-        ? await analyzeSinglePass(text, LOVABLE_API_KEY)
-        : await analyzeChunked(text, LOVABLE_API_KEY);
+        ? await analyzeSinglePass(text, resolvedParty, LOVABLE_API_KEY)
+        : await analyzeChunked(text, resolvedParty, LOVABLE_API_KEY);
 
-    const summary = analysis.resumo_advogado ?? analysis.resumo_geral ?? "";
+    // Garante prefixo da perspectiva no summary
+    const partyLabel = PARTY_LABEL[resolvedParty];
+    const prefix = `**Análise realizada sob a perspectiva de: ${partyLabel}.**`;
+    let summary = (analysis.resumo_advogado ?? analysis.resumo_geral ?? "").trim();
+    if (!summary.toLowerCase().startsWith("**análise realizada sob a perspectiva")) {
+      summary = `${prefix}\n\n${summary}`;
+    }
+
     const truncatedText =
       text.length > EXTRACTED_TEXT_STORE_LIMIT
         ? text.slice(0, EXTRACTED_TEXT_STORE_LIMIT) +
@@ -415,6 +534,7 @@ Deno.serve(async (req) => {
         extracted_text: truncatedText,
         analysis_summary: summary,
         analysis_json: analysis,
+        represented_party: resolvedParty,
         processed_at: new Date().toISOString(),
         processing_status: "analyzed",
         error_message: null,
@@ -429,7 +549,12 @@ Deno.serve(async (req) => {
       tokensOut: usage.output,
     });
 
-    return corsJson({ status: "analyzed", summary, analysis_json: analysis });
+    return corsJson({
+      status: "analyzed",
+      summary,
+      analysis_json: analysis,
+      represented_party: resolvedParty,
+    });
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
     let userMsg = "Falha ao analisar o PDF. Tente novamente em alguns instantes.";
