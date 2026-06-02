@@ -213,6 +213,7 @@ export interface AIGenerateRequest {
   documentType?: DocumentType;
   context?: DocumentGenerationContext;
   systemPrompt?: string;
+  processAnalysisIds?: string[];
 }
 
 export interface AIGenerateResponse {
