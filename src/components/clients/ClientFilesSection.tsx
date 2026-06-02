@@ -24,7 +24,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useClientFiles, useDeleteFile, useFileUrl } from "@/hooks/useClientDetail";
+import { Badge } from "@/components/ui/badge";
+import { useClientFiles, useDeleteFile, useFileUrl, useClientCases } from "@/hooks/useClientDetail";
+import { DOCUMENT_KINDS } from "@/schemas/client.schema";
+import type { ClientFile } from "@/types/client";
+import FileUploadDialog from "./FileUploadDialog";
+
+const KIND_LABELS: Record<string, string> = Object.fromEntries(
+  DOCUMENT_KINDS.map((k) => [k.value, k.label]),
+);
+
+const STATUS_LABELS: Record<string, { label: string; variant: "secondary" | "default" | "destructive" | "outline" }> = {
+  pending: { label: "Pendente", variant: "secondary" },
+  processing: { label: "Processando", variant: "outline" },
+  analyzed: { label: "Analisado", variant: "default" },
+  error: { label: "Erro", variant: "destructive" },
+};
+
 import type { ClientFile } from "@/types/client";
 import FileUploadDialog from "./FileUploadDialog";
 
