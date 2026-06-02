@@ -13,15 +13,9 @@ import type {
 export async function fetchCaseById(caseId: string): Promise<CaseWithRelations> {
   const { data, error } = await supabase
     .from("cases")
-    .select(
-      `
-      *,
-      client:profiles!cases_client_id_fkey(full_name),
-      lawyer:profiles!cases_assigned_to_fkey(full_name)
-      `,
-    )
+    .select("*")
     .eq("id", caseId)
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(`Erro ao buscar processo: ${error.message}`);
@@ -32,23 +26,34 @@ export async function fetchCaseById(caseId: string): Promise<CaseWithRelations> 
   }
 
   const row = data as Record<string, unknown>;
+  const clientId = row.client_id as string | null;
+  const assignedTo = row.assigned_to as string | null;
+
+  const [clientRes, lawyerRes] = await Promise.all([
+    clientId
+      ? supabase.from("clients").select("full_name").eq("id", clientId).maybeSingle()
+      : Promise.resolve({ data: null as { full_name: string } | null }),
+    assignedTo
+      ? supabase.from("profiles").select("full_name").eq("id", assignedTo).maybeSingle()
+      : Promise.resolve({ data: null as { full_name: string } | null }),
+  ]);
 
   return {
     id: row.id as string,
     organization_id: row.organization_id as string,
-    client_id: row.client_id as string | null,
+    client_id: clientId,
     case_number: row.case_number as string,
     court: row.court as string,
     branch: row.branch as string | null,
     subject: row.subject as string | null,
     status: row.status as CaseWithRelations["status"],
     opposing_party: row.opposing_party as string | null,
-    assigned_to: row.assigned_to as string | null,
+    assigned_to: assignedTo,
     represented_party: (row.represented_party as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
-    client_name: (row.client as { full_name: string } | null)?.full_name ?? null,
-    lawyer_name: (row.lawyer as { full_name: string } | null)?.full_name ?? null,
+    client_name: (clientRes.data as { full_name: string } | null)?.full_name ?? null,
+    lawyer_name: (lawyerRes.data as { full_name: string } | null)?.full_name ?? null,
   };
 }
 
