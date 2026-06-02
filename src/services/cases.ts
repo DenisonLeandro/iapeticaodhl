@@ -154,3 +154,44 @@ export async function fetchLawyers(organizationId: string) {
 
   return data ?? [];
 }
+
+export interface UnlinkedCaseRow {
+  id: string;
+  case_number: string;
+  court: string;
+  subject: string | null;
+  created_at: string;
+}
+
+export async function fetchUnlinkedCases(
+  organizationId: string,
+  search?: string,
+): Promise<UnlinkedCaseRow[]> {
+  let query = supabase
+    .from("cases")
+    .select("id, case_number, court, subject, created_at")
+    .eq("organization_id", organizationId)
+    .is("client_id", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (search && search.trim()) {
+    query = query.ilike("case_number", `%${search.trim()}%`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Erro ao buscar processos sem cliente: ${error.message}`);
+  return (data as UnlinkedCaseRow[]) ?? [];
+}
+
+export async function linkCaseToClient(
+  caseId: string,
+  clientId: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("cases")
+    .update({ client_id: clientId })
+    .eq("id", caseId);
+  if (error) throw new Error(`Erro ao vincular processo: ${error.message}`);
+}
+
