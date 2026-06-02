@@ -78,7 +78,11 @@ export const documentGenerationSchema = z.object({
   caseId: z.string().optional(),
   selectedAnalysisFileIds: z.array(z.string()).optional(),
 
-
+  // Auto-fill — herdados de `cases` quando disponíveis (Fase 1)
+  representedParty: z
+    .enum(["autor", "reu", "recorrente", "recorrido", "exequente", "executado", "terceiro", "outro"])
+    .optional(),
+  assunto: z.string().optional(),
 
   instrucoesAdicionais: z.string().optional(),
 
