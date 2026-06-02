@@ -254,6 +254,88 @@ export default function CaseForm({
 
             <FormField
               control={form.control}
+              name="client_id"
+              render={({ field }) => {
+                const selected = clientResults.find((c) => c.id === field.value);
+                const label = selected?.full_name ?? "— Sem cliente —";
+                return (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Cliente vinculado</FormLabel>
+                    <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground",
+                            )}
+                          >
+                            {label}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Buscar cliente por nome, CPF/CNPJ ou e-mail..."
+                            value={clientSearch}
+                            onValueChange={setClientSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="__none__"
+                                onSelect={() => {
+                                  field.onChange("");
+                                  setClientPopoverOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    !field.value ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                — Sem cliente —
+                              </CommandItem>
+                              {clientResults.map((c) => (
+                                <CommandItem
+                                  key={c.id}
+                                  value={c.id}
+                                  onSelect={() => {
+                                    field.onChange(c.id);
+                                    setClientPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value === c.id ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {c.full_name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
+            />
+
+
+
+            <FormField
+              control={form.control}
               name="represented_party"
               render={({ field }) => (
                 <FormItem>
