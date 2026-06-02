@@ -337,6 +337,69 @@ export default function StepDocumentData({
             }}
           />
 
+          {/* Processo vinculado — depende do cliente */}
+          <FormField
+            control={form.control}
+            name="caseId"
+            render={({ field }) => {
+              const clienteId = form.watch("clienteVinculadoId") || undefined;
+              // eslint-disable-next-line react-hooks/rules-of-hooks
+              const { cases: clientCases, isLoading: loadingCases } = useClientCases(clienteId);
+
+              const handleSelect = (value: string) => {
+                if (value === "__none__") {
+                  field.onChange("");
+                  form.setValue("selectedAnalysisFileIds", []);
+                  return;
+                }
+                field.onChange(value);
+                form.setValue("selectedAnalysisFileIds", []);
+                const c = clientCases.find((x) => x.id === value);
+                if (c) {
+                  form.setValue("numeroProcesso", c.case_number);
+                  if (c.court) form.setValue("vara", form.getValues("vara") || c.court);
+                }
+              };
+
+              return (
+                <FormItem>
+                  <FormLabel>Processo vinculado</FormLabel>
+                  {!clienteId ? (
+                    <p className="text-xs text-muted-foreground">
+                      Selecione um cliente acima para listar os processos.
+                    </p>
+                  ) : loadingCases ? (
+                    <p className="text-xs text-muted-foreground">Carregando processos...</p>
+                  ) : clientCases.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Este cliente ainda não possui processos cadastrados.
+                    </p>
+                  ) : (
+                    <Select value={field.value || "__none__"} onValueChange={handleSelect}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um processo..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">Não vincular</SelectItem>
+                        {clientCases.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.case_number}
+                            {c.court ? ` — ${c.court}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+
+
+
           {/* Número do processo */}
           {needsProcessNumber(documentType) && (
             <FormField
