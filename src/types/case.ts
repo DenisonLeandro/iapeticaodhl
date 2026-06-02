@@ -26,6 +26,7 @@ export interface Case {
   status: CaseStatus;
   opposing_party: string | null;
   assigned_to: string | null;
+  represented_party: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -161,6 +162,9 @@ export const caseFormSchema = z.object({
   client_id: z.string().optional(),
   assigned_to: z.string().optional(),
   status: z.enum(["active", "archived", "closed"]).default("active"),
+  represented_party: z
+    .enum(["autor", "reu", "recorrente", "recorrido", "exequente", "executado", "terceiro", "outro"])
+    .default("autor"),
 });
 
 export type CaseFormValues = z.infer<typeof caseFormSchema>;

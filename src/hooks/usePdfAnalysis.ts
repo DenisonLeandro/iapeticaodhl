@@ -5,7 +5,8 @@ export function useAnalyzePdf(clientId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (fileId: string) => analyzePdfFile(fileId),
+    mutationFn: (args: { fileId: string; representedParty?: string }) =>
+      analyzePdfFile(args.fileId, args.representedParty),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["client-files", clientId] });
     },

@@ -81,6 +81,6 @@ export interface ClientFile {
   extracted_text?: string | null;
   analysis_summary?: string | null;
   analysis_json?: Record<string, unknown> | null;
-
+  represented_party?: string | null;
 }
 

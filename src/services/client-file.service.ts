@@ -18,6 +18,7 @@ export async function listFiles(clientId: string): Promise<ClientFile[]> {
 export interface UploadFileOptions {
   document_kind?: string;
   case_id?: string;
+  represented_party?: string;
 }
 
 export async function uploadFile(
@@ -53,13 +54,13 @@ export async function uploadFile(
       description: description || null,
       document_kind: options?.document_kind ?? null,
       case_id: options?.case_id ?? null,
+      represented_party: options?.represented_party ?? null,
       processing_status: "pending",
     })
     .select()
     .single();
 
   if (dbError) {
-    // Attempt to clean up the uploaded file if DB insert fails
     await supabase.storage.from("client-documents").remove([storagePath]);
     throw new Error(`Erro ao salvar metadados do arquivo: ${dbError.message}`);
   }
@@ -71,12 +72,13 @@ export interface ClientCaseOption {
   id: string;
   case_number: string;
   court: string | null;
+  represented_party: string | null;
 }
 
 export async function listCasesByClient(clientId: string): Promise<ClientCaseOption[]> {
   const { data, error } = await supabase
     .from("cases")
-    .select("id, case_number, court")
+    .select("id, case_number, court, represented_party")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
