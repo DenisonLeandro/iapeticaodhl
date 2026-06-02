@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, User, Scale, Briefcase } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Briefcase, Link as LinkIcon, Scale, Sparkles, User } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +28,7 @@ import {
   STATUS_LABELS,
   type CaseStatus,
 } from "@/types/case";
+
 
 function DetailSkeleton() {
   return (
