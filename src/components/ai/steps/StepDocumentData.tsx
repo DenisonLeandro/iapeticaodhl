@@ -40,6 +40,12 @@ import {
 import type { DocumentType } from "@/types/ai";
 import { useClients } from "@/hooks/useClients";
 import { useClientCases } from "@/hooks/useClientDetail";
+import {
+  buildPetitionContextFromClientCaseAndDocuments,
+  type AutoFillField,
+  type FieldSource,
+} from "@/lib/ai/buildPetitionContext";
+
 
 
 interface StepDocumentDataProps {
