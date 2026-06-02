@@ -32,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useClientFiles, useDeleteFile, useFileUrl, useClientCases } from "@/hooks/useClientDetail";
 import { useAnalyzePdf } from "@/hooks/usePdfAnalysis";
 import { DOCUMENT_KINDS } from "@/schemas/client.schema";
+import { REPRESENTED_PARTY_LABELS, isRepresentedParty } from "@/lib/represented-party";
 import type { ClientFile } from "@/types/client";
 import FileUploadDialog from "./FileUploadDialog";
 import FileAnalysisDialog from "./FileAnalysisDialog";
@@ -162,6 +163,11 @@ function FileRow({
           {showStatus && statusInfo && (
             <Badge variant={statusInfo.variant} className="font-normal">
               {statusInfo.label}
+            </Badge>
+          )}
+          {file.represented_party && isRepresentedParty(file.represented_party) && (
+            <Badge variant="secondary" className="font-normal">
+              Perspectiva: {REPRESENTED_PARTY_LABELS[file.represented_party]}
             </Badge>
           )}
         </div>
