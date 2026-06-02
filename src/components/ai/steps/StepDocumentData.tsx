@@ -198,6 +198,68 @@ export default function StepDocumentData({
     form.setValue("documentType", documentType);
   }, [documentType, form]);
 
+  /**
+   * Aplica um contexto consolidado ao formulário respeitando dirtyFields.
+   * Não marca os campos como dirty (shouldDirty: false).
+   */
+  const applyContext = (
+    client: Parameters<typeof buildPetitionContextFromClientCaseAndDocuments>[0]["client"],
+    caseRow: Parameters<typeof buildPetitionContextFromClientCaseAndDocuments>[0]["caseRow"],
+  ) => {
+    const dirtyFields = form.formState.dirtyFields as Record<string, unknown>;
+    const isDirty = (path: string) => {
+      // dirtyFields para campos aninhados vem como { autor: { nome: true } }
+      const parts = path.split(".");
+      let node: unknown = dirtyFields;
+      for (const p of parts) {
+        if (!node || typeof node !== "object") return false;
+        node = (node as Record<string, unknown>)[p];
+      }
+      return Boolean(node);
+    };
+
+    const ctx = buildPetitionContextFromClientCaseAndDocuments({
+      client: client ?? null,
+      caseRow: caseRow ?? null,
+      dirtyFields: {
+        "autor.nome": isDirty("autor.nome"),
+        "autor.cpfCnpj": isDirty("autor.cpfCnpj"),
+        "autor.endereco": isDirty("autor.endereco"),
+        "reu.nome": isDirty("reu.nome"),
+        numeroProcesso: isDirty("numeroProcesso"),
+        tribunal: isDirty("tribunal"),
+        vara: isDirty("vara"),
+        assunto: isDirty("assunto"),
+        representedParty: isDirty("representedParty"),
+      },
+    });
+
+    // Aplica somente os campos que foram resolvidos no contexto (i.e., não-manuais com valor).
+    for (const [field, value] of Object.entries(ctx.values)) {
+      if (value === undefined || value === "") continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      form.setValue(field as any, value as any, { shouldDirty: false, shouldValidate: false });
+    }
+
+    // Atualiza badges de origem (preserva sources de campos não tocados nesta chamada).
+    setFieldSources((prev) => ({ ...prev, ...ctx.sources }));
+    setContextAlerts(ctx.alerts);
+  };
+
+  const SourceBadge = ({ field }: { field: AutoFillField }) => {
+    const source = fieldSources[field];
+    if (!source || source === "manual" || source === "default") return null;
+    const label =
+      source === "case"
+        ? "preenchido a partir do processo"
+        : source === "client"
+        ? "preenchido a partir do cliente"
+        : "sugerido pela análise do PDF";
+    return <p className="mt-1 text-[11px] text-muted-foreground italic">{label}</p>;
+  };
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
