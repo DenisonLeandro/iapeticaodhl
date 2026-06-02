@@ -5,8 +5,18 @@
 // =============================================================================
 
 import type { Client, ClientAddress, ClientFile } from "@/types/client";
-import type { Case } from "@/types/case";
 import { maskCPF, maskCNPJ } from "@/schemas/client.schema";
+
+/** Subconjunto de `cases` que o helper consome. */
+export interface CaseLike {
+  case_number?: string | null;
+  court?: string | null;
+  branch?: string | null;
+  subject?: string | null;
+  opposing_party?: string | null;
+  represented_party?: string | null;
+}
+
 
 export type FieldSource = "manual" | "case" | "client" | "analysis" | "default";
 
