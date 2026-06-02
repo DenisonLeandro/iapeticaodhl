@@ -52,6 +52,7 @@ export function useDocumentGeneration() {
         organizationId: organization.id,
         prompt: userPrompt,
         systemPrompt,
+        processAnalysisIds: params.processAnalysisIds ?? [],
       };
 
       if (USE_EDGE_FUNCTIONS) {
@@ -70,6 +71,7 @@ export function useDocumentGeneration() {
         organizationId: requestBody.organizationId,
         documentType: params.documentType,
         context: params.context,
+        processAnalysisIds: params.processAnalysisIds ?? [],
       });
     },
     onSuccess: () => setStatus("success"),
