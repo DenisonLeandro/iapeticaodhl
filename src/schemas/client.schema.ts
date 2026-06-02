@@ -149,13 +149,35 @@ const ALLOWED_MIME_TYPES = [
   "application/pdf",
 ] as const;
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE_LABEL = "50 MB";
+
+export const DOCUMENT_KINDS = [
+  { value: "geral", label: "Documento geral do cliente" },
+  { value: "pdf_integral", label: "PDF integral do processo" },
+  { value: "inicial", label: "Petição inicial" },
+  { value: "contestacao", label: "Contestação" },
+  { value: "replica", label: "Réplica" },
+  { value: "sentenca", label: "Sentença" },
+  { value: "acordao", label: "Acórdão" },
+  { value: "laudo", label: "Laudo" },
+  { value: "manifestacao", label: "Manifestação" },
+  { value: "documentos", label: "Documentos" },
+  { value: "audiencia", label: "Audiência" },
+  { value: "recurso", label: "Recurso" },
+  { value: "outros", label: "Outros" },
+] as const;
+
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number]["value"];
+
+export const FILE_TOO_LARGE_MESSAGE =
+  "Este arquivo ultrapassa o limite permitido de 50 MB. Divida o processo em volumes ou envie arquivos menores.";
 
 export const fileUploadSchema = z.object({
   file: z
     .instanceof(File)
     .refine((file) => file.size <= MAX_FILE_SIZE, {
-      message: "Arquivo deve ter no máximo 10MB",
+      message: FILE_TOO_LARGE_MESSAGE,
     })
     .refine(
       (file) => (ALLOWED_MIME_TYPES as readonly string[]).includes(file.type),
@@ -164,8 +186,11 @@ export const fileUploadSchema = z.object({
       },
     ),
   description: z.string().optional().default(""),
+  document_kind: z.string().optional(),
+  case_id: z.string().uuid().optional(),
 });
 
 export type FileUploadValues = z.infer<typeof fileUploadSchema>;
 
-export { ALLOWED_MIME_TYPES, MAX_FILE_SIZE };
+export { ALLOWED_MIME_TYPES, MAX_FILE_SIZE, MAX_FILE_SIZE_LABEL };
+
