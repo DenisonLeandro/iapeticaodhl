@@ -135,18 +135,21 @@ export default function CaseForm({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {isEditing ? (
-          <Button variant="outline" size="sm">
-            Editar
-          </Button>
-        ) : (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Processo
-          </Button>
-        )}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          {isEditing ? (
+            <Button variant="outline" size="sm">
+              Editar
+            </Button>
+          ) : (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Processo
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
+
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
