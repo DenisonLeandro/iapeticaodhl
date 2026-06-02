@@ -181,6 +181,9 @@ function FileRow({
 export default function ClientFilesSection({ clientId }: ClientFilesSectionProps) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { files, isLoading, error } = useClientFiles(clientId);
+  const { cases } = useClientCases(clientId);
+
+  const caseMap = new Map(cases.map((c) => [c.id, c.case_number]));
 
   if (isLoading) {
     return (
@@ -223,10 +226,16 @@ export default function ClientFilesSection({ clientId }: ClientFilesSectionProps
       ) : (
         <div className="space-y-3">
           {files.map((file) => (
-            <FileRow key={file.id} file={file} clientId={clientId} />
+            <FileRow
+              key={file.id}
+              file={file}
+              clientId={clientId}
+              caseNumber={file.case_id ? caseMap.get(file.case_id) : undefined}
+            />
           ))}
         </div>
       )}
+
 
       {/* Upload Dialog */}
       <FileUploadDialog
