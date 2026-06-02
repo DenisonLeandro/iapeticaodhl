@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileUp, Loader2, X, FileText, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,12 @@ import {
   DOCUMENT_KINDS,
 } from "@/schemas/client.schema";
 import { useUploadFile, useClientCases } from "@/hooks/useClientDetail";
+import {
+  DEFAULT_REPRESENTED_PARTY,
+  REPRESENTED_PARTY_LABELS,
+  REPRESENTED_PARTY_OPTIONS,
+  type RepresentedParty,
+} from "@/lib/represented-party";
 
 interface FileUploadDialogProps {
   open: boolean;
@@ -50,10 +57,14 @@ export default function FileUploadDialog({
   onOpenChange,
   clientId,
 }: FileUploadDialogProps) {
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [documentKind, setDocumentKind] = useState<string>(NO_KIND);
   const [caseId, setCaseId] = useState<string>(NO_CASE);
+  const [representedParty, setRepresentedParty] = useState<RepresentedParty>(
+    DEFAULT_REPRESENTED_PARTY,
+  );
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -62,11 +73,19 @@ export default function FileUploadDialog({
   const uploadFile = useUploadFile(clientId);
   const { cases, isLoading: isLoadingCases } = useClientCases(clientId);
 
+  const selectedCase = useMemo(
+    () => (caseId !== NO_CASE ? cases.find((c) => c.id === caseId) ?? null : null),
+    [cases, caseId],
+  );
+
+  const inheritedParty = (selectedCase?.represented_party as RepresentedParty | null) ?? null;
+
   const resetState = useCallback(() => {
     setSelectedFile(null);
     setDescription("");
     setDocumentKind(NO_KIND);
     setCaseId(NO_CASE);
+    setRepresentedParty(DEFAULT_REPRESENTED_PARTY);
     setPreview(null);
     setUploadProgress(0);
     setValidationError(null);
@@ -144,12 +163,17 @@ export default function FileUploadDialog({
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
 
+      // Quando há caso vinculado, a fonte da verdade é o represented_party do caso.
+      // Caso contrário, persistimos o valor escolhido no diálogo.
+      const partyToPersist = selectedCase ? undefined : representedParty;
+
       await uploadFile.mutateAsync({
         file: selectedFile,
         description: description || undefined,
         options: {
           document_kind: documentKind !== NO_KIND ? documentKind : undefined,
           case_id: caseId !== NO_CASE ? caseId : undefined,
+          represented_party: partyToPersist,
         },
       });
 
@@ -170,6 +194,11 @@ export default function FileUploadDialog({
   const handleClose = (value: boolean) => {
     if (!value) resetState();
     onOpenChange(value);
+  };
+
+  const goToCases = () => {
+    onOpenChange(false);
+    navigate("/cases");
   };
 
   return (
@@ -287,9 +316,23 @@ export default function FileUploadDialog({
             {isLoadingCases ? (
               <p className="text-xs text-muted-foreground">Carregando processos...</p>
             ) : cases.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Nenhum processo cadastrado para este cliente.
-              </p>
+              <div className="rounded-md border border-dashed border-border bg-muted/40 p-3">
+                <p className="text-sm">
+                  Este cliente ainda não possui processo cadastrado.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Cadastre um processo para vincular o documento e habilitar a análise com a parte representada correta.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={goToCases}
+                >
+                  Cadastrar processo
+                </Button>
+              </div>
             ) : (
               <Select value={caseId} onValueChange={setCaseId}>
                 <SelectTrigger id="case-link">
@@ -305,6 +348,39 @@ export default function FileUploadDialog({
                   ))}
                 </SelectContent>
               </Select>
+            )}
+          </div>
+
+          {/* Parte representada */}
+          <div className="space-y-2">
+            <Label htmlFor="represented-party">Parte representada pelo escritório</Label>
+            {selectedCase ? (
+              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                {inheritedParty
+                  ? `Herdada do processo: ${REPRESENTED_PARTY_LABELS[inheritedParty] ?? inheritedParty}`
+                  : "Este processo ainda não tem parte representada definida. A análise usará Autor / Requerente / Reclamante como padrão. Edite o processo para alterar."}
+              </div>
+            ) : (
+              <>
+                <Select
+                  value={representedParty}
+                  onValueChange={(v) => setRepresentedParty(v as RepresentedParty)}
+                >
+                  <SelectTrigger id="represented-party">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPRESENTED_PARTY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  A análise por IA será feita sob a perspectiva desta parte.
+                </p>
+              </>
             )}
           </div>
 

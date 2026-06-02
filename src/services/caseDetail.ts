@@ -44,6 +44,7 @@ export async function fetchCaseById(caseId: string): Promise<CaseWithRelations> 
     status: row.status as CaseWithRelations["status"],
     opposing_party: row.opposing_party as string | null,
     assigned_to: row.assigned_to as string | null,
+    represented_party: (row.represented_party as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     client_name: (row.client as { full_name: string } | null)?.full_name ?? null,

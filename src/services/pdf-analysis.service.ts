@@ -4,13 +4,17 @@ export interface PdfAnalyzeResponse {
   status: "analyzed" | "error";
   summary?: string;
   analysis_json?: Record<string, unknown>;
+  represented_party?: string;
   message?: string;
   error?: string;
 }
 
-export async function analyzePdfFile(fileId: string): Promise<PdfAnalyzeResponse> {
+export async function analyzePdfFile(
+  fileId: string,
+  representedParty?: string,
+): Promise<PdfAnalyzeResponse> {
   const { data, error } = await supabase.functions.invoke("process-pdf-analyze", {
-    body: { file_id: fileId },
+    body: { file_id: fileId, represented_party: representedParty },
   });
 
   if (error) {

@@ -82,6 +82,7 @@ export async function fetchCases(
     status: row.status,
     opposing_party: row.opposing_party,
     assigned_to: row.assigned_to,
+    represented_party: (row as { represented_party?: string | null }).represented_party ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     client_name: row.client_id ? clientMap.get(row.client_id) ?? null : null,
@@ -105,6 +106,7 @@ export async function createCase(
     client_id: values.client_id || null,
     assigned_to: values.assigned_to || null,
     status: values.status,
+    represented_party: values.represented_party ?? "autor",
   });
 
   if (error) {
@@ -126,6 +128,7 @@ export async function updateCase(
   if (values.client_id !== undefined) updateData.client_id = values.client_id || null;
   if (values.assigned_to !== undefined) updateData.assigned_to = values.assigned_to || null;
   if (values.status !== undefined) updateData.status = values.status;
+  if (values.represented_party !== undefined) updateData.represented_party = values.represented_party;
 
   const { error } = await supabase
     .from("cases")
