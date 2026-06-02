@@ -18,6 +18,7 @@ interface AIGenerateBody {
   documentType?: string;
   context?: Record<string, string>;
   systemPrompt?: string;
+  processAnalysisIds?: string[];
 }
 
 interface LLMResult {
