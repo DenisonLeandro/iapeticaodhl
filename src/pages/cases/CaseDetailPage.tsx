@@ -46,10 +46,12 @@ function DetailSkeleton() {
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [editOpen, setEditOpen] = useState(false);
 
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
   const { documents, isLoading: documentsLoading } = useCaseDocuments(id);
+
 
   if (caseLoading) {
     return <DetailSkeleton />;
