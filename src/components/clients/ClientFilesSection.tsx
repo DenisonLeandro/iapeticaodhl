@@ -41,8 +41,6 @@ const STATUS_LABELS: Record<string, { label: string; variant: "secondary" | "def
   error: { label: "Erro", variant: "destructive" },
 };
 
-import type { ClientFile } from "@/types/client";
-import FileUploadDialog from "./FileUploadDialog";
 
 interface ClientFilesSectionProps {
   clientId: string;
