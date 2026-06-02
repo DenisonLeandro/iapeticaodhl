@@ -327,22 +327,12 @@ export default function StepDocumentData({
                 const client = clients?.find((c) => c.id === clientId);
                 if (!client) return;
                 field.onChange(clientId);
-                // Auto-fill autor fields
-                form.setValue("autor.nome", client.full_name);
-                if (client.document_number) {
-                  const formatted = client.document_type === "cnpj"
-                    ? maskCNPJ(client.document_number)
-                    : maskCPF(client.document_number);
-                  form.setValue("autor.cpfCnpj", formatted);
-                }
-                if (client.address && typeof client.address === "object") {
-                  const addr = client.address as unknown as Record<string, string>;
-                  const parts = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state].filter(Boolean);
-                  form.setValue("autor.endereco", parts.join(", "));
-                }
+                // Auto-fill via helper (respeita dirtyFields, não sobrescreve manual)
+                applyContext(client, null);
                 setClientPopoverOpen(false);
                 setClientSearch("");
               };
+
 
               return (
                 <FormItem className="flex flex-col">
