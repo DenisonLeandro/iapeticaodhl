@@ -183,7 +183,7 @@ function FileRow({
                   variant={isHighlighted ? "default" : "outline"}
                   size="sm"
                   onClick={runAnalyze}
-                  disabled={analyze.isPending || status === "processing"}
+                  disabled={analyze.isPending}
                 >
                   {analyze.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
