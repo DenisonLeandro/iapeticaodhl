@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, User, Scale, Briefcase } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Briefcase, Link as LinkIcon, Scale, Sparkles, User } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +29,7 @@ import {
   type CaseStatus,
 } from "@/types/case";
 
+
 function DetailSkeleton() {
   return (
     <div className="space-y-6">
@@ -43,10 +46,12 @@ function DetailSkeleton() {
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [editOpen, setEditOpen] = useState(false);
 
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
   const { documents, isLoading: documentsLoading } = useCaseDocuments(id);
+
 
   if (caseLoading) {
     return <DetailSkeleton />;
@@ -111,9 +116,29 @@ export default function CaseDetailPage() {
             <Sparkles className="mr-2 h-4 w-4" />
             Gerar Documento com IA
           </Button>
-          <CaseForm editCase={caseData} />
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            Editar
+          </Button>
+          <CaseForm editCase={caseData} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
         </div>
       </div>
+
+      {!caseData.client_id && (
+        <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Processo sem cliente vinculado</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Este processo ainda não está vinculado a nenhum cliente. Vincule um cliente
+              para usar documentos, PDFs e geração de petições com IA.
+            </span>
+            <Button size="sm" onClick={() => setEditOpen(true)}>
+              <LinkIcon className="mr-2 h-4 w-4" />
+              Vincular cliente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Case Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -140,9 +165,22 @@ export default function CaseDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-semibold">
-              {caseData.client_name ?? "Não vinculado"}
-            </p>
+            {caseData.client_id ? (
+              <Link
+                to={`/clients/${caseData.client_id}`}
+                className="text-lg font-semibold text-primary hover:underline"
+              >
+                {caseData.client_name ?? "Cliente vinculado"}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="text-lg font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Não vinculado · vincular
+              </button>
+            )}
             {caseData.opposing_party && (
               <p className="text-sm text-muted-foreground">
                 vs. {caseData.opposing_party}
@@ -150,6 +188,7 @@ export default function CaseDetailPage() {
             )}
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader className="pb-2">

@@ -1,65 +1,71 @@
-# Correção: "Processo não encontrado ou erro ao carregar dados"
 
-## Diagnóstico
+## Diagnóstico do que existe hoje
 
-Investiguei o processo informado e o problema é **um bug na query do detalhe do processo**, não permissão/RLS nem rota errada.
+**1. No cadastro/edição de Processo (`CaseForm.tsx`)**
+- O schema já tem `client_id` opcional e o serviço `createCase/updateCase` já persiste o campo.
+- **Mas o formulário NÃO renderiza nenhum campo "Cliente"** — só existe no `defaultValues`. Por isso o processo `0000777-…` ficou com `client_id = NULL`: não há como escolher cliente ao criar/editar.
 
-### Fatos confirmados
+**2. Na página de detalhe do Processo (`CaseDetailPage.tsx`)**
+- Existe um card "Cliente" que mostra "Não vinculado" quando nulo, mas **sem CTA** para vincular.
 
-- **Processo existe** na tabela `public.cases`:
-  - `id` (UUID): `9c035db9-faf4-40b4-9339-c0341c075e5f`
-  - `case_number`: `0000777-55.2025.5.09.0673`
-  - `organization_id`: `2a4a4b01-a471-4bb4-a7a7-65048db8983c` (mesma do usuário logado)
-  - `client_id`: **NULL** (processo não foi vinculado a nenhum cliente no cadastro)
-- **Rota está correta**: `CasesPage` navega para `/cases/{caseItem.id}` usando o UUID, e `CaseDetailPage` lê `:id` e chama `fetchCaseById(id)`. Não há mistura entre UUID e número CNJ.
-- **RLS está OK**: a política `cases_org_isolation` permite SELECT para perfis da mesma `organization_id`, e a listagem em `/cases` funciona (o processo aparece na tabela).
+**3. Na página do Cliente (`ClientDetailPage.tsx`)**
+- Existe aba "Processos" (`ClientCasesSection.tsx`) que lista `cases` por `client_id`.
+- **Mas não há botão para vincular processo existente nem para criar processo já vinculado.** O link "abrir" também vai para `/cases` (lista) em vez de `/cases/{id}`.
 
-### Causa raiz
+**4. No upload de arquivo (`FileUploadDialog.tsx`)**
+- Já lista processos do cliente; quando não há, mostra CTA "Cadastrar processo". OK — só precisa garantir que o novo fluxo apareça.
 
-`src/services/caseDetail.ts → fetchCaseById` usa join embutido do PostgREST com nomes de FKs **inexistentes / errados**:
+**Conclusão:** o vínculo existe no banco e no serviço, mas a UI não expõe. Nenhuma migration é necessária.
 
-```ts
-.select(`
-  *,
-  client:profiles!cases_client_id_fkey(full_name),     // ❌ FK não existe; e client_id aponta para clients, não profiles
-  lawyer:profiles!cases_assigned_to_fkey(full_name)    // ✅ FK existe, mas o join falha junto pelo erro acima
-`)
+## Arquivos a alterar
+
+- `src/components/cases/CaseForm.tsx` — adicionar campo **Cliente vinculado** (combobox pesquisável com opção "Sem cliente"), reusando `useClients`.
+- `src/pages/cases/CaseDetailPage.tsx` — quando `client_id` for null, exibir alerta destacado "Este processo ainda não está vinculado a nenhum cliente…" com botão **Vincular cliente** que abre o `CaseForm` em modo edição. Quando vinculado, transformar o nome do cliente em link para `/clients/{id}`.
+- `src/components/clients/ClientCasesSection.tsx` — cabeçalho com dois botões: **Cadastrar novo processo** (abre `CaseForm` com `client_id` pré-preenchido) e **Vincular processo existente** (abre novo diálogo). Empty state com mensagem amigável. Itens da lista linkam para `/cases/{id}`.
+- `src/components/cases/CaseForm.tsx` — aceitar prop opcional `defaultClientId` para pré-vincular ao abrir pela página do cliente.
+- **Novo:** `src/components/clients/LinkExistingCaseDialog.tsx` — diálogo que lista processos da organização **sem `client_id`** (combobox pesquisável por número/assunto) e faz `updateCase({ client_id })`.
+- `src/services/cases.ts` — adicionar `fetchUnlinkedCases(organizationId)` para alimentar o diálogo acima.
+- `src/hooks/useCases.ts` — pequeno hook `useUnlinkedCases()` + invalidação adequada de `client-cases` e `cases` após link/unlink.
+
+## Detalhes técnicos
+
+- **Combobox de cliente** no `CaseForm`: usar `Command` + `Popover` do shadcn (já presentes via `cmdk`). Itens carregados via `useClients({ pageSize: 50, search })` com busca server-side (já suportado). Incluir item fixo "— Sem cliente —" que envia `client_id = ""`.
+- **Botão "Vincular cliente"** no `CaseDetailPage`: usa o `CaseForm` já existente em modo edição (não precisa criar mini-form separado).
+- **`LinkExistingCaseDialog`**: SELECT em `cases` com `organization_id = X AND client_id IS NULL`, ordenado por `created_at desc`, com busca por `case_number`. Confirmação → `updateCase(caseId, { client_id: clientId })` → invalidar `["client-cases", clientId]` e `["cases"]`.
+- **Avisos (Alert do shadcn)**:
+  - Processo sem cliente (detalhe): variante destrutiva/aviso no topo, com CTA.
+  - Cliente sem processos (aba Processos): empty state já existente, atualizado com os 2 CTAs.
+- **Links**:
+  - `ClientCasesSection` → trocar `<Link to="/cases">` por `<Link to={\`/cases/${c.id}\`}>`.
+  - `CaseDetailPage` → cliente vira `<Link to={\`/clients/${client_id}\`}>` quando vinculado.
+
+Nenhuma alteração de RLS, schema, edge functions, wizard ou `ai-generate`.
+
+## Fluxo recomendado para o usuário
+
+```
+Pelo PROCESSO
+  /cases → abrir processo → card "Cliente"
+    sem cliente: Alert + botão "Vincular cliente" → CaseForm (edit) → escolhe no combobox → salvar
+    com cliente: nome clicável → vai para /clients/{id}
+
+Pelo CLIENTE
+  /clients/{id} → aba Processos
+    botão "Cadastrar novo processo"   → CaseForm com client_id pré-preenchido
+    botão "Vincular processo existente" → LinkExistingCaseDialog → escolhe processo órfão → confirma
+    lista de processos vinculados → cada item linka /cases/{id}
+
+Pelo UPLOAD de arquivo (já existe)
+  aba Arquivos → "Anexar arquivo" → select de processos do cliente
+    se vazio: CTA "Cadastrar processo para este cliente" (já funciona)
 ```
 
-Conferindo no banco, as únicas FKs em `cases` são `cases_assigned_to_fkey` (→ profiles) e `cases_organization_id_fkey` (→ organizations). **Não existe `cases_client_id_fkey`**, e `client_id` referencia conceitualmente a tabela `clients` (não `profiles`). Resultado: o PostgREST retorna erro de relacionamento, `fetchCaseById` joga exception, e a página cai no branch `caseError → "Processo não encontrado ou erro ao carregar dados."`.
+## Como testar depois
 
-A listagem (`src/services/cases.ts → fetchCases`) já evita o problema usando **split queries** contra `clients` e `profiles` — por isso a lista funciona e só o detalhe quebra. Esta é, inclusive, a convenção do projeto registrada em memória ("split-queries em vez de JOINs").
-
-## Correção
-
-Refatorar `fetchCaseById` para o mesmo padrão split-query usado em `fetchCases`:
-
-1. Buscar a row de `cases` por `id` (sem joins embutidos).
-2. Em paralelo, se `client_id` não for nulo, buscar `full_name` em `public.clients`.
-3. Em paralelo, se `assigned_to` não for nulo, buscar `full_name` em `public.profiles`.
-4. Montar o `CaseWithRelations` com `client_name` e `lawyer_name` preenchidos (ou `null` quando não houver vínculo).
-
-Sem mudança de tipos, sem mudança de rota, sem migration, sem mexer em RLS.
-
-### Arquivo alterado
-
-- `src/services/caseDetail.ts` — apenas a função `fetchCaseById`. As demais funções (`fetchCaseMovements`, `fetchCaseDocuments`, `createMovement`) permanecem inalteradas.
-
-## Checagens dos demais itens pedidos
-
-- **Vínculo cliente / org**: o processo `0000777-...` está com `client_id = NULL`. Não é bug — foi cadastrado sem cliente. Após a correção, abrirá normalmente e mostrará "Não vinculado" no card de Cliente (comportamento já previsto em `CaseDetailPage`). Se você quiser vincular, basta editar o processo.
-- **Select "Vincular a um processo" no upload**: continua filtrando por `client_id` do cliente atual. Como este processo está sem cliente, ele **não aparece** no select de nenhum cliente — comportamento correto. Para que apareça, edite o processo e vincule ao cliente desejado.
-- **Botão "Cadastrar processo"** (vindo da aba Arquivos quando o cliente não tem processos): leva para `/cases` com modal aberto — fluxo correto, já validado na Fase 3.
-- **Normalização CNJ**: a rota usa UUID, então não há necessidade de normalizar máscara.
-
-## Não incluído nesta correção
-
-- Fase 4 (integração com DocumentWizard / `ai-generate`) — segue bloqueada até este fix passar nos testes.
-- Qualquer alteração em migrations, RLS, edge functions ou outros serviços.
-
-## Como testar após implementação
-
-1. Em `/cases`, clicar no processo `0000777-55.2025.5.09.0673` → deve abrir o detalhe sem erro, mostrando "Não vinculado" no card de Cliente.
-2. Editar esse processo e vincular a um cliente → reabrir o detalhe → cliente deve aparecer.
-3. Abrir um cliente que já tenha processos vinculados e confirmar que o select "Vincular a um processo" no upload continua listando-os.
-4. Conferir console do navegador: sem erro de relationship/PGRST.
+1. Abrir o processo órfão `0000777-…` → ver alerta + botão "Vincular cliente" → vincular a um cliente existente → recarregar e conferir nome no card e link funcionando.
+2. Em `/clients/{id}` → aba Processos → o processo recém-vinculado aparece e o link abre o detalhe correto.
+3. Criar novo processo pelo botão dentro do cliente → confirmar que `client_id` já vem preenchido (não editável ou pré-selecionado).
+4. Em outro cliente, usar "Vincular processo existente" para anexar outro processo órfão; confirmar que ele some da lista de órfãos.
+5. Editar processo já vinculado e trocar para outro cliente; confirmar que sai do cliente A e aparece no cliente B.
+6. Cliente novo (sem processo) → ver mensagem amigável com os 2 CTAs.
+7. Subir PDF na aba Arquivos do cliente que agora tem processo → o select "Vincular a um processo" lista o processo corretamente.

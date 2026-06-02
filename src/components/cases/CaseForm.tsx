@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { useCaseMutations, useLawyers } from "@/hooks/useCases";
+import { useClients } from "@/hooks/useClients";
 import {
   caseFormSchema,
   COURT_OPTIONS,
@@ -41,15 +56,41 @@ import { REPRESENTED_PARTY_OPTIONS } from "@/lib/represented-party";
 
 interface CaseFormProps {
   editCase?: Case;
+  defaultClientId?: string;
   onSuccess?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
-  const [open, setOpen] = useState(false);
+export default function CaseForm({
+  editCase,
+  defaultClientId,
+  onSuccess,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  hideTrigger,
+}: CaseFormProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onOpenChangeProp) onOpenChangeProp(v);
+    else setInternalOpen(v);
+  };
   const { createCase, isCreating, updateCase, isUpdating } = useCaseMutations();
   const { lawyers } = useLawyers();
+  const [clientSearch, setClientSearch] = useState("");
+  const { clients: clientResults } = useClients({
+    search: clientSearch,
+    page: 1,
+    pageSize: 50,
+    sortBy: "full_name",
+    sortOrder: "asc",
+  });
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
   const isEditing = !!editCase;
   const isSubmitting = isCreating || isUpdating;
+
 
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(caseFormSchema),
@@ -59,7 +100,7 @@ export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
       branch: editCase?.branch ?? "",
       subject: editCase?.subject ?? "",
       opposing_party: editCase?.opposing_party ?? "",
-      client_id: editCase?.client_id ?? "",
+      client_id: editCase?.client_id ?? defaultClientId ?? "",
       assigned_to: editCase?.assigned_to ?? "",
       status: editCase?.status ?? "active",
       represented_party:
@@ -94,18 +135,21 @@ export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {isEditing ? (
-          <Button variant="outline" size="sm">
-            Editar
-          </Button>
-        ) : (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Processo
-          </Button>
-        )}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          {isEditing ? (
+            <Button variant="outline" size="sm">
+              Editar
+            </Button>
+          ) : (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Processo
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
+
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
@@ -207,6 +251,88 @@ export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="client_id"
+              render={({ field }) => {
+                const selected = clientResults.find((c) => c.id === field.value);
+                const label = selected?.full_name ?? "— Sem cliente —";
+                return (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Cliente vinculado</FormLabel>
+                    <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground",
+                            )}
+                          >
+                            {label}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Buscar cliente por nome, CPF/CNPJ ou e-mail..."
+                            value={clientSearch}
+                            onValueChange={setClientSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="__none__"
+                                onSelect={() => {
+                                  field.onChange("");
+                                  setClientPopoverOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    !field.value ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                — Sem cliente —
+                              </CommandItem>
+                              {clientResults.map((c) => (
+                                <CommandItem
+                                  key={c.id}
+                                  value={c.id}
+                                  onSelect={() => {
+                                    field.onChange(c.id);
+                                    setClientPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      field.value === c.id ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {c.full_name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
+            />
+
+
 
             <FormField
               control={form.control}
