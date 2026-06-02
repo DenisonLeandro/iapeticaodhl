@@ -66,9 +66,11 @@ function FileIcon({ fileType }: { fileType: string | null }) {
 function FileRow({
   file,
   clientId,
+  caseNumber,
 }: {
   file: ClientFile;
   clientId: string;
+  caseNumber?: string;
 }) {
   const deleteFile = useDeleteFile(clientId);
   const getUrl = useFileUrl();
@@ -91,6 +93,10 @@ function FileRow({
     }
   };
 
+  const kindLabel = file.document_kind ? KIND_LABELS[file.document_kind] : null;
+  const status = file.processing_status ? STATUS_LABELS[file.processing_status] : null;
+  const showStatus = status && file.document_kind && file.document_kind !== "geral";
+
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border p-4">
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-muted">
@@ -98,17 +104,33 @@ function FileRow({
       </div>
       <div className="flex-1 min-w-0 space-y-1">
         <p className="truncate text-sm font-medium">{file.file_name}</p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{formatFileSize(file.file_size)}</span>
-          <span>-</span>
+          <span>•</span>
           <span>
             {format(new Date(file.created_at), "dd/MM/yyyy", { locale: ptBR })}
           </span>
+          {kindLabel && (
+            <Badge variant="outline" className="font-normal">
+              {kindLabel}
+            </Badge>
+          )}
+          {caseNumber && (
+            <span className="text-muted-foreground">
+              Processo: <span className="font-medium text-foreground">{caseNumber}</span>
+            </span>
+          )}
+          {showStatus && (
+            <Badge variant={status!.variant} className="font-normal">
+              {status!.label}
+            </Badge>
+          )}
         </div>
         {file.description && (
           <p className="text-xs text-muted-foreground">{file.description}</p>
         )}
       </div>
+
       <div className="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
