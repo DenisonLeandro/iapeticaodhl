@@ -205,7 +205,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: AIGenerateBody = await req.json();
-    const { prompt, provider, model, organizationId, systemPrompt } = body;
+    const { prompt, provider, model, organizationId, systemPrompt, processAnalysisIds } = body;
 
     if (!prompt || !provider || !model || !organizationId) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -213,17 +213,83 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const sysPrompt = systemPrompt || DEFAULT_SYSTEM;
+    // Service-role client for cross-table reads, scoped by organization
+    const serviceSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // Verify the caller actually belongs to organizationId (never trust client)
+    const { data: profile } = await serviceSupabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const userOrgId = (profile as { organization_id?: string } | null)?.organization_id;
+    if (!userOrgId || userOrgId !== organizationId) {
+      return new Response(JSON.stringify({ error: "Organization mismatch" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Build analysis block from selected, analyzed client_files in the same org
+    let analysisBlock = "";
+    let representedParty: string | null = null;
+    if (Array.isArray(processAnalysisIds) && processAnalysisIds.length > 0) {
+      const { data: files } = await serviceSupabase
+        .from("client_files")
+        .select("id, organization_id, file_name, document_kind, represented_party, processing_status, analysis_summary, analysis_json")
+        .in("id", processAnalysisIds)
+        .eq("organization_id", organizationId)
+        .eq("processing_status", "analyzed");
+
+      const safe = (files ?? []) as Array<Record<string, unknown>>;
+      if (safe.length > 0) {
+        const parts: string[] = ["\n\n--- ANÁLISE DOS DOCUMENTOS DO PROCESSO ---"];
+        for (const f of safe) {
+          const j = (f.analysis_json ?? {}) as Record<string, unknown>;
+          if (!representedParty && f.represented_party) representedParty = f.represented_party as string;
+          const get = (k: string): string => {
+            const v = j[k];
+            if (Array.isArray(v)) return v.map(String).join("; ");
+            return typeof v === "string" ? v : "";
+          };
+          parts.push(`\nDocumento: ${f.file_name}`);
+          if (f.document_kind) parts.push(`Tipo: ${f.document_kind}`);
+          if (f.represented_party) parts.push(`Perspectiva: ${f.represented_party}`);
+          if (f.analysis_summary) parts.push(`Resumo: ${f.analysis_summary}`);
+          const fav = get("pontos_favoraveis_a_parte_representada");
+          const risk = get("pontos_de_risco_para_parte_representada");
+          const teses = get("teses_da_parte_contraria");
+          const dec = get("decisoes_despachos");
+          const prov = get("provas_identificadas");
+          const est = get("estrategia_recomendada_para_parte_representada");
+          const nao = get("informacoes_nao_encontradas");
+          if (fav) parts.push(`Pontos favoráveis: ${fav}`);
+          if (risk) parts.push(`Riscos: ${risk}`);
+          if (teses) parts.push(`Teses da parte contrária: ${teses}`);
+          if (dec) parts.push(`Decisões/despachos: ${dec}`);
+          if (prov) parts.push(`Provas identificadas: ${prov}`);
+          if (est) parts.push(`Estratégia recomendada: ${est}`);
+          if (nao) parts.push(`Informações não encontradas: ${nao}`);
+        }
+        analysisBlock = parts.join("\n");
+      }
+    }
+
+    const partyRule = representedParty
+      ? `\n\nREGRA DE PERSPECTIVA: O escritório representa a parte "${representedParty}". Defenda essa parte. NÃO inverta polos. Use apenas o formulário e os documentos analisados — não invente fatos. Sinalize claramente quando alguma informação não estiver disponível.`
+      : "";
+
+    const sysPrompt = (systemPrompt || DEFAULT_SYSTEM) + partyRule;
+    const enrichedPrompt = analysisBlock ? `${prompt}${analysisBlock}` : prompt;
     let result: LLMResult;
 
     if (provider === "lovable") {
-      result = await callLovableAI(prompt, model, sysPrompt);
+      result = await callLovableAI(enrichedPrompt, model, sysPrompt);
     } else {
       const apiKey = await getOrgApiKey(organizationId, provider);
       switch (provider) {
-        case "openai": result = await callOpenAI(prompt, model, apiKey, sysPrompt); break;
-        case "gemini": result = await callGemini(prompt, model, apiKey, sysPrompt); break;
-        case "claude": result = await callClaude(prompt, model, apiKey, sysPrompt); break;
+        case "openai": result = await callOpenAI(enrichedPrompt, model, apiKey, sysPrompt); break;
+        case "gemini": result = await callGemini(enrichedPrompt, model, apiKey, sysPrompt); break;
+        case "claude": result = await callClaude(enrichedPrompt, model, apiKey, sysPrompt); break;
         default:
           return new Response(JSON.stringify({ error: `Unsupported provider: ${provider}` }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -231,7 +297,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Log usage
+    // Log usage (reuse serviceSupabase)
     const serviceSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     try {
       await serviceSupabase.from("ai_usage_log").insert({
