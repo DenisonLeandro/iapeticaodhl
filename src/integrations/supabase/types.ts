@@ -144,6 +144,7 @@ export type Database = {
           id: string
           opposing_party: string | null
           organization_id: string
+          represented_party: string | null
           status: Database["public"]["Enums"]["case_status"]
           subject: string | null
           updated_at: string
@@ -158,6 +159,7 @@ export type Database = {
           id?: string
           opposing_party?: string | null
           organization_id: string
+          represented_party?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           subject?: string | null
           updated_at?: string
@@ -172,6 +174,7 @@ export type Database = {
           id?: string
           opposing_party?: string | null
           organization_id?: string
+          represented_party?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           subject?: string | null
           updated_at?: string
@@ -212,6 +215,7 @@ export type Database = {
           petition_id: string | null
           processed_at: string | null
           processing_status: string | null
+          represented_party: string | null
           storage_path: string
           updated_at: string
           uploaded_by: string | null
@@ -234,6 +238,7 @@ export type Database = {
           petition_id?: string | null
           processed_at?: string | null
           processing_status?: string | null
+          represented_party?: string | null
           storage_path: string
           updated_at?: string
           uploaded_by?: string | null
@@ -256,6 +261,7 @@ export type Database = {
           petition_id?: string | null
           processed_at?: string | null
           processing_status?: string | null
+          represented_party?: string | null
           storage_path?: string
           updated_at?: string
           uploaded_by?: string | null
