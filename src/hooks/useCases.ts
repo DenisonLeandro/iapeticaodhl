@@ -82,3 +82,39 @@ export function useLawyers() {
     isLoading: lawyersQuery.isLoading,
   };
 }
+
+export function useUnlinkedCases(search?: string) {
+  const { organization } = useAuth();
+  const organizationId = organization?.id;
+
+  const query = useQuery({
+    queryKey: [UNLINKED_CASES_KEY, organizationId, search ?? ""],
+    queryFn: () => fetchUnlinkedCases(organizationId!, search),
+    enabled: !!organizationId,
+  });
+
+  return {
+    cases: query.data ?? [],
+    isLoading: query.isLoading,
+  };
+}
+
+export function useLinkCaseToClient() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ caseId, clientId }: { caseId: string; clientId: string | null }) =>
+      linkCaseToClient(caseId, clientId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [CASES_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [UNLINKED_CASES_KEY] });
+      if (variables.clientId) {
+        queryClient.invalidateQueries({ queryKey: ["client-cases", variables.clientId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["client-cases"] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["case-detail"] });
+    },
+  });
+}
+
