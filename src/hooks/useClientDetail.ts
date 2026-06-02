@@ -11,7 +11,10 @@ import {
   uploadFile,
   deleteFile,
   getFileUrl,
+  listCasesByClient,
+  type UploadFileOptions,
 } from "@/services/client-file.service";
+
 import type { InteractionFormValues } from "@/schemas/client.schema";
 
 const CLIENT_DETAIL_KEY = "client-detail";
@@ -91,13 +94,34 @@ export function useUploadFile(clientId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ file, description }: { file: File; description?: string }) =>
-      uploadFile(organization!.id, clientId, user!.id, file, description),
+    mutationFn: ({
+      file,
+      description,
+      options,
+    }: {
+      file: File;
+      description?: string;
+      options?: UploadFileOptions;
+    }) =>
+      uploadFile(organization!.id, clientId, user!.id, file, description, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [CLIENT_FILES_KEY, clientId] });
     },
   });
 }
+
+export function useClientCases(clientId: string | undefined) {
+  const query = useQuery({
+    queryKey: ["client-cases", clientId],
+    queryFn: () => listCasesByClient(clientId!),
+    enabled: !!clientId,
+  });
+  return {
+    cases: query.data ?? [],
+    isLoading: query.isLoading,
+  };
+}
+
 
 export function useDeleteFile(clientId: string) {
   const queryClient = useQueryClient();

@@ -70,4 +70,13 @@ export interface ClientFile {
   description: string | null;
   uploaded_by: string | null;
   created_at: string;
+  // Phase 1 — optional process-analysis fields
+  case_id?: string | null;
+  petition_id?: string | null;
+  document_kind?: string | null;
+  processing_status?: "pending" | "processing" | "analyzed" | "error" | null;
+  processed_at?: string | null;
+  error_message?: string | null;
+  updated_at?: string | null;
 }
+
