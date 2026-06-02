@@ -5,11 +5,15 @@ import {
   createCase,
   updateCase,
   fetchLawyers,
+  fetchUnlinkedCases,
+  linkCaseToClient,
 } from "@/services/cases";
 import type { CaseFilters, CaseFormValues } from "@/types/case";
 
 const CASES_QUERY_KEY = "cases";
 const LAWYERS_QUERY_KEY = "lawyers";
+const UNLINKED_CASES_KEY = "unlinked-cases";
+
 
 export function useCases(filters: CaseFilters = {}) {
   const { organization } = useAuth();
