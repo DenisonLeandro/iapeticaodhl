@@ -144,6 +144,9 @@ export default function StepDocumentData({
       vara: "",
       numeroProcesso: "",
       clienteVinculadoId: "",
+      caseId: "",
+      selectedAnalysisFileIds: [],
+
       instrucoesAdicionais: "",
       pedidos: "",
       valorCausa: "",
