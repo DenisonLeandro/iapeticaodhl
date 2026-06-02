@@ -22,6 +22,7 @@ interface GenerateDocumentParams {
   context: DocumentGenerationContext;
   provider?: LLMProviderId;
   model?: string;
+  processAnalysisIds?: string[];
 }
 
 type GenerationStatus = "idle" | "generating" | "success" | "error";
