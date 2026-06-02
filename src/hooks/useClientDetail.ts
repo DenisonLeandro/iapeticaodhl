@@ -11,7 +11,10 @@ import {
   uploadFile,
   deleteFile,
   getFileUrl,
+  listCasesByClient,
+  type UploadFileOptions,
 } from "@/services/client-file.service";
+
 import type { InteractionFormValues } from "@/schemas/client.schema";
 
 const CLIENT_DETAIL_KEY = "client-detail";
