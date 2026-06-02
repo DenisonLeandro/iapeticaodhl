@@ -106,6 +106,12 @@ export default function StepDocumentData({
   const [clientSearch, setClientSearch] = useState("");
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [ocrDialogOpen, setOcrDialogOpen] = useState(false);
+  const [fieldSources, setFieldSources] = useState<Partial<Record<AutoFillField, FieldSource>>>({});
+  const [contextAlerts, setContextAlerts] = useState<
+    Array<{ field: AutoFillField | "geral"; message: string; severity: "info" | "warn" }>
+  >([]);
+
+
 
   const handleVoiceExtracted = (data: Partial<DocumentGenerationFormData>) => {
     // Apply all extracted fields to the form
