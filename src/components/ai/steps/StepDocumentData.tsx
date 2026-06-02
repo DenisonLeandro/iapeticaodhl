@@ -40,6 +40,12 @@ import {
 import type { DocumentType } from "@/types/ai";
 import { useClients } from "@/hooks/useClients";
 import { useClientCases } from "@/hooks/useClientDetail";
+import {
+  buildPetitionContextFromClientCaseAndDocuments,
+  type AutoFillField,
+  type FieldSource,
+} from "@/lib/ai/buildPetitionContext";
+
 
 
 interface StepDocumentDataProps {
@@ -100,6 +106,12 @@ export default function StepDocumentData({
   const [clientSearch, setClientSearch] = useState("");
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [ocrDialogOpen, setOcrDialogOpen] = useState(false);
+  const [fieldSources, setFieldSources] = useState<Partial<Record<AutoFillField, FieldSource>>>({});
+  const [contextAlerts, setContextAlerts] = useState<
+    Array<{ field: AutoFillField | "geral"; message: string; severity: "info" | "warn" }>
+  >([]);
+
+
 
   const handleVoiceExtracted = (data: Partial<DocumentGenerationFormData>) => {
     // Apply all extracted fields to the form
@@ -186,6 +198,68 @@ export default function StepDocumentData({
     form.setValue("documentType", documentType);
   }, [documentType, form]);
 
+  /**
+   * Aplica um contexto consolidado ao formulário respeitando dirtyFields.
+   * Não marca os campos como dirty (shouldDirty: false).
+   */
+  const applyContext = (
+    client: Parameters<typeof buildPetitionContextFromClientCaseAndDocuments>[0]["client"],
+    caseRow: Parameters<typeof buildPetitionContextFromClientCaseAndDocuments>[0]["caseRow"],
+  ) => {
+    const dirtyFields = form.formState.dirtyFields as Record<string, unknown>;
+    const isDirty = (path: string) => {
+      // dirtyFields para campos aninhados vem como { autor: { nome: true } }
+      const parts = path.split(".");
+      let node: unknown = dirtyFields;
+      for (const p of parts) {
+        if (!node || typeof node !== "object") return false;
+        node = (node as Record<string, unknown>)[p];
+      }
+      return Boolean(node);
+    };
+
+    const ctx = buildPetitionContextFromClientCaseAndDocuments({
+      client: client ?? null,
+      caseRow: caseRow ?? null,
+      dirtyFields: {
+        "autor.nome": isDirty("autor.nome"),
+        "autor.cpfCnpj": isDirty("autor.cpfCnpj"),
+        "autor.endereco": isDirty("autor.endereco"),
+        "reu.nome": isDirty("reu.nome"),
+        numeroProcesso: isDirty("numeroProcesso"),
+        tribunal: isDirty("tribunal"),
+        vara: isDirty("vara"),
+        assunto: isDirty("assunto"),
+        representedParty: isDirty("representedParty"),
+      },
+    });
+
+    // Aplica somente os campos que foram resolvidos no contexto (i.e., não-manuais com valor).
+    for (const [field, value] of Object.entries(ctx.values)) {
+      if (value === undefined || value === "") continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      form.setValue(field as any, value as any, { shouldDirty: false, shouldValidate: false });
+    }
+
+    // Atualiza badges de origem (preserva sources de campos não tocados nesta chamada).
+    setFieldSources((prev) => ({ ...prev, ...ctx.sources }));
+    setContextAlerts(ctx.alerts);
+  };
+
+  const SourceBadge = ({ field }: { field: AutoFillField }) => {
+    const source = fieldSources[field];
+    if (!source || source === "manual" || source === "default") return null;
+    const label =
+      source === "case"
+        ? "preenchido a partir do processo"
+        : source === "client"
+        ? "preenchido a partir do cliente"
+        : "sugerido pela análise do PDF";
+    return <p className="mt-1 text-[11px] text-muted-foreground italic">{label}</p>;
+  };
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -253,22 +327,12 @@ export default function StepDocumentData({
                 const client = clients?.find((c) => c.id === clientId);
                 if (!client) return;
                 field.onChange(clientId);
-                // Auto-fill autor fields
-                form.setValue("autor.nome", client.full_name);
-                if (client.document_number) {
-                  const formatted = client.document_type === "cnpj"
-                    ? maskCNPJ(client.document_number)
-                    : maskCPF(client.document_number);
-                  form.setValue("autor.cpfCnpj", formatted);
-                }
-                if (client.address && typeof client.address === "object") {
-                  const addr = client.address as unknown as Record<string, string>;
-                  const parts = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state].filter(Boolean);
-                  form.setValue("autor.endereco", parts.join(", "));
-                }
+                // Auto-fill via helper (respeita dirtyFields, não sobrescreve manual)
+                applyContext(client, null);
                 setClientPopoverOpen(false);
                 setClientSearch("");
               };
+
 
               return (
                 <FormItem className="flex flex-col">
@@ -355,11 +419,12 @@ export default function StepDocumentData({
                 field.onChange(value);
                 form.setValue("selectedAnalysisFileIds", []);
                 const c = clientCases.find((x) => x.id === value);
-                if (c) {
-                  form.setValue("numeroProcesso", c.case_number);
-                  if (c.court) form.setValue("vara", form.getValues("vara") || c.court);
-                }
+                const client = clients?.find((cli) => cli.id === clienteId);
+                // Aplica via helper: fix bug de `vara` (agora usa `branch`), mapeia tribunal,
+                // preenche réu, assunto e representedParty.
+                applyContext(client ?? null, c ?? null);
               };
+
 
               return (
                 <FormItem>

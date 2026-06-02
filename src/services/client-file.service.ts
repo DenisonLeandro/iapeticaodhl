@@ -72,13 +72,16 @@ export interface ClientCaseOption {
   id: string;
   case_number: string;
   court: string | null;
+  branch: string | null;
+  subject: string | null;
+  opposing_party: string | null;
   represented_party: string | null;
 }
 
 export async function listCasesByClient(clientId: string): Promise<ClientCaseOption[]> {
   const { data, error } = await supabase
     .from("cases")
-    .select("id, case_number, court, represented_party")
+    .select("id, case_number, court, branch, subject, opposing_party, represented_party")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
@@ -88,6 +91,7 @@ export async function listCasesByClient(clientId: string): Promise<ClientCaseOpt
 
   return (data ?? []) as ClientCaseOption[];
 }
+
 
 export async function listFilesByCase(caseId: string): Promise<ClientFile[]> {
   const { data, error } = await supabase
