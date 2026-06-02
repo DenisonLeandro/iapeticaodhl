@@ -3,10 +3,13 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Download,
+  Eye,
   FileText,
   Image as ImageIcon,
   Loader2,
   Plus,
+  RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -25,14 +28,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClientFiles, useDeleteFile, useFileUrl, useClientCases } from "@/hooks/useClientDetail";
+import { useAnalyzePdf } from "@/hooks/usePdfAnalysis";
 import { DOCUMENT_KINDS } from "@/schemas/client.schema";
 import type { ClientFile } from "@/types/client";
 import FileUploadDialog from "./FileUploadDialog";
+import FileAnalysisDialog from "./FileAnalysisDialog";
 
 const KIND_LABELS: Record<string, string> = Object.fromEntries(
   DOCUMENT_KINDS.map((k) => [k.value, k.label]),
 );
+
+const HIGHLIGHTED_KINDS = new Set([
+  "pdf_integral",
+  "inicial",
+  "contestacao",
+  "replica",
+  "sentenca",
+  "acordao",
+  "laudo",
+  "manifestacao",
+  "documentos",
+  "audiencia",
+  "recurso",
+]);
 
 const STATUS_LABELS: Record<string, { label: string; variant: "secondary" | "default" | "destructive" | "outline" }> = {
   pending: { label: "Pendente", variant: "secondary" },
@@ -40,7 +60,6 @@ const STATUS_LABELS: Record<string, { label: string; variant: "secondary" | "def
   analyzed: { label: "Analisado", variant: "default" },
   error: { label: "Erro", variant: "destructive" },
 };
-
 
 interface ClientFilesSectionProps {
   clientId: string;
@@ -67,13 +86,20 @@ function FileRow({
   file,
   clientId,
   caseNumber,
+  onViewAnalysis,
 }: {
   file: ClientFile;
   clientId: string;
   caseNumber?: string;
+  onViewAnalysis: (file: ClientFile) => void;
 }) {
   const deleteFile = useDeleteFile(clientId);
   const getUrl = useFileUrl();
+  const analyze = useAnalyzePdf(clientId);
+
+  const isPdf = file.file_type === "application/pdf";
+  const status = file.processing_status ?? "pending";
+  const isHighlighted = !!file.document_kind && HIGHLIGHTED_KINDS.has(file.document_kind);
 
   const handleView = async () => {
     try {
@@ -93,9 +119,22 @@ function FileRow({
     }
   };
 
+  const runAnalyze = async () => {
+    try {
+      const res = await analyze.mutateAsync(file.id);
+      if (res.status === "analyzed") {
+        toast.success("PDF analisado com sucesso.");
+      } else {
+        toast.error(res.message ?? res.error ?? "Falha ao analisar PDF.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao analisar PDF.");
+    }
+  };
+
   const kindLabel = file.document_kind ? KIND_LABELS[file.document_kind] : null;
-  const status = file.processing_status ? STATUS_LABELS[file.processing_status] : null;
-  const showStatus = status && file.document_kind && file.document_kind !== "geral";
+  const statusInfo = STATUS_LABELS[status];
+  const showStatus = isPdf && file.document_kind && file.document_kind !== "geral";
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border p-4">
@@ -120,18 +159,80 @@ function FileRow({
               Processo: <span className="font-medium text-foreground">{caseNumber}</span>
             </span>
           )}
-          {showStatus && (
-            <Badge variant={status!.variant} className="font-normal">
-              {status!.label}
+          {showStatus && statusInfo && (
+            <Badge variant={statusInfo.variant} className="font-normal">
+              {statusInfo.label}
             </Badge>
           )}
         </div>
         {file.description && (
           <p className="text-xs text-muted-foreground">{file.description}</p>
         )}
+        {status === "error" && file.error_message && (
+          <p className="text-xs text-destructive">{file.error_message}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
+        {/* AI actions — only for PDFs */}
+        {isPdf && (status === "pending" || status === "error") && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isHighlighted ? "default" : "outline"}
+                  size="sm"
+                  onClick={runAnalyze}
+                  disabled={analyze.isPending || status === "processing"}
+                >
+                  {analyze.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  {status === "error" ? "Tentar novamente" : "Analisar com IA"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Extrai texto do PDF e gera resumo jurídico.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {isPdf && status === "processing" && (
+          <Button variant="outline" size="sm" disabled>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processando
+          </Button>
+        )}
+
+        {isPdf && status === "analyzed" && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => onViewAnalysis(file)}>
+              <Eye className="mr-2 h-4 w-4" />
+              Ver análise
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" title="Reprocessar">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reprocessar análise</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Deseja reprocessar este documento? A análise anterior será substituída.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={runAnalyze}>Reprocessar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
+
         <Button
           variant="ghost"
           size="icon"
@@ -180,6 +281,7 @@ function FileRow({
 
 export default function ClientFilesSection({ clientId }: ClientFilesSectionProps) {
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [analysisFile, setAnalysisFile] = useState<ClientFile | null>(null);
   const { files, isLoading, error } = useClientFiles(clientId);
   const { cases } = useClientCases(clientId);
 
@@ -205,7 +307,6 @@ export default function ClientFilesSection({ clientId }: ClientFilesSectionProps
 
   return (
     <div className="space-y-4">
-      {/* Action bar */}
       <div className="flex justify-end">
         <Button onClick={() => setUploadOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -231,17 +332,22 @@ export default function ClientFilesSection({ clientId }: ClientFilesSectionProps
               file={file}
               clientId={clientId}
               caseNumber={file.case_id ? caseMap.get(file.case_id) : undefined}
+              onViewAnalysis={setAnalysisFile}
             />
           ))}
         </div>
       )}
 
-
-      {/* Upload Dialog */}
       <FileUploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         clientId={clientId}
+      />
+
+      <FileAnalysisDialog
+        file={analysisFile}
+        open={!!analysisFile}
+        onOpenChange={(open) => !open && setAnalysisFile(null)}
       />
     </div>
   );
