@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { useCaseMutations, useLawyers } from "@/hooks/useCases";
+import { useClients } from "@/hooks/useClients";
 import {
   caseFormSchema,
   COURT_OPTIONS,
@@ -41,15 +56,41 @@ import { REPRESENTED_PARTY_OPTIONS } from "@/lib/represented-party";
 
 interface CaseFormProps {
   editCase?: Case;
+  defaultClientId?: string;
   onSuccess?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
-  const [open, setOpen] = useState(false);
+export default function CaseForm({
+  editCase,
+  defaultClientId,
+  onSuccess,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  hideTrigger,
+}: CaseFormProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onOpenChangeProp) onOpenChangeProp(v);
+    else setInternalOpen(v);
+  };
   const { createCase, isCreating, updateCase, isUpdating } = useCaseMutations();
   const { lawyers } = useLawyers();
+  const [clientSearch, setClientSearch] = useState("");
+  const { clients: clientResults } = useClients({
+    search: clientSearch,
+    page: 1,
+    pageSize: 50,
+    sortBy: "full_name",
+    sortOrder: "asc",
+  });
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
   const isEditing = !!editCase;
   const isSubmitting = isCreating || isUpdating;
+
 
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(caseFormSchema),
