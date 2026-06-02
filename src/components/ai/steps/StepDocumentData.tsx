@@ -39,6 +39,8 @@ import {
 } from "@/lib/validators/document-generation";
 import type { DocumentType } from "@/types/ai";
 import { useClients } from "@/hooks/useClients";
+import { useClientCases } from "@/hooks/useClientDetail";
+
 
 interface StepDocumentDataProps {
   documentType: DocumentType;
