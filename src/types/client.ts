@@ -78,5 +78,9 @@ export interface ClientFile {
   processed_at?: string | null;
   error_message?: string | null;
   updated_at?: string | null;
+  extracted_text?: string | null;
+  analysis_summary?: string | null;
+  analysis_json?: Record<string, unknown> | null;
+
 }
 
