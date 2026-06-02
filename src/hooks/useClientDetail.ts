@@ -9,11 +9,16 @@ import {
 import {
   listFiles,
   uploadFile,
+  uploadFiles,
   deleteFile,
   getFileUrl,
   listCasesByClient,
+  listFilesByCase,
   type UploadFileOptions,
+  type BatchUploadInput,
+  type BatchUploadResultItem,
 } from "@/services/client-file.service";
+
 
 import type { InteractionFormValues } from "@/schemas/client.schema";
 
