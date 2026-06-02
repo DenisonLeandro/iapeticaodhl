@@ -195,39 +195,69 @@ export type Database = {
       }
       client_files: {
         Row: {
+          analysis_json: Json | null
+          analysis_summary: string | null
+          case_id: string | null
           client_id: string
           created_at: string
           description: string | null
+          document_kind: string | null
+          error_message: string | null
+          extracted_text: string | null
           file_name: string
           file_size: number | null
           file_type: string | null
           id: string
           organization_id: string
+          petition_id: string | null
+          processed_at: string | null
+          processing_status: string | null
           storage_path: string
+          updated_at: string
           uploaded_by: string | null
         }
         Insert: {
+          analysis_json?: Json | null
+          analysis_summary?: string | null
+          case_id?: string | null
           client_id: string
           created_at?: string
           description?: string | null
+          document_kind?: string | null
+          error_message?: string | null
+          extracted_text?: string | null
           file_name: string
           file_size?: number | null
           file_type?: string | null
           id?: string
           organization_id: string
+          petition_id?: string | null
+          processed_at?: string | null
+          processing_status?: string | null
           storage_path: string
+          updated_at?: string
           uploaded_by?: string | null
         }
         Update: {
+          analysis_json?: Json | null
+          analysis_summary?: string | null
+          case_id?: string | null
           client_id?: string
           created_at?: string
           description?: string | null
+          document_kind?: string | null
+          error_message?: string | null
+          extracted_text?: string | null
           file_name?: string
           file_size?: number | null
           file_type?: string | null
           id?: string
           organization_id?: string
+          petition_id?: string | null
+          processed_at?: string | null
+          processing_status?: string | null
           storage_path?: string
+          updated_at?: string
           uploaded_by?: string | null
         }
         Relationships: [
