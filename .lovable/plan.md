@@ -1,41 +1,65 @@
+# Correção: "Processo não encontrado ou erro ao carregar dados"
+
 ## Diagnóstico
 
-O backend hospedado está saudável, mas o frontend publicado ainda pode quebrar porque parte do código continua importando o cliente auto-gerado diretamente de `@/integrations/supabase/client`. Esse arquivo depende exclusivamente de `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no momento do import; quando alguma variável não chega no bundle publicado, o app cai antes de montar React.
+Investiguei o processo informado e o problema é **um bug na query do detalhe do processo**, não permissão/RLS nem rota errada.
 
-Também há um segundo erro visível: `useAuth deve ser usado dentro de um AuthProvider`, indicando que a ordem dos providers/rotas precisa ser endurecida para evitar renderização fora do contexto durante falhas de boot.
+### Fatos confirmados
 
-## Plano de correção
+- **Processo existe** na tabela `public.cases`:
+  - `id` (UUID): `9c035db9-faf4-40b4-9339-c0341c075e5f`
+  - `case_number`: `0000777-55.2025.5.09.0673`
+  - `organization_id`: `2a4a4b01-a471-4bb4-a7a7-65048db8983c` (mesma do usuário logado)
+  - `client_id`: **NULL** (processo não foi vinculado a nenhum cliente no cadastro)
+- **Rota está correta**: `CasesPage` navega para `/cases/{caseItem.id}` usando o UUID, e `CaseDetailPage` lê `:id` e chama `fetchCaseById(id)`. Não há mistura entre UUID e número CNJ.
+- **RLS está OK**: a política `cases_org_isolation` permite SELECT para perfis da mesma `organization_id`, e a listagem em `/cases` funciona (o processo aparece na tabela).
 
-1. **Centralizar todo acesso ao backend**
-   - Trocar os imports restantes de `@/integrations/supabase/client` para `@/lib/backend/client` nos arquivos que ainda usam o cliente frágil.
-   - Manter `src/integrations/supabase/client.ts` intocado, pois é auto-gerado.
+### Causa raiz
 
-2. **Fixar fallback do Lovable Cloud atual no frontend**
-   - Atualizar `src/lib/backend/client.ts` para resolver a URL do backend nesta ordem:
-     1. `VITE_SUPABASE_URL`
-     2. `VITE_SUPABASE_PROJECT_ID`
-     3. fallback explícito para o backend Lovable Cloud deste projeto
-   - Resolver a chave pública nesta ordem:
-     1. `VITE_SUPABASE_PUBLISHABLE_KEY`
-     2. `VITE_SUPABASE_ANON_KEY`
-     3. fallback público do projeto atual
-   - Isso não envolve segredo privado; é configuração pública necessária para o frontend conectar ao backend.
+`src/services/caseDetail.ts → fetchCaseById` usa join embutido do PostgREST com nomes de FKs **inexistentes / errados**:
 
-3. **Remover tela de erro indevida quando o Cloud existe**
-   - Ajustar `getBackendConfigStatus()` para retornar `ok` usando os fallbacks acima.
-   - Assim a raiz `/` volta a renderizar o app e redirecionar para `/login` ou `/dashboard`.
+```ts
+.select(`
+  *,
+  client:profiles!cases_client_id_fkey(full_name),     // ❌ FK não existe; e client_id aponta para clients, não profiles
+  lawyer:profiles!cases_assigned_to_fkey(full_name)    // ✅ FK existe, mas o join falha junto pelo erro acima
+`)
+```
 
-4. **Endurecer o boot/AuthProvider**
-   - Garantir que `HomeRedirect`, `ProtectedRoute` e rotas protegidas só renderizem dentro de `AuthProvider`.
-   - Se necessário, revisar a composição em `App.tsx` para eliminar o erro `useAuth deve ser usado dentro de um AuthProvider`.
+Conferindo no banco, as únicas FKs em `cases` são `cases_assigned_to_fkey` (→ profiles) e `cases_organization_id_fkey` (→ organizations). **Não existe `cases_client_id_fkey`**, e `client_id` referencia conceitualmente a tabela `clients` (não `profiles`). Resultado: o PostgREST retorna erro de relacionamento, `fetchCaseById` joga exception, e a página cai no branch `caseError → "Processo não encontrado ou erro ao carregar dados."`.
 
-5. **Atualizar os testes de ambiente**
-   - Cobrir os cenários:
-     - sem URL mas com fallback do projeto atual → `ok`
-     - sem chave mas com fallback público do projeto atual → `ok`
-     - import do client sem env não deve derrubar o app
+A listagem (`src/services/cases.ts → fetchCases`) já evita o problema usando **split queries** contra `clients` e `profiles` — por isso a lista funciona e só o detalhe quebra. Esta é, inclusive, a convenção do projeto registrada em memória ("split-queries em vez de JOINs").
 
-6. **Validar**
-   - Conferir que não resta nenhum import direto do cliente auto-gerado em código de runtime.
-   - Validar em preview que `/` não mostra mais erro de configuração e segue para `/login` sem sessão.
-   - Depois da aprovação e implementação, será necessário clicar em **Update** na publicação para levar a correção ao domínio publicado.
+## Correção
+
+Refatorar `fetchCaseById` para o mesmo padrão split-query usado em `fetchCases`:
+
+1. Buscar a row de `cases` por `id` (sem joins embutidos).
+2. Em paralelo, se `client_id` não for nulo, buscar `full_name` em `public.clients`.
+3. Em paralelo, se `assigned_to` não for nulo, buscar `full_name` em `public.profiles`.
+4. Montar o `CaseWithRelations` com `client_name` e `lawyer_name` preenchidos (ou `null` quando não houver vínculo).
+
+Sem mudança de tipos, sem mudança de rota, sem migration, sem mexer em RLS.
+
+### Arquivo alterado
+
+- `src/services/caseDetail.ts` — apenas a função `fetchCaseById`. As demais funções (`fetchCaseMovements`, `fetchCaseDocuments`, `createMovement`) permanecem inalteradas.
+
+## Checagens dos demais itens pedidos
+
+- **Vínculo cliente / org**: o processo `0000777-...` está com `client_id = NULL`. Não é bug — foi cadastrado sem cliente. Após a correção, abrirá normalmente e mostrará "Não vinculado" no card de Cliente (comportamento já previsto em `CaseDetailPage`). Se você quiser vincular, basta editar o processo.
+- **Select "Vincular a um processo" no upload**: continua filtrando por `client_id` do cliente atual. Como este processo está sem cliente, ele **não aparece** no select de nenhum cliente — comportamento correto. Para que apareça, edite o processo e vincule ao cliente desejado.
+- **Botão "Cadastrar processo"** (vindo da aba Arquivos quando o cliente não tem processos): leva para `/cases` com modal aberto — fluxo correto, já validado na Fase 3.
+- **Normalização CNJ**: a rota usa UUID, então não há necessidade de normalizar máscara.
+
+## Não incluído nesta correção
+
+- Fase 4 (integração com DocumentWizard / `ai-generate`) — segue bloqueada até este fix passar nos testes.
+- Qualquer alteração em migrations, RLS, edge functions ou outros serviços.
+
+## Como testar após implementação
+
+1. Em `/cases`, clicar no processo `0000777-55.2025.5.09.0673` → deve abrir o detalhe sem erro, mostrando "Não vinculado" no card de Cliente.
+2. Editar esse processo e vincular a um cliente → reabrir o detalhe → cliente deve aparecer.
+3. Abrir um cliente que já tenha processos vinculados e confirmar que o select "Vincular a um processo" no upload continua listando-os.
+4. Conferir console do navegador: sem erro de relationship/PGRST.
