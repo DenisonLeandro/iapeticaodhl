@@ -100,7 +100,7 @@ export default function CaseForm({
       branch: editCase?.branch ?? "",
       subject: editCase?.subject ?? "",
       opposing_party: editCase?.opposing_party ?? "",
-      client_id: editCase?.client_id ?? "",
+      client_id: editCase?.client_id ?? defaultClientId ?? "",
       assigned_to: editCase?.assigned_to ?? "",
       status: editCase?.status ?? "active",
       represented_party:
