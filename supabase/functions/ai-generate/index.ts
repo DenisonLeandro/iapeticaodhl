@@ -298,7 +298,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // Log usage (reuse serviceSupabase)
-    const serviceSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     try {
       await serviceSupabase.from("ai_usage_log").insert({
         organization_id: organizationId,
