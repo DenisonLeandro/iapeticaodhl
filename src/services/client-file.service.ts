@@ -15,12 +15,18 @@ export async function listFiles(clientId: string): Promise<ClientFile[]> {
   return (data as ClientFile[]) ?? [];
 }
 
+export interface UploadFileOptions {
+  document_kind?: string;
+  case_id?: string;
+}
+
 export async function uploadFile(
   organizationId: string,
   clientId: string,
   uploadedBy: string,
   file: File,
   description?: string,
+  options?: UploadFileOptions,
 ): Promise<ClientFile> {
   const storagePath = `${organizationId}/${clientId}/${Date.now()}_${file.name}`;
 
@@ -45,6 +51,9 @@ export async function uploadFile(
       file_size: file.size,
       storage_path: storagePath,
       description: description || null,
+      document_kind: options?.document_kind ?? null,
+      case_id: options?.case_id ?? null,
+      processing_status: "pending",
     })
     .select()
     .single();
@@ -57,6 +66,27 @@ export async function uploadFile(
 
   return data as ClientFile;
 }
+
+export interface ClientCaseOption {
+  id: string;
+  case_number: string;
+  court: string | null;
+}
+
+export async function listCasesByClient(clientId: string): Promise<ClientCaseOption[]> {
+  const { data, error } = await supabase
+    .from("cases")
+    .select("id, case_number, court")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Erro ao buscar processos do cliente: ${error.message}`);
+  }
+
+  return (data ?? []) as ClientCaseOption[];
+}
+
 
 export async function deleteFile(fileId: string): Promise<void> {
   // 1. Fetch file record to get storage_path
