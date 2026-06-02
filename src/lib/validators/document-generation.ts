@@ -75,6 +75,10 @@ export const documentGenerationSchema = z.object({
   vara: z.string().optional(),
   numeroProcesso: z.string().optional(),
   clienteVinculadoId: z.string().optional(),
+  caseId: z.string().optional(),
+  selectedAnalysisFileIds: z.array(z.string()).optional(),
+
+
 
   instrucoesAdicionais: z.string().optional(),
 

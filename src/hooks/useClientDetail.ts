@@ -9,11 +9,16 @@ import {
 import {
   listFiles,
   uploadFile,
+  uploadFiles,
   deleteFile,
   getFileUrl,
   listCasesByClient,
+  listFilesByCase,
   type UploadFileOptions,
+  type BatchUploadInput,
+  type BatchUploadResultItem,
 } from "@/services/client-file.service";
+
 
 import type { InteractionFormValues } from "@/schemas/client.schema";
 
@@ -110,6 +115,25 @@ export function useUploadFile(clientId: string) {
   });
 }
 
+export function useUploadFiles(clientId: string) {
+  const { user, organization } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      items,
+      onItemDone,
+    }: {
+      items: BatchUploadInput[];
+      onItemDone?: (index: number, result: BatchUploadResultItem) => void;
+    }) =>
+      uploadFiles(organization!.id, clientId, user!.id, items, onItemDone),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [CLIENT_FILES_KEY, clientId] });
+    },
+  });
+}
+
 export function useClientCases(clientId: string | undefined) {
   const query = useQuery({
     queryKey: ["client-cases", clientId],
@@ -121,6 +145,20 @@ export function useClientCases(clientId: string | undefined) {
     isLoading: query.isLoading,
   };
 }
+
+export function useFilesByCase(caseId: string | undefined) {
+  const query = useQuery({
+    queryKey: ["case-files", caseId],
+    queryFn: () => listFilesByCase(caseId!),
+    enabled: !!caseId,
+  });
+  return {
+    files: query.data ?? [],
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+  };
+}
+
 
 
 export function useDeleteFile(clientId: string) {

@@ -128,11 +128,57 @@ function estimateCost(provider: string, inputTokens: number, outputTokens: numbe
   return (inputTokens / 1000) * rate.input + (outputTokens / 1000) * rate.output;
 }
 
+async function buildAnalysisBlock(
+  organizationId: string,
+  ids: string[],
+): Promise<{ block: string; party: string | null }> {
+  if (!ids || ids.length === 0) return { block: "", party: null };
+  const { data, error } = await supabase
+    .from("client_files")
+    .select(
+      "id, organization_id, file_name, document_kind, represented_party, processing_status, analysis_summary, analysis_json",
+    )
+    .in("id", ids)
+    .eq("organization_id", organizationId)
+    .eq("processing_status", "analyzed");
+  if (error || !data || data.length === 0) return { block: "", party: null };
+  const lines: string[] = ["\n\n--- ANÁLISE DOS DOCUMENTOS DO PROCESSO ---"];
+  let party: string | null = null;
+  for (const f of data) {
+    const j = (f as { analysis_json?: Record<string, unknown> | null }).analysis_json ?? {};
+    if (!party && f.represented_party) party = f.represented_party as string;
+    const get = (k: string) => {
+      const v = (j as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v.map(String).join("; ");
+      return typeof v === "string" ? v : "";
+    };
+    lines.push(`\nDocumento: ${f.file_name}`);
+    if (f.document_kind) lines.push(`Tipo: ${f.document_kind}`);
+    if (f.represented_party) lines.push(`Perspectiva: ${f.represented_party}`);
+    if (f.analysis_summary) lines.push(`Resumo: ${f.analysis_summary}`);
+    const fav = get("pontos_favoraveis_a_parte_representada");
+    const risk = get("pontos_de_risco_para_parte_representada");
+    const teses = get("teses_da_parte_contraria");
+    const dec = get("decisoes_despachos");
+    const prov = get("provas_identificadas");
+    const est = get("estrategia_recomendada_para_parte_representada");
+    const nao = get("informacoes_nao_encontradas");
+    if (fav) lines.push(`Pontos favoráveis: ${fav}`);
+    if (risk) lines.push(`Riscos: ${risk}`);
+    if (teses) lines.push(`Teses da parte contrária: ${teses}`);
+    if (dec) lines.push(`Decisões/despachos: ${dec}`);
+    if (prov) lines.push(`Provas identificadas: ${prov}`);
+    if (est) lines.push(`Estratégia recomendada: ${est}`);
+    if (nao) lines.push(`Informações não encontradas: ${nao}`);
+  }
+  return { block: lines.join("\n"), party };
+}
+
 export async function directAIGenerate(request: AIGenerateRequest): Promise<AIGenerateResponse> {
-  const { prompt, provider, model, organizationId, systemPrompt } = request;
+  const { prompt, provider, model, organizationId, systemPrompt, processAnalysisIds } = request;
   if (!prompt || !provider || !model || !organizationId) throw new Error('Missing required fields');
 
-  // Lovable AI always goes through the edge function
+  // Lovable AI always goes through the edge function (which handles the analysis block server-side)
   if (provider === 'lovable') {
     const { data, error } = await supabase.functions.invoke('ai-generate', {
       body: {
@@ -141,6 +187,7 @@ export async function directAIGenerate(request: AIGenerateRequest): Promise<AIGe
         model,
         organizationId,
         systemPrompt,
+        processAnalysisIds: processAnalysisIds ?? [],
       },
     });
     if (error) throw new Error(`Falha na geração: ${error.message}`);
@@ -150,13 +197,18 @@ export async function directAIGenerate(request: AIGenerateRequest): Promise<AIGe
   }
 
   const apiKey = await getApiKeyFromOrg(organizationId, provider);
-  const sysPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+  const { block, party } = await buildAnalysisBlock(organizationId, processAnalysisIds ?? []);
+  const enrichedPrompt = block ? `${prompt}${block}` : prompt;
+  const partyRule = party
+    ? `\nO escritório representa a parte: ${party}. Defenda essa parte. NÃO inverta polos. Use apenas o formulário e os documentos analisados. Sinalize quando informações estiverem ausentes.`
+    : "";
+  const sysPrompt = (systemPrompt || DEFAULT_SYSTEM_PROMPT) + partyRule;
 
   let response: AIGenerateResponse;
   switch (provider) {
-    case 'openai': response = await callOpenAI(prompt, model, apiKey, sysPrompt); break;
-    case 'gemini': response = await callGemini(prompt, model, apiKey, sysPrompt); break;
-    case 'claude': response = await callClaude(prompt, model, apiKey, sysPrompt); break;
+    case 'openai': response = await callOpenAI(enrichedPrompt, model, apiKey, sysPrompt); break;
+    case 'gemini': response = await callGemini(enrichedPrompt, model, apiKey, sysPrompt); break;
+    case 'claude': response = await callClaude(enrichedPrompt, model, apiKey, sysPrompt); break;
     default: throw new Error(`Unsupported provider: ${provider}`);
   }
 

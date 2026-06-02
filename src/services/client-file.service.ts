@@ -89,6 +89,70 @@ export async function listCasesByClient(clientId: string): Promise<ClientCaseOpt
   return (data ?? []) as ClientCaseOption[];
 }
 
+export async function listFilesByCase(caseId: string): Promise<ClientFile[]> {
+  const { data, error } = await supabase
+    .from("client_files")
+    .select(
+      "id, organization_id, client_id, case_id, file_name, file_type, file_size, storage_path, description, document_kind, represented_party, processing_status, analysis_summary, analysis_json, processed_at, error_message, created_at, updated_at",
+    )
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Erro ao buscar arquivos do processo: ${error.message}`);
+  }
+  return (data as ClientFile[]) ?? [];
+}
+
+export interface BatchUploadInput {
+  file: File;
+  description?: string;
+  options?: UploadFileOptions;
+}
+
+export interface BatchUploadResultItem {
+  file: File;
+  success: boolean;
+  data?: ClientFile;
+  error?: string;
+}
+
+export async function uploadFiles(
+  organizationId: string,
+  clientId: string,
+  uploadedBy: string,
+  items: BatchUploadInput[],
+  onItemDone?: (index: number, result: BatchUploadResultItem) => void,
+): Promise<BatchUploadResultItem[]> {
+  const results: BatchUploadResultItem[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    try {
+      const data = await uploadFile(
+        organizationId,
+        clientId,
+        uploadedBy,
+        item.file,
+        item.description,
+        item.options,
+      );
+      const res: BatchUploadResultItem = { file: item.file, success: true, data };
+      results.push(res);
+      onItemDone?.(i, res);
+    } catch (err) {
+      const res: BatchUploadResultItem = {
+        file: item.file,
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+      results.push(res);
+      onItemDone?.(i, res);
+    }
+  }
+  return results;
+}
+
+
 
 export async function deleteFile(fileId: string): Promise<void> {
   // 1. Fetch file record to get storage_path
