@@ -121,7 +121,7 @@ function FileRow({
 
   const runAnalyze = async () => {
     try {
-      const res = await analyze.mutateAsync(file.id);
+      const res = await analyze.mutateAsync({ fileId: file.id });
       if (res.status === "analyzed") {
         toast.success("PDF analisado com sucesso.");
       } else {

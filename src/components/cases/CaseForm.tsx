@@ -37,6 +37,7 @@ import {
   type CaseFormValues,
   type Case,
 } from "@/types/case";
+import { REPRESENTED_PARTY_OPTIONS } from "@/lib/represented-party";
 
 interface CaseFormProps {
   editCase?: Case;
@@ -61,6 +62,8 @@ export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
       client_id: editCase?.client_id ?? "",
       assigned_to: editCase?.assigned_to ?? "",
       status: editCase?.status ?? "active",
+      represented_party:
+        (editCase?.represented_party as CaseFormValues["represented_party"]) ?? "autor",
     },
   });
 
@@ -205,7 +208,36 @@ export default function CaseForm({ editCase, onSuccess }: CaseFormProps) {
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="represented_party"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parte representada pelo escritório</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a parte representada" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {REPRESENTED_PARTY_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
+
               <FormField
                 control={form.control}
                 name="assigned_to"
