@@ -419,11 +419,12 @@ export default function StepDocumentData({
                 field.onChange(value);
                 form.setValue("selectedAnalysisFileIds", []);
                 const c = clientCases.find((x) => x.id === value);
-                if (c) {
-                  form.setValue("numeroProcesso", c.case_number);
-                  if (c.court) form.setValue("vara", form.getValues("vara") || c.court);
-                }
+                const client = clients?.find((cli) => cli.id === clienteId);
+                // Aplica via helper: fix bug de `vara` (agora usa `branch`), mapeia tribunal,
+                // preenche réu, assunto e representedParty.
+                applyContext(client ?? null, c ?? null);
               };
+
 
               return (
                 <FormItem>
