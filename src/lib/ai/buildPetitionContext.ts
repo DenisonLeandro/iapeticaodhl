@@ -44,7 +44,7 @@ export interface PetitionContextAlert {
 
 export interface PetitionContextInput {
   client?: Client | null;
-  caseRow?: Case | null;
+  caseRow?: CaseLike | null;
   /** Reservado para a próxima fase — aceito mas ignorado nesta versão. */
   analyses?: ClientFile[];
   /** Conjunto de campos que o usuário já editou manualmente — não serão sobrescritos. */
