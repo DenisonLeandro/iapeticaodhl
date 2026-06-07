@@ -312,6 +312,7 @@ export default function DocumentWizard() {
             error={generationError}
             isSaving={createDocumentMutation.isPending}
             isSaved={!!savedDocumentId}
+            autoSaveError={autoSaveError}
             title={documentType ? `${DOCUMENT_TYPE_LABELS[documentType]} — ${formData?.autor?.nome ?? ""}` : "Documento"}
             onSave={handleSave}
             onEdit={handleEdit}
