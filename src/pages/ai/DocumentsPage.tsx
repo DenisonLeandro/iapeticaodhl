@@ -419,20 +419,34 @@ export default function DocumentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell className="font-medium">
-                      {doc.title}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <TypeBadge type={doc.type} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={doc.status} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(doc.created_at)}
-                    </TableCell>
+                {documents.map((doc) => {
+                  const filesCount = doc.source_file_ids?.length ?? 0;
+                  return (
+                    <TableRow key={doc.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{doc.title}</span>
+                          {filesCount > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              📎 {filesCount}
+                            </Badge>
+                          )}
+                          {doc.represented_party && (
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {doc.represented_party}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <TypeBadge type={doc.type} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={doc.status} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(doc.created_at)}
+                      </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
