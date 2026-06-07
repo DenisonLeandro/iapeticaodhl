@@ -270,7 +270,7 @@ export default function DocumentWizard() {
   }, [formData, resetGeneration, runGeneration, selectedAnalysisFileIds]);
 
   // Build visible steps list — hide step 3 when no case is linked (or unknown yet)
-  const visibleSteps: Step[] = hasCaseId ? [1, 2, 3, 4] : [1, 2, 4];
+  const visibleSteps: Step[] = hasCaseId ? [1, 2, 3, 4, 5] : [1, 2, 4, 5];
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -306,7 +306,17 @@ export default function DocumentWizard() {
             onSelectionChange={setSelectedAnalysisFileIds}
           />
         )}
-        {step === 4 && (
+        {step === 4 && documentType && formData && (
+          <StepReview
+            documentType={documentType}
+            formData={formData}
+            selectedJurisprudence={selectedJurisprudence}
+            selectedAnalysisFileIds={selectedAnalysisFileIds}
+            onEditStep={(s) => setStep(s)}
+            onConfirm={handleNext}
+          />
+        )}
+        {step === 5 && (
           <StepDocumentResult
             isGenerating={isGenerating}
             generatedDocument={generatedDocument}
@@ -324,7 +334,7 @@ export default function DocumentWizard() {
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — hidden on Review (its own button) and Result */}
       {step < 4 && (
         <>
           <Separator />
@@ -333,7 +343,17 @@ export default function DocumentWizard() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
             </Button>
             <Button onClick={handleNext} disabled={!canGoNext()}>
-              {step === 3 ? "Gerar petição" : "Próximo"} <ArrowRight className="ml-2 h-4 w-4" />
+              Próximo <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
+      {step === 4 && (
+        <>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={handleBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
             </Button>
           </div>
         </>
