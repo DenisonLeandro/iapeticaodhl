@@ -93,6 +93,7 @@ export default function StepDocumentResult({
   error,
   isSaving,
   isSaved,
+  autoSaveError,
   title = "Documento",
   onSave,
   onEdit,
