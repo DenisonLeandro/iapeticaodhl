@@ -167,9 +167,6 @@ export default function DocumentWizard() {
 
     // Already saved → update existing row (avoids duplicates)
     if (savedDocumentId) {
-      await createDocumentMutation.reset?.();
-      // Use update path via direct call
-      const { updateDocument } = await import("@/services/documents");
       await updateDocument(savedDocumentId, {
         title,
         content: generatedDocument.content,
