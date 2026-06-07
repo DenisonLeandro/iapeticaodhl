@@ -47,7 +47,7 @@ export default function ClientDocumentsSection({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("documents")
-        .select("id, title, type, status, created_at")
+        .select("id, title, type, status, created_at, case_id, represented_party, source_file_ids")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
 
