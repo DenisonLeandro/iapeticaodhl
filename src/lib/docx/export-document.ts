@@ -15,6 +15,9 @@ import {
   BorderStyle,
 } from "docx";
 import { parseHTML, type TextSegment } from "@/lib/document-parser";
+import { normalizeToHtml } from "@/lib/ai/normalize-html";
+
+const FONT = "Tahoma";
 
 // CNJ/ABNT margins in DXA (1cm ≈ 567 DXA)
 const MARGIN_LEFT = 1701;   // 3cm
@@ -29,7 +32,7 @@ export async function exportDocumentToDOCX(
   content: string,
   title: string,
 ): Promise<Blob> {
-  const segments = parseHTML(content);
+  const segments = parseHTML(normalizeToHtml(content));
   const children: Paragraph[] = [];
 
   // Title
