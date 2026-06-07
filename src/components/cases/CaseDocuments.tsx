@@ -46,6 +46,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function CaseDocuments({ documents, isLoading }: CaseDocumentsProps) {
+  const navigate = useNavigate();
   if (isLoading) {
     return (
       <div className="space-y-3">
