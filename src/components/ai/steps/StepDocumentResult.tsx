@@ -14,16 +14,24 @@ import {
   ArrowLeft,
   Sparkles,
   CheckCircle2,
+  MessageCircle,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { exportDocumentToPDF } from "@/lib/pdf/export-document";
 import { toSafeHtml } from "@/lib/ai/normalize-html";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
 import { downloadBlob } from "@/lib/document-parser";
+import DocumentChatPanel from "@/components/ai/chat/DocumentChatPanel";
 import type { GeneratedDocument } from "@/types/ai";
 
 interface StepDocumentResultProps {
@@ -32,6 +40,7 @@ interface StepDocumentResultProps {
   error: Error | null;
   isSaving: boolean;
   isSaved: boolean;
+  savedDocumentId?: string | null;
   autoSaveError?: string | null;
   title?: string;
   onSave: () => void;
@@ -100,6 +109,7 @@ export default function StepDocumentResult({
   error,
   isSaving,
   isSaved,
+  savedDocumentId,
   autoSaveError,
   title = "Documento",
   onSave,
@@ -287,6 +297,27 @@ export default function StepDocumentResult({
           </Button>
         </div>
       </div>
+
+      {/* Chat IA — disponível após auto-save */}
+      {isSaved && savedDocumentId && generatedDocument && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-primary" />
+                Conversar com a IA sobre esta petição
+              </span>
+              <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <DocumentChatPanel
+              documentId={savedDocumentId}
+              currentContent={generatedDocument.content}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }

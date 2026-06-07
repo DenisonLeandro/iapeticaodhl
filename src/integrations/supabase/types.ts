@@ -397,6 +397,91 @@ export type Database = {
           },
         ]
       }
+      document_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          document_id: string
+          id: string
+          metadata: Json
+          organization_id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          id?: string
+          metadata?: Json
+          organization_id: string
+          role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chat_messages_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          change_summary: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          document_id: string
+          id: string
+          organization_id: string
+          source: string
+          version: number
+        }
+        Insert: {
+          change_summary?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          id?: string
+          organization_id: string
+          source?: string
+          version: number
+        }
+        Update: {
+          change_summary?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          id?: string
+          organization_id?: string
+          source?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           case_id: string | null

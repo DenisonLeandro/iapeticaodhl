@@ -39,6 +39,9 @@ import { exportDocumentToPDF } from "@/lib/pdf/export-document";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
 import { downloadBlob } from "@/lib/document-parser";
 import LegalEditor from "@/components/ai/LegalEditor";
+import DocumentChatPanel from "@/components/ai/chat/DocumentChatPanel";
+import DocumentVersionsPanel from "@/components/ai/versions/DocumentVersionsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DocumentStatus } from "@/types/ai";
 
 // ---------------------------------------------------------------------------
@@ -283,11 +286,34 @@ export default function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Editor */}
-      <LegalEditor
-        initialContent={doc.content}
-        onUpdate={handleContentChange}
-      />
+      {/* Tabs: Petição / Conversa IA / Versões */}
+      <Tabs defaultValue="document">
+        <TabsList>
+          <TabsTrigger value="document">Petição</TabsTrigger>
+          <TabsTrigger value="chat">Conversa com IA</TabsTrigger>
+          <TabsTrigger value="versions">Versões</TabsTrigger>
+        </TabsList>
+        <TabsContent value="document" className="mt-4">
+          <LegalEditor
+            initialContent={doc.content}
+            onUpdate={handleContentChange}
+          />
+        </TabsContent>
+        <TabsContent value="chat" className="mt-4">
+          {id && (
+            <DocumentChatPanel
+              documentId={id}
+              currentContent={content || doc.content}
+              onContentUpdated={(newContent) => {
+                setContent(newContent);
+              }}
+            />
+          )}
+        </TabsContent>
+        <TabsContent value="versions" className="mt-4">
+          {id && <DocumentVersionsPanel documentId={id} />}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
