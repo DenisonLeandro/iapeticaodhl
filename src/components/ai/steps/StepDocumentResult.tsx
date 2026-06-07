@@ -3,19 +3,23 @@
 // Story 2.2 — Document Generation Flow
 // =============================================================================
 
-import { Loader2, Save, Pencil, FileText, Copy, Check, FileDown, ChevronDown } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  Pencil,
+  FileText,
+  Copy,
+  Check,
+  FileDown,
+  ArrowLeft,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { exportDocumentToPDF } from "@/lib/pdf/export-document";
 import { toSafeHtml } from "@/lib/ai/normalize-html";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
@@ -33,6 +37,8 @@ interface StepDocumentResultProps {
   onSave: () => void;
   onEdit: () => void;
   onRetry: () => void;
+  onBack?: () => void;
+  onNewPetition?: () => void;
 }
 
 function LoadingState() {
@@ -99,9 +105,12 @@ export default function StepDocumentResult({
   onSave,
   onEdit,
   onRetry,
+  onBack,
+  onNewPetition,
 }: StepDocumentResultProps) {
   const [copied, setCopied] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingDOCX, setIsExportingDOCX] = useState(false);
 
   if (isGenerating) {
     return <LoadingState />;
@@ -116,7 +125,11 @@ export default function StepDocumentResult({
   }
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(generatedDocument.content);
+    // Copy as plain text (strip tags) so it pastes cleanly into Word
+    const tmp = document.createElement("div");
+    tmp.innerHTML = toSafeHtml(generatedDocument.content);
+    const text = tmp.innerText;
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -125,22 +138,22 @@ export default function StepDocumentResult({
     name.replace(/[^a-zA-Z0-9À-ÿ ]/g, "_");
 
   const handleExportPDF = async () => {
-    setIsExporting(true);
+    setIsExportingPDF(true);
     try {
       const blob = await exportDocumentToPDF(generatedDocument.content, title);
       downloadBlob(blob, `${sanitizeFilename(title)}.pdf`);
     } finally {
-      setIsExporting(false);
+      setIsExportingPDF(false);
     }
   };
 
   const handleExportDOCX = async () => {
-    setIsExporting(true);
+    setIsExportingDOCX(true);
     try {
       const blob = await exportDocumentToDOCX(generatedDocument.content, title);
       downloadBlob(blob, `${sanitizeFilename(title)}.docx`);
     } finally {
-      setIsExporting(false);
+      setIsExportingDOCX(false);
     }
   };
 
@@ -155,7 +168,7 @@ export default function StepDocumentResult({
             Documento Gerado
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Revise o documento gerado pela IA abaixo.
+            Revise a peça abaixo. O texto está formatado em padrão jurídico.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -166,75 +179,86 @@ export default function StepDocumentResult({
         </div>
       </div>
 
-      {/* Document Content — rendered HTML, sanitized */}
-      <Card className="border-border bg-muted/40">
-        <CardContent className="p-4 sm:p-6">
-          <div
-            className="legal-doc-preview"
-            data-testid="generated-content"
-            dangerouslySetInnerHTML={{ __html: toSafeHtml(generatedDocument.content) }}
-          />
-        </CardContent>
-      </Card>
-
-      <Separator />
+      {/* Save status banner */}
+      {isSaved && !autoSaveError && (
+        <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" />
+          <span>Petição salva no histórico.</span>
+        </div>
+      )}
 
       {autoSaveError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <strong>Salvamento automático falhou:</strong> {autoSaveError}
           <div className="mt-1 text-xs text-destructive/80">
-            Sua petição ainda está aqui. Clique em <strong>Salvar Rascunho</strong> para tentar novamente.
+            Sua petição ainda está aqui. Clique em <strong>Salvar</strong> para tentar novamente.
           </div>
         </div>
       )}
 
+      {/* Document — A4 paper look */}
+      <div className="flex justify-center bg-muted/30 p-4 sm:p-6 rounded-lg">
+        <div
+          className="legal-doc-preview shadow-xl"
+          data-testid="generated-content"
+          dangerouslySetInnerHTML={{ __html: toSafeHtml(generatedDocument.content) }}
+        />
+      </div>
+
+      <Separator />
+
       {/* Actions */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCopy}
-          className="text-muted-foreground"
-        >
-          {copied ? (
-            <>
-              <Check className="mr-2 h-4 w-4" />
-              Copiado!
-            </>
-          ) : (
-            <>
-              <Copy className="mr-2 h-4 w-4" />
-              Copiar texto
-            </>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar
+            </Button>
           )}
-        </Button>
+          {onNewPetition && (
+            <Button variant="ghost" size="sm" onClick={onNewPetition}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Nova petição
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="text-muted-foreground"
+          >
+            {copied ? (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Copiado!
+              </>
+            ) : (
+              <>
+                <Copy className="mr-2 h-4 w-4" />
+                Copiar texto
+              </>
+            )}
+          </Button>
+        </div>
 
-        <div className="flex items-center gap-3">
-          {/* Export dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={isExporting}>
-                {isExporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <FileDown className="mr-2 h-4 w-4" />
-                )}
-                Exportar
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportPDF}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Exportar PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportDOCX}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Exportar DOCX
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={handleExportDOCX} disabled={isExportingDOCX}>
+            {isExportingDOCX ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Exportar Word
+          </Button>
+          <Button variant="outline" onClick={handleExportPDF} disabled={isExportingPDF}>
+            {isExportingPDF ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Gerar PDF
+          </Button>
           <Button
             variant="outline"
             onClick={onSave}
@@ -248,12 +272,12 @@ export default function StepDocumentResult({
             ) : isSaved ? (
               <>
                 <Check className="mr-2 h-4 w-4" />
-                Rascunho Salvo
+                Salvo
               </>
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Salvar Rascunho
+                Salvar
               </>
             )}
           </Button>
