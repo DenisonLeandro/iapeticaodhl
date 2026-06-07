@@ -2,7 +2,7 @@
 // documentVersions service — Fase D
 // =============================================================================
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/backend/client";
 
 export type VersionSource = "manual" | "chat_ai" | "editor" | "restored" | "initial";
 

@@ -2,7 +2,7 @@
 // documentChat service — Fase D
 // =============================================================================
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/backend/client";
 import type { SuggestedPatch } from "@/lib/ai/patch-applier";
 
 export interface ChatMessage {
