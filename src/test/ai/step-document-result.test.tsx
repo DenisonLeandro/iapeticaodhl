@@ -108,7 +108,7 @@ describe("StepDocumentResult", () => {
     expect(screen.getByText("1700 tokens")).toBeInTheDocument();
   });
 
-  it("calls onSave when clicking Salvar Rascunho", () => {
+  it("calls onSave when clicking Salvar", () => {
     const onSave = vi.fn();
     render(
       <StepDocumentResult
@@ -123,7 +123,7 @@ describe("StepDocumentResult", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Salvar Rascunho"));
+    fireEvent.click(screen.getByText("Salvar"));
     expect(onSave).toHaveBeenCalledOnce();
   });
 
@@ -141,7 +141,7 @@ describe("StepDocumentResult", () => {
       />,
     );
 
-    expect(screen.getByText("Rascunho Salvo")).toBeInTheDocument();
+    expect(screen.getByText("Salvo")).toBeInTheDocument();
   });
 
   it("disables Editar button when not saved", () => {

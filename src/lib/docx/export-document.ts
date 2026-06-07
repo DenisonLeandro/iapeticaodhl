@@ -15,6 +15,9 @@ import {
   BorderStyle,
 } from "docx";
 import { parseHTML, type TextSegment } from "@/lib/document-parser";
+import { normalizeToHtml } from "@/lib/ai/normalize-html";
+
+const FONT = "Tahoma";
 
 // CNJ/ABNT margins in DXA (1cm ≈ 567 DXA)
 const MARGIN_LEFT = 1701;   // 3cm
@@ -29,7 +32,7 @@ export async function exportDocumentToDOCX(
   content: string,
   title: string,
 ): Promise<Blob> {
-  const segments = parseHTML(content);
+  const segments = parseHTML(normalizeToHtml(content));
   const children: Paragraph[] = [];
 
   // Title
@@ -39,7 +42,7 @@ export async function exportDocumentToDOCX(
       alignment: AlignmentType.CENTER,
       spacing: { after: 240 },
       children: [
-        new TextRun({ text: title, bold: true, font: "Arial", size: 32 }),
+        new TextRun({ text: title, bold: true, font: FONT, size: 32 }),
       ],
     }),
   );
@@ -53,19 +56,20 @@ export async function exportDocumentToDOCX(
 
     let opts: Record<string, unknown> = {
       children: currentRuns,
-      spacing: { line: 360 },
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { line: 360, after: 120 },
     };
 
     if (currentType === "heading1") {
-      opts = { ...opts, heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 240, line: 360 } };
+      opts = { ...opts, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { before: 240, after: 240, line: 360 } };
     } else if (currentType === "heading2") {
-      opts = { ...opts, heading: HeadingLevel.HEADING_2, spacing: { before: 180, after: 180, line: 360 } };
+      opts = { ...opts, heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER, spacing: { before: 180, after: 180, line: 360 } };
     } else if (currentType === "heading3") {
-      opts = { ...opts, heading: HeadingLevel.HEADING_3, spacing: { before: 120, after: 120, line: 360 } };
+      opts = { ...opts, heading: HeadingLevel.HEADING_3, alignment: AlignmentType.LEFT, spacing: { before: 120, after: 120, line: 360 } };
     } else if (currentType === "blockquote") {
-      opts = { ...opts, indent: { left: 720 }, border: { left: { style: BorderStyle.SINGLE, size: 6, color: "3B82F6", space: 8 } } };
+      opts = { ...opts, alignment: AlignmentType.JUSTIFIED, indent: { left: 720 }, border: { left: { style: BorderStyle.SINGLE, size: 6, color: "3B82F6", space: 8 } } };
     } else if (currentType === "listItem") {
-      opts = { ...opts, numbering: { reference: "bullets", level: 0 } };
+      opts = { ...opts, alignment: AlignmentType.LEFT, numbering: { reference: "bullets", level: 0 } };
     }
 
     children.push(new Paragraph(opts as ConstructorParameters<typeof Paragraph>[0]));
@@ -95,7 +99,7 @@ export async function exportDocumentToDOCX(
         text: seg.text.trim() + " ",
         bold: seg.bold,
         italics: seg.italic,
-        font: "Arial",
+        font: FONT,
         size: fontSize,
       }),
     );
@@ -124,7 +128,7 @@ export async function exportDocumentToDOCX(
     styles: {
       default: {
         document: {
-          run: { font: "Arial", size: 24 },
+          run: { font: FONT, size: 24 },
         },
       },
       paragraphStyles: [
@@ -134,7 +138,7 @@ export async function exportDocumentToDOCX(
           basedOn: "Normal",
           next: "Normal",
           quickFormat: true,
-          run: { size: 32, bold: true, font: "Arial" },
+          run: { size: 32, bold: true, font: FONT },
           paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: 0 },
         },
         {
@@ -143,7 +147,7 @@ export async function exportDocumentToDOCX(
           basedOn: "Normal",
           next: "Normal",
           quickFormat: true,
-          run: { size: 28, bold: true, font: "Arial" },
+          run: { size: 28, bold: true, font: FONT },
           paragraph: { spacing: { before: 180, after: 180 }, outlineLevel: 1 },
         },
         {
@@ -152,7 +156,7 @@ export async function exportDocumentToDOCX(
           basedOn: "Normal",
           next: "Normal",
           quickFormat: true,
-          run: { size: 26, bold: true, font: "Arial" },
+          run: { size: 26, bold: true, font: FONT },
           paragraph: { spacing: { before: 120, after: 120 }, outlineLevel: 2 },
         },
       ],
@@ -176,7 +180,7 @@ export async function exportDocumentToDOCX(
               new Paragraph({
                 alignment: AlignmentType.CENTER,
                 children: [
-                  new TextRun({ children: ["Página ", PageNumber.CURRENT], font: "Arial", size: 18 }),
+                  new TextRun({ children: ["Página ", PageNumber.CURRENT], font: FONT, size: 18 }),
                 ],
               }),
             ],

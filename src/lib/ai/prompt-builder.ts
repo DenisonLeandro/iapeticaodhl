@@ -142,10 +142,15 @@ export function buildUserPrompt(
     if (data.prazoResposta) parts.push(`PRAZO PARA RESPOSTA: ${data.prazoResposta}`);
   }
 
-  // Jurisprudência
-  if (jurisprudenciaText) {
-    parts.push(`\n--- JURISPRUDÊNCIA SELECIONADA (usar para embasar o documento) ---`);
-    parts.push(jurisprudenciaText);
+  // Jurisprudência — única fonte autorizada
+  if (jurisprudenciaText && jurisprudenciaText.trim()) {
+    parts.push(`\n--- JURISPRUDÊNCIA REAL FORNECIDA PELO SISTEMA (única permitida) ---`);
+    parts.push(jurisprudenciaText.trim());
+    parts.push(`--- FIM DA JURISPRUDÊNCIA REAL ---`);
+    parts.push(`Use SOMENTE os precedentes acima. NÃO invente outros números, ementas, relatores ou datas.`);
+  } else {
+    parts.push(`\n--- JURISPRUDÊNCIA ---`);
+    parts.push(`Nenhuma jurisprudência foi fornecida pelo sistema. NÃO cite precedentes neste documento. Fundamente apenas com lei, doutrina e princípios.`);
   }
 
   // Instruções adicionais
@@ -169,13 +174,13 @@ REGRAS OBRIGATÓRIAS:
 1. Escreva em português jurídico formal (pt-BR), com linguagem técnica adequada ao foro.
 2. O documento DEVE seguir rigorosamente a estrutura de um(a) ${label}.
 3. Cite artigos de lei aplicáveis (CPC/2015, CC/2002, CF/88, CDC, CLT conforme o caso).
-4. Inclua jurisprudência quando relevante (cite tribunal, número do acórdão e ementa).
+4. JURISPRUDÊNCIA — REGRA ABSOLUTA: É TERMINANTEMENTE PROIBIDO inventar precedentes. Não fabrique número de processo, ementa, relator, turma, câmara, data de julgamento ou tribunal. Você SÓ pode citar jurisprudência se ela vier explicitamente na seção "JURISPRUDÊNCIA REAL FORNECIDA PELO SISTEMA" do prompt do usuário. Se nenhuma jurisprudência real for fornecida, NÃO cite precedentes — fundamente apenas com lei, doutrina e princípios. A AUSÊNCIA de jurisprudência é PREFERÍVEL a citar precedente falso ou não verificado.
 5. Formate com parágrafos numerados, citações em bloco e seções claras.
 6. Para peças judiciais, inicie com o endereçamento: "EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA [VARA] DA COMARCA DE [CIDADE]/[UF]"
 7. Finalize com: local, data atual, espaço para assinatura do advogado (Nome + OAB).
 8. Retorne APENAS HTML válido — sem cercas de código (não use \`\`\`html), sem comentários, sem texto fora das tags. Tags permitidas: h1, h2, h3, p, strong, em, ol, ul, li, blockquote, br. NÃO escreva tags como texto; o HTML será renderizado.
-9. Blockquotes devem ser usados para citações de lei e jurisprudência.
-10. NÃO invente fatos. Use apenas os dados fornecidos pelo usuário.`;
+9. Blockquotes devem ser usados para citações de lei e jurisprudência REAL fornecida.
+10. NÃO invente fatos, datas, nomes, valores, números de processo, endereços nem precedentes. Use apenas os dados fornecidos pelo usuário.`;
 }
 
 /**

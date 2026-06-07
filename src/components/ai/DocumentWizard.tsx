@@ -317,6 +317,8 @@ export default function DocumentWizard() {
             onSave={handleSave}
             onEdit={handleEdit}
             onRetry={handleRetry}
+            onBack={handleBack}
+            onNewPetition={() => navigate("/ai/new", { replace: true })}
           />
         )}
       </div>

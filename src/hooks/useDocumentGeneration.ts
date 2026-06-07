@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { USE_EDGE_FUNCTIONS } from "@/lib/config";
 import { directAIGenerate } from "@/lib/ai/direct-client";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
+import { normalizeToHtml } from "@/lib/ai/normalize-html";
 import type {
   DocumentType,
   DocumentGenerationContext,
@@ -55,24 +56,29 @@ export function useDocumentGeneration() {
         processAnalysisIds: params.processAnalysisIds ?? [],
       };
 
+      let result: GeneratedDocument;
       if (USE_EDGE_FUNCTIONS) {
         const { data, error } = await supabase.functions.invoke("ai-generate", {
           body: requestBody,
         });
         if (error) throw new Error(`Falha na geração: ${error.message}`);
-        return data as GeneratedDocument;
+        result = data as GeneratedDocument;
+      } else {
+        result = await directAIGenerate({
+          prompt: userPrompt,
+          systemPrompt,
+          provider: requestBody.provider,
+          model: requestBody.model,
+          organizationId: requestBody.organizationId,
+          documentType: params.documentType,
+          context: params.context,
+          processAnalysisIds: params.processAnalysisIds ?? [],
+        });
       }
-
-      return directAIGenerate({
-        prompt: userPrompt,
-        systemPrompt,
-        provider: requestBody.provider,
-        model: requestBody.model,
-        organizationId: requestBody.organizationId,
-        documentType: params.documentType,
-        context: params.context,
-        processAnalysisIds: params.processAnalysisIds ?? [],
-      });
+      // Normalize content once — strips ```html fences, unescapes entities,
+      // converts Markdown fallback to HTML. Same string is used for preview,
+      // editor, auto-save and exports.
+      return { ...result, content: normalizeToHtml(result.content ?? "") };
     },
     onSuccess: () => setStatus("success"),
     onError: () => setStatus("error"),

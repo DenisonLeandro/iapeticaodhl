@@ -5,6 +5,7 @@
 
 import jsPDF from "jspdf";
 import { parseHTML } from "@/lib/document-parser";
+import { normalizeToHtml } from "@/lib/ai/normalize-html";
 
 /**
  * Export document content (HTML) to a PDF blob with Brazilian legal margins.
@@ -49,19 +50,19 @@ export async function exportDocumentToPDF(
     }
   }
 
-  // Title
-  pdf.setFontSize(16);
+  // Title — centered
+  pdf.setFontSize(14);
   pdf.setFont("helvetica", "bold");
   const titleLines = pdf.splitTextToSize(title, usableWidth) as string[];
   titleLines.forEach((line: string) => {
     checkPageBreak(8);
-    pdf.text(line, marginLeft, cursorY);
+    pdf.text(line, pageWidth / 2, cursorY, { align: "center" });
     cursorY += 8;
   });
   cursorY += 4;
 
-  // Parse and render body
-  const segments = parseHTML(content);
+  // Parse and render body (normalize first to clean fences / escaped tags)
+  const segments = parseHTML(normalizeToHtml(content));
 
   for (const seg of segments) {
     if (seg.text === "\n") {
@@ -72,12 +73,13 @@ export async function exportDocumentToPDF(
     let segFontSize = fontSize;
     let fontStyle: "normal" | "bold" | "italic" | "bolditalic" = "normal";
     let indent = 0;
+    let align: "left" | "center" | "right" | "justify" = "justify";
 
-    if (seg.type === "heading1") { segFontSize = 16; fontStyle = "bold"; }
-    else if (seg.type === "heading2") { segFontSize = 14; fontStyle = "bold"; }
-    else if (seg.type === "heading3") { segFontSize = 13; fontStyle = "bold"; }
-    else if (seg.type === "blockquote") { indent = 10; fontStyle = "italic"; }
-    else if (seg.type === "listItem") { indent = 5; }
+    if (seg.type === "heading1") { segFontSize = 14; fontStyle = "bold"; align = "center"; }
+    else if (seg.type === "heading2") { segFontSize = 13; fontStyle = "bold"; align = "center"; }
+    else if (seg.type === "heading3") { segFontSize = 12; fontStyle = "bold"; align = "left"; }
+    else if (seg.type === "blockquote") { indent = 12; fontStyle = "italic"; }
+    else if (seg.type === "listItem") { indent = 5; align = "left"; }
 
     if (seg.bold && seg.italic) fontStyle = "bolditalic";
     else if (seg.bold) fontStyle = "bold";
@@ -89,24 +91,37 @@ export async function exportDocumentToPDF(
     const effectiveWidth = usableWidth - indent;
     const lines = pdf.splitTextToSize(seg.text.trim(), effectiveWidth) as string[];
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       checkPageBreak(lineHeight);
       const x = marginLeft + indent;
 
       if (seg.type === "blockquote") {
-        pdf.setDrawColor(59, 130, 246);
-        pdf.setLineWidth(0.5);
+        pdf.setDrawColor(180, 180, 180);
+        pdf.setLineWidth(0.4);
         pdf.line(marginLeft + 5, cursorY - 4, marginLeft + 5, cursorY + 1);
       }
 
-      if (seg.type === "listItem" && line === lines[0]) {
+      if (seg.type === "listItem" && i === 0) {
         pdf.text("• ", marginLeft, cursorY);
       }
 
-      pdf.text(line, x, cursorY);
+      // Justify only full body lines (not last line of paragraph, not headings/lists)
+      if (align === "justify" && i < lines.length - 1 && line.trim().split(/\s+/).length > 1) {
+        try {
+          pdf.text(line, x, cursorY, { align: "justify", maxWidth: effectiveWidth });
+        } catch {
+          pdf.text(line, x, cursorY);
+        }
+      } else if (align === "center") {
+        pdf.text(line, pageWidth / 2, cursorY, { align: "center" });
+      } else {
+        pdf.text(line, x, cursorY);
+      }
       cursorY += lineHeight;
     }
   }
+
 
   addPageNumber();
   return pdf.output("blob");
