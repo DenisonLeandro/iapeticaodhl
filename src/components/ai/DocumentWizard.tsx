@@ -151,12 +151,11 @@ export default function DocumentWizard() {
         // Go to documents step; user picks which analyses to use
         setStep(3);
       } else {
-        // No case linked: skip docs step, generate immediately
+        // No case linked: skip docs step, go to review (do NOT generate yet)
         setStep(4);
-        runGeneration(data, []);
       }
     },
-    [runGeneration],
+    [],
   );
 
   const persistDocument = useCallback(async () => {
