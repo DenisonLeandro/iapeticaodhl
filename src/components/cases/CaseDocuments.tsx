@@ -1,4 +1,5 @@
 import { FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -45,6 +46,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function CaseDocuments({ documents, isLoading }: CaseDocumentsProps) {
+  const navigate = useNavigate();
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -78,7 +80,11 @@ export default function CaseDocuments({ documents, isLoading }: CaseDocumentsPro
         </TableHeader>
         <TableBody>
           {documents.map((doc) => (
-            <TableRow key={doc.id}>
+            <TableRow
+              key={doc.id}
+              className="cursor-pointer hover:bg-muted/40"
+              onClick={() => navigate(`/ai/documents/${doc.id}/edit`)}
+            >
               <TableCell className="font-medium">{doc.title}</TableCell>
               <TableCell className="text-muted-foreground">
                 {TYPE_LABELS[doc.type] ?? doc.type}

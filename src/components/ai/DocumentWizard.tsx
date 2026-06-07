@@ -3,7 +3,7 @@
 // Story 2.2 — Document Generation Flow
 // =============================================================================
 
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentGeneration } from "@/hooks/useDocumentGeneration";
 import { useCreateDocument } from "@/hooks/useDocuments";
+import { updateDocument } from "@/services/documents";
 import { useLogAIUsage } from "@/hooks/useDocuments";
 import { estimateCost } from "@/lib/ai/pricing";
 import { buildContext } from "@/lib/ai/prompt-builder";
@@ -49,8 +50,10 @@ export default function DocumentWizard() {
   const [documentType, setDocumentType] = useState<DocumentType | null>(isDemo ? "petition" : null);
   const [formData, setFormData] = useState<DocumentGenerationFormData | null>(demoInitialData);
   const [savedDocumentId, setSavedDocumentId] = useState<string | null>(null);
+  const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [selectedJurisprudence, setSelectedJurisprudence] = useState<JurisprudenceResult[]>([]);
   const [selectedAnalysisFileIds, setSelectedAnalysisFileIds] = useState<string[]>([]);
+  const autoSaveAttemptedRef = useRef(false);
 
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -154,32 +157,102 @@ export default function DocumentWizard() {
     [runGeneration],
   );
 
-  const handleSave = useCallback(async () => {
-    if (!generatedDocument || !formData || !organization?.id || !user?.id) return;
+  const persistDocument = useCallback(async () => {
+    if (!generatedDocument || !formData || !organization?.id || !user?.id) {
+      return null;
+    }
 
-    try {
-      const title = `${DOCUMENT_TYPE_LABELS[formData.documentType]} — ${formData.autor.nome}`;
-      const totalTokens = generatedDocument.tokensUsed.input + generatedDocument.tokensUsed.output;
+    const title = `${DOCUMENT_TYPE_LABELS[formData.documentType]} — ${formData.autor.nome}`;
+    const totalTokens = generatedDocument.tokensUsed.input + generatedDocument.tokensUsed.output;
 
-      const doc = await createDocumentMutation.mutateAsync({
-        organization_id: organization.id,
-        type: formData.documentType,
+    // Already saved → update existing row (avoids duplicates)
+    if (savedDocumentId) {
+      await updateDocument(savedDocumentId, {
         title,
         content: generatedDocument.content,
-        llm_provider: generatedDocument.provider,
-        llm_model: generatedDocument.model,
-        prompt_used: formData.fatos,
-        tokens_used: totalTokens,
-        status: "draft",
-        created_by: user.id,
       });
-
-      setSavedDocumentId(doc.id);
-      toast({ title: "Rascunho salvo com sucesso", description: "O documento foi salvo como rascunho." });
-    } catch (err) {
-      toast({ title: "Erro ao salvar", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
+      return savedDocumentId;
     }
-  }, [generatedDocument, formData, organization, user, createDocumentMutation, toast]);
+
+    const doc = await createDocumentMutation.mutateAsync({
+      organization_id: organization.id,
+      type: formData.documentType,
+      title,
+      content: generatedDocument.content,
+      llm_provider: generatedDocument.provider,
+      llm_model: generatedDocument.model,
+      prompt_used: formData.fatos,
+      tokens_used: totalTokens,
+      status: "draft",
+      created_by: user.id,
+      client_id: formData.clienteVinculadoId ?? null,
+      case_id: formData.caseId ?? null,
+      represented_party: formData.representedParty ?? null,
+      source_file_ids: selectedAnalysisFileIds.length > 0 ? selectedAnalysisFileIds : null,
+      version: 1,
+    });
+    setSavedDocumentId(doc.id);
+    return doc.id;
+  }, [
+    generatedDocument,
+    formData,
+    organization,
+    user,
+    savedDocumentId,
+    createDocumentMutation,
+    selectedAnalysisFileIds,
+  ]);
+
+  // Auto-save once when generation succeeds
+  useEffect(() => {
+    if (!generatedDocument || savedDocumentId || autoSaveAttemptedRef.current) return;
+    autoSaveAttemptedRef.current = true;
+    setAutoSaveError(null);
+    persistDocument()
+      .then(() => {
+        toast({
+          title: "Petição salva no histórico",
+          description: "O documento foi salvo automaticamente como rascunho.",
+        });
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        setAutoSaveError(message);
+        toast({
+          title: "Não foi possível salvar automaticamente",
+          description: `${message}. Você pode tentar novamente pelo botão Salvar.`,
+          variant: "destructive",
+        });
+      });
+  }, [generatedDocument, savedDocumentId, persistDocument, toast]);
+
+  // Reset auto-save guard when the user starts a new generation
+  useEffect(() => {
+    if (isGenerating) {
+      autoSaveAttemptedRef.current = false;
+      setSavedDocumentId(null);
+      setAutoSaveError(null);
+    }
+  }, [isGenerating]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      const id = await persistDocument();
+      if (id) {
+        setAutoSaveError(null);
+        toast({
+          title: savedDocumentId ? "Rascunho atualizado" : "Rascunho salvo",
+          description: "As alterações foram registradas.",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Erro ao salvar",
+        description: err instanceof Error ? err.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  }, [persistDocument, savedDocumentId, toast]);
 
   const handleEdit = useCallback(() => {
     if (savedDocumentId) navigate(`/ai/documents/${savedDocumentId}/edit`);
@@ -188,6 +261,9 @@ export default function DocumentWizard() {
   const handleRetry = useCallback(() => {
     if (formData) {
       resetGeneration();
+      autoSaveAttemptedRef.current = false;
+      setSavedDocumentId(null);
+      setAutoSaveError(null);
       runGeneration(formData, selectedAnalysisFileIds);
     }
   }, [formData, resetGeneration, runGeneration, selectedAnalysisFileIds]);
@@ -236,6 +312,7 @@ export default function DocumentWizard() {
             error={generationError}
             isSaving={createDocumentMutation.isPending}
             isSaved={!!savedDocumentId}
+            autoSaveError={autoSaveError}
             title={documentType ? `${DOCUMENT_TYPE_LABELS[documentType]} — ${formData?.autor?.nome ?? ""}` : "Documento"}
             onSave={handleSave}
             onEdit={handleEdit}

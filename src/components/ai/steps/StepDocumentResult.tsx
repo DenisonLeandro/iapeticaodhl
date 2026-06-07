@@ -27,6 +27,7 @@ interface StepDocumentResultProps {
   error: Error | null;
   isSaving: boolean;
   isSaved: boolean;
+  autoSaveError?: string | null;
   title?: string;
   onSave: () => void;
   onEdit: () => void;
@@ -92,6 +93,7 @@ export default function StepDocumentResult({
   error,
   isSaving,
   isSaved,
+  autoSaveError,
   title = "Documento",
   onSave,
   onEdit,
@@ -178,6 +180,15 @@ export default function StepDocumentResult({
       </Card>
 
       <Separator />
+
+      {autoSaveError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <strong>Salvamento automático falhou:</strong> {autoSaveError}
+          <div className="mt-1 text-xs text-destructive/80">
+            Sua petição ainda está aqui. Clique em <strong>Salvar Rascunho</strong> para tentar novamente.
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between">

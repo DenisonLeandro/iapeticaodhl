@@ -199,6 +199,12 @@ export interface Document {
   storage_path: string | null;
   created_at: string;
   created_by: string;
+  // Fase A — histórico enriquecido
+  represented_party: string | null;
+  source_file_ids: string[] | null;
+  parent_document_id: string | null;
+  version: number;
+  template_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
