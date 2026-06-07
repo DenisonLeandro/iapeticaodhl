@@ -1,122 +1,193 @@
-# Fase B — Visualização estilo Word + Exportação + Anti-jurisprudência falsa
+# Fase D — Chat com IA vinculado à petição + versionamento
 
 ## Diagnóstico
 
-**Formato retornado pelo `ai-generate`:** HTML (instrução 8 do system prompt obriga). Às vezes vem com cercas ```html ou misturado.
+**Edição atual:** `DocumentEditPage.tsx` (`/ai/documents/:id/edit`) usa `LegalEditor` (Tiptap) com auto-save em `documents.content` a cada 30s via `useAutoSave`. Não há chat, nem aba, nem histórico de versões.
 
-**Onde aparece HTML cru na tela:**
-- `StepDocumentResult.tsx` já usa `dangerouslySetInnerHTML={{ __html: toSafeHtml(...) }}` (linha 175) — então o HTML deveria renderizar. Porém:
-  - Quando o modelo retorna conteúdo com entidades HTML escapadas (`&lt;p&gt;`), o sanitizer mantém o texto literal.
-  - O CSS `.legal-doc-preview` em `src/index.css` pode estar com `white-space: pre-wrap` ou estilos que fazem o HTML aparecer cru — verificar.
-  - Em alguns providers (openai/claude) a resposta volta dentro de blocos ```html que não estão sendo strippados antes de salvar em `documents.content` — o banco guarda HTML "cru" com cercas, e o `LegalEditor` re-exibe sem normalizar.
+**Schema atual de `documents`:** já tem `parent_document_id` e `version` (int default 1). NÃO há tabela de histórico — `parent_document_id` foi pensado mas nunca usado. Não há tabela de mensagens de chat.
 
-**Como está salvo em `documents.content`:** HTML (string), mas sem passar por `toSafeHtml` ou `normalizeToHtml` antes do insert — vai como o modelo devolveu (pode conter cercas, escapado, ou markdown).
+**`StepDocumentResult.tsx`** mostra a peça gerada com botões (Voltar, Nova, Copiar, Word, PDF, Salvar, Editar). Sem chat.
 
-**Exportações:**
-- `exportDocumentToPDF`/`exportDocumentToDOCX` chamam `parseHTML(content)` direto, sem `normalizeToHtml`. Helvetica/Arial — não Tahoma. Margens já em ABNT (30/30/20/20 mm) ✓, mas sem justificado, sem espaçamento 1,5 explícito no PDF.
+**`source_file_ids`** já é persistido em `documents` (Fase B), então o chat pode reusar essa lista para reanexar análises ao contexto.
 
-**LegalEditor/Tiptap:** já renderiza HTML; bastará passá-lo normalizado.
+**Edge function de geração** já existe (`ai-generate`); padrão de invocar Lovable AI Gateway já estabelecido (`google/gemini-3-flash-preview`).
 
-**Anti-jurisprudência:** instrução 4 atual diz "Inclua jurisprudência quando relevante (cite tribunal, número e ementa)" — convida o modelo a inventar. Precisa ser invertida.
+**Conclusão:** precisamos de duas tabelas novas (`document_chat_messages`, `document_versions`), uma edge function (`document-chat`), um painel de chat reutilizável, uma aba/painel de Versões, e a lógica de "Aplicar sugestão" que grava nova versão.
 
 ---
 
 ## Mudanças
 
-### 1. Normalizar conteúdo antes de salvar (fonte única de verdade)
+### 1. Migrations
 
-`src/hooks/useDocumentGeneration.ts` e `src/lib/ai/direct-client.ts` (ou onde `documents.content` é persistido pela Fase A): aplicar `normalizeToHtml(raw)` no `content` antes do insert/auto-save. Garante que o banco sempre guarde HTML limpo (sem cercas, sem markdown solto, sem texto escapado).
-
-Para entidades escapadas (`&lt;p&gt;`), adicionar em `normalize-html.ts` um `unescapeIfDoubleEscaped(raw)`: se a string contém muitos `&lt;` mas nenhum `<tag>`, faz unescape antes de detectar HTML.
-
-### 2. Visualização estilo Word (folha A4)
-
-`src/components/ai/steps/StepDocumentResult.tsx`:
-- Substituir o `Card` cinza por um wrapper "folha A4" — fundo branco, sombra, largura ~21cm, padding simulando margens (3cm/3cm/2cm/2cm), `text-align: justify`, `font-family: Tahoma`, `font-size: 12pt`, `line-height: 1.5`, recuo de primeira linha em `<p>`.
-- Classe `.legal-doc-page` adicionada em `src/index.css` com estilos para h1/h2/h3 centralizados/destacados, `strong`, `blockquote`, etc.
-- Sempre renderizar via `dangerouslySetInnerHTML={{ __html: toSafeHtml(content) }}`.
-
-### 3. Botões da tela de resultado
-
-Reorganizar barra de ações em `StepDocumentResult.tsx`:
-- Esquerda: **Voltar** (volta etapa wizard), **Nova petição** (reset).
-- Direita: **Copiar texto**, **Editar**, **Exportar Word**, **Gerar PDF**, **Salvar / Salvo**.
-- Mostrar banner verde discreto: "Petição salva no histórico" quando `isSaved`.
-
-### 4. Exportação Word (`src/lib/docx/export-document.ts`)
-
-- Trocar `font: "Arial"` por `font: "Tahoma"` em todos os `TextRun` e estilos default.
-- Adicionar `alignment: AlignmentType.JUSTIFIED` no `flushParagraph` para parágrafos `normal`.
-- Espaçamento já é `line: 360` (≈1,5) ✓; manter.
-- Margens já corretas (3/3/2/2) ✓.
-- Aplicar `normalizeToHtml(content)` antes de `parseHTML` para garantir entrada limpa.
-
-### 5. Exportação PDF (`src/lib/pdf/export-document.ts`)
-
-- jsPDF não tem Tahoma nativo. Duas opções:
-  - **(a) embarcar fonte Tahoma** via `addFileToVFS` + `addFont` (arquivo TTF em `src/assets/fonts/`) — peso ~600KB.
-  - **(b) usar Helvetica** (já está) e aceitar substituição visual — Word fica em Tahoma.
-- Recomendado: **opção (a)** já que o usuário pediu padrão visual idêntico.
-- Adicionar justificação: usar `pdf.text(line, x, y, { align: "justify", maxWidth })` para corpo.
-- Aumentar `lineHeight` para refletir 1,5 (≈ 7.5mm com fonte 12pt).
-- Aplicar `normalizeToHtml(content)` antes de `parseHTML`.
-
-### 6. Regra anti-jurisprudência falsa (`src/lib/ai/prompt-builder.ts`)
-
-Substituir regra 4 e adicionar bloco dedicado no `buildSystemPrompt`:
-
+**`document_chat_messages`**
 ```
-4. JURISPRUDÊNCIA: NÃO invente precedentes. É proibido fabricar número de processo, ementa, relator, turma, data ou tribunal. Só cite jurisprudência se ela for fornecida explicitamente no prompt do usuário (seção "JURISPRUDÊNCIA SELECIONADA"). Se nenhuma jurisprudência real for fornecida, NÃO cite — fundamente apenas com lei, doutrina e princípios. A ausência de jurisprudência é preferível a citar precedente falso.
-10. NÃO invente fatos, datas, nomes, valores, números de processo nem precedentes.
+id uuid pk
+organization_id uuid not null
+document_id uuid not null references documents(id) on delete cascade
+role text check in ('user','assistant','system')
+content text not null
+metadata jsonb default '{}'   -- guarda suggested_patch quando assistant
+created_by uuid references auth.users(id)
+created_at timestamptz default now()
+```
+RLS: SELECT/INSERT/UPDATE/DELETE por `organization_id IN (...)` (mesmo padrão de `documents`). GRANT a `authenticated` + `service_role`.
+
+**`document_versions`**
+```
+id uuid pk
+organization_id uuid not null
+document_id uuid not null references documents(id) on delete cascade
+version int not null
+content text not null
+change_summary text
+source text check in ('manual','chat_ai','editor','restored')
+created_by uuid references auth.users(id)
+created_at timestamptz default now()
+unique(document_id, version)
+```
+RLS idêntico. Index em `(document_id, version desc)`.
+
+**Sem alterações em `documents`** — `version` existente continua sendo a versão atual.
+
+**Backfill (opcional):** ao primeiro acesso de um documento sem versões, criar a v1 automaticamente (no painel de Versões, lazy).
+
+### 2. Edge Function `document-chat`
+
+Path: `supabase/functions/document-chat/index.ts`. `verify_jwt = false`, valida JWT em código.
+
+**Input:**
+```ts
+{ documentId: string, message: string }
 ```
 
-Em `buildUserPrompt`, marcar a seção de jurisprudência de forma inequívoca:
-```
---- JURISPRUDÊNCIA REAL FORNECIDA PELO SISTEMA (única permitida) ---
-<texto + fonte/link/identificador>
---- FIM DA JURISPRUDÊNCIA REAL ---
-```
+**Fluxo:**
+1. Valida JWT, deriva `userId` + `organizationId` via `profiles`.
+2. Carrega documento (mesma org). Carrega `client`, `case`, `client_files` filtrados por `source_file_ids` (somente `analysis_summary` e `analysis_json` — nunca o PDF bruto nem `extracted_text` completo).
+3. Carrega últimas ~20 mensagens do chat (asc).
+4. Monta system prompt com regras: parte representada, não inventar fatos/jurisprudência, diferenciar fatos alegados/provados/decisões, só citar precedentes se houver fonte real fornecida etc.
+5. Envia para Lovable AI Gateway (`google/gemini-3-flash-preview`) com `generateText` + `Output.object({ schema })` para forçar JSON estruturado:
+   ```
+   { message: string, suggested_patch: { type: 'insert'|'replace'|'delete'|'none', target_section?: string, content?: string, explanation?: string } }
+   ```
+6. Persiste mensagem do user e do assistant (assistant em `metadata` guarda `suggested_patch`).
+7. Retorna `{ message, suggested_patch, assistantMessageId }`.
 
-Se `jurisprudenciaText` estiver vazio, incluir:
-```
---- JURISPRUDÊNCIA ---
-Nenhuma jurisprudência foi fornecida. NÃO cite precedentes neste documento.
-```
+Erros: 402 (créditos) / 429 (rate) repassados ao client; toasts no front.
 
-### 7. Editor (`src/pages/ai/DocumentEditPage.tsx` / `LegalEditor.tsx`)
+### 3. Service + hooks no frontend
 
-Aplicar mesma classe `.legal-doc-page` no container do editor para que a edição também tenha aparência Word (Tahoma 12, justificado, A4 simulado).
+`src/services/documentChat.ts`:
+- `listChatMessages(documentId)`
+- `sendChatMessage(documentId, message)` → invoca edge function
+- `applyPatchAsNewVersion({ documentId, currentContent, patch, changeSummary, source })`
+- `listVersions(documentId)`
+- `restoreVersion(documentId, versionId)` (cria nova versão a partir da antiga)
+
+`src/hooks/useDocumentChat.ts` (React Query): mensagens + `sendMessageMutation`.
+`src/hooks/useDocumentVersions.ts`: lista + `applyVersionMutation` + `restoreVersionMutation`.
+
+### 4. Aplicação de patch (lado cliente)
+
+Para evitar complexidade de patch estruturado nesta fase, suportar:
+
+- **`insert` (default seguro):** acrescenta `<h2>{target_section || 'Trecho adicionado pela IA'}</h2>{content}` ao final do `documents.content`.
+- **`replace`:** se `target_section` for um heading existente (matched por texto exato ou normalizado), substitui o bloco daquele heading até o próximo heading do mesmo nível. Se não encontrar, cai para `insert`.
+- **`delete`:** mesma busca por heading; se achar, remove o bloco. Se não achar, aborta e mostra "Não foi possível localizar o trecho — aplique manualmente".
+- **`none`:** apenas resposta textual, sem botão Aplicar.
+
+Toda mudança passa por `normalizeToHtml` antes de gravar.
+
+Ao aplicar:
+1. Confirmação (`AlertDialog`) com preview do patch (`AlertDialog` mais leve para `insert`, obrigatório para `replace`/`delete`).
+2. Update `documents.content` e `documents.version = current + 1`.
+3. Insert em `document_versions` com `source='chat_ai'` e `change_summary = patch.explanation || 'Sugestão aplicada via chat IA'`.
+4. Toast "Alteração aplicada e nova versão salva".
+5. Invalida queries de documento + versões + chat (a mensagem fica marcada como aplicada via `metadata.applied = true`).
+
+### 5. UI — abas no editor e na tela de resultado
+
+**`DocumentEditPage.tsx`:** envolver editor numa estrutura de `Tabs`:
+- **Petição** — `LegalEditor` (atual).
+- **Conversa com IA** — novo `DocumentChatPanel`.
+- **Versões** — novo `DocumentVersionsPanel`.
+
+**`StepDocumentResult.tsx`:** após o save automático (quando `isSaved && savedDocumentId`), adicionar abaixo do banner verde um `Accordion`/`Collapsible` "Conversar com a IA sobre esta petição" que renderiza o mesmo `DocumentChatPanel` (passa `documentId`). Sem abas aqui — chat fica abaixo da preview, recolhido por padrão.
+
+### 6. Componentes novos
+
+- `src/components/ai/chat/DocumentChatPanel.tsx` — lista de mensagens, sugestões rápidas (chips), input + enviar, render markdown com `react-markdown` (já no projeto? se não, adicionar).
+- `src/components/ai/chat/ChatMessage.tsx` — bolha user/assistant; para assistant com `suggested_patch != none`, mostra botões **Aplicar**, **Copiar**, **Descartar**.
+- `src/components/ai/chat/ApplyPatchDialog.tsx` — confirmação com preview.
+- `src/components/ai/versions/DocumentVersionsPanel.tsx` — lista versões (versão, data, usuário, resumo, origem) com ações **Visualizar** (Dialog com HTML renderizado read-only) e **Restaurar** (confirmação → cria nova versão `restored`).
+
+### 7. Sugestões rápidas (chips no chat)
+
+Botões pré-prontos que populam o input (não enviam direto):
+- Melhorar fundamentação
+- Verificar riscos
+- Revisar coerência
+- Sugerir tópico faltante
+- Impugnar tese da parte contrária
+- Melhorar pedidos
+
+### 8. Não nesta fase
+
+Chat streaming (resposta vem inteira), comparação visual de versões (diff), reanalisar PDFs, análise conjunta, OCR no chat.
 
 ---
 
-## Arquivos a alterar
+## Arquivos a criar/alterar
 
-- `src/lib/ai/normalize-html.ts` — adicionar `unescapeIfDoubleEscaped`
-- `src/lib/ai/prompt-builder.ts` — regra anti-jurisprudência + seção marcada
-- `src/hooks/useDocumentGeneration.ts` — normalizar `content` antes do auto-save
-- `src/components/ai/steps/StepDocumentResult.tsx` — folha A4, botões, banner "salva"
-- `src/components/ai/LegalEditor.tsx` — classe `.legal-doc-page`
-- `src/index.css` — estilos `.legal-doc-page` (Tahoma, A4, justificado, 1.5)
-- `src/lib/docx/export-document.ts` — Tahoma + justified + normalize
-- `src/lib/pdf/export-document.ts` — embarcar Tahoma + justified + normalize
-- `src/assets/fonts/Tahoma.ttf` (novo) — para jsPDF
+**Novos**
+- `supabase/functions/document-chat/index.ts`
+- `src/services/documentChat.ts`
+- `src/services/documentVersions.ts`
+- `src/hooks/useDocumentChat.ts`
+- `src/hooks/useDocumentVersions.ts`
+- `src/components/ai/chat/DocumentChatPanel.tsx`
+- `src/components/ai/chat/ChatMessage.tsx`
+- `src/components/ai/chat/ApplyPatchDialog.tsx`
+- `src/components/ai/versions/DocumentVersionsPanel.tsx`
+- `src/lib/ai/patch-applier.ts` — funções `applyInsert/applyReplace/applyDelete` sobre HTML
 
-## Sem migration
+**Alterados**
+- `src/pages/ai/DocumentEditPage.tsx` — Tabs (Petição / Conversa / Versões)
+- `src/components/ai/steps/StepDocumentResult.tsx` — accordion "Conversar com a IA"
+- `src/integrations/supabase/types.ts` — regenerado após migration
 
-Conteúdo continua em `documents.content` como HTML string. Documentos antigos passam por `toSafeHtml` no momento de exibir/exportar — retroativamente limpos.
+**Migration**
+- 2 novas tabelas + RLS + GRANTs + indexes.
 
-## Testes (preview)
+---
 
-1. Gerar petição nova — verificar que NÃO aparecem `<h1>`, `<p>`, `<strong>` na tela; texto justificado, Tahoma, folha A4.
-2. Banner "Petição salva no histórico" aparece após auto-save.
-3. Botões: Voltar, Nova petição, Copiar, Editar, Exportar Word, Gerar PDF, Salvar/Salvo.
-4. Baixar .docx → abrir no Word → Tahoma 12, justificado, margens 3/3/2/2, 1,5.
-5. Baixar PDF → Tahoma 12 (ou fallback), justificado, sem HTML.
-6. Abrir documento antigo em `/ai/documents/:id/edit` → renderiza limpo.
-7. Gerar petição sem jurisprudência selecionada → conferir que IA não inventa precedente; gerar com jurisprudência real do `JurisprudenceSearch` → conferir que cita exatamente a fonte fornecida.
+## Riscos técnicos
 
-## Riscos
+- **`replace`/`delete` por heading match** é frágil — se o modelo retornar um `target_section` inexato, vai cair em insert (seguro) ou abortar. Mitigação: sempre apresentar preview ao usuário antes de aplicar.
+- **Custo de contexto:** anexar todas análises `analysis_summary` pode explodir tokens. Cortar `analysis_summary` em ~2000 chars por arquivo e ignorar `analysis_json` se passar limite.
+- **Conflito com auto-save do editor:** após "Aplicar", o `LegalEditor` precisa receber o novo `content`; já temos `useEffect` que faz `setContent` quando `initialContent` muda — invalidar `useDocument(id)` cobre.
+- **Race:** se usuário está digitando no editor e aplica patch do chat, edição local é sobrescrita. Mitigação: bloquear "Aplicar" enquanto `isSaving` é true e dar toast "Salve suas edições antes de aplicar a sugestão" se houver diff não salvo.
 
-- Tahoma embarcada no PDF aumenta bundle ~600KB. Mitigação: lazy-load do módulo de export PDF (já é dinâmico).
-- Mudar `content` salvo (normalizado) não afeta documentos existentes; eles continuam funcionando porque o display também normaliza.
-- Regra anti-jurisprudência pode reduzir qualidade percebida quando usuário não fornecer julgados; é o trade-off desejado.
+---
+
+## Plano incremental recomendado
+
+1. **D1 — Migrations + edge function `document-chat`** (text only, sem patch estruturado): chat funciona, responde texto, mensagens persistidas. Só botão **Copiar** + **Descartar**.
+2. **D2 — Resposta estruturada com `suggested_patch`** + botão **Aplicar** (apenas `insert` ao final, com preview).
+3. **D3 — Versionamento completo:** tabela `document_versions`, painel Versões, restaurar.
+4. **D4 — `replace` e `delete` por heading match** + chips de sugestão rápida.
+5. **D5 — Integrar chat também na `StepDocumentResult`** (collapsible abaixo da preview).
+
+Permite parar em qualquer ponto e ter algo útil em produção.
+
+---
+
+## Como testar
+
+1. Gerar petição → abrir editor → aba Conversa → "resuma os fatos" → IA responde, mensagem persistida; recarregar e ver histórico.
+2. "Inclua tópico sobre nulidade do banco de horas" → resposta com patch insert → Aplicar → conferir parágrafo ao final + nova versão (v2) em Versões.
+3. Restaurar v1 → conferir conteúdo voltou e v3 foi criada com `source=restored`.
+4. Outro usuário de outra org tenta GET `/document-chat` → 403.
+5. Documento com `source_file_ids` vazio → chat funciona, mas IA não cita análise inexistente.
+6. Pedir jurisprudência inventada → IA recusa por regra do system prompt.
+7. Patch `replace` cujo `target_section` não existe → aplicar cai em insert seguro (com aviso).
