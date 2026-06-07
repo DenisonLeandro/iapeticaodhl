@@ -27,6 +27,7 @@ interface StepDocumentResultProps {
   error: Error | null;
   isSaving: boolean;
   isSaved: boolean;
+  autoSaveError?: string | null;
   title?: string;
   onSave: () => void;
   onEdit: () => void;
