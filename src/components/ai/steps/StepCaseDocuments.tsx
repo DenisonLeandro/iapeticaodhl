@@ -56,6 +56,10 @@ export default function StepCaseDocuments({
     () => files.filter((f) => f.processing_status === "analyzed").length,
     [files],
   );
+  const pendingCount = useMemo(
+    () => files.filter((f) => (f.processing_status ?? "pending") !== "analyzed").length,
+    [files],
+  );
 
   const toggle = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -98,6 +102,16 @@ export default function StepCaseDocuments({
         </Alert>
       ) : (
         <>
+          {pendingCount > 0 && (
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertCircle className="h-4 w-4 text-amber-500" />
+              <AlertDescription className="text-sm text-amber-200">
+                <strong>{pendingCount} documento(s) ainda não analisados.</strong>{" "}
+                Eles não serão usados pela IA enquanto estiverem nesse estado. Use "Analisar agora" abaixo, ou prossiga sem eles.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {selectedIds.length === 0 && analyzedCount === 0 && (
             <Alert>
               <AlertDescription>

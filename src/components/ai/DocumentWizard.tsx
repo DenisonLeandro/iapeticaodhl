@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import StepDocumentType from "@/components/ai/steps/StepDocumentType";
 import StepDocumentData from "@/components/ai/steps/StepDocumentData";
 import StepCaseDocuments from "@/components/ai/steps/StepCaseDocuments";
+import StepReview from "@/components/ai/steps/StepReview";
 import StepDocumentResult from "@/components/ai/steps/StepDocumentResult";
 import JurisprudenceSearch from "@/components/ai/JurisprudenceSearch";
 import { DOCUMENT_TYPE_LABELS } from "@/types/ai";
@@ -28,13 +29,14 @@ import type { DocumentType } from "@/types/ai";
 import type { DocumentGenerationFormData } from "@/lib/validators/document-generation";
 import type { JurisprudenceResult } from "@/types/jurisprudence";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const STEP_LABELS: Record<Step, string> = {
   1: "Tipo",
   2: "Dados",
   3: "Documentos",
-  4: "Resultado",
+  4: "Conferência",
+  5: "Resultado",
 };
 
 export default function DocumentWizard() {
@@ -83,9 +85,12 @@ export default function DocumentWizard() {
     } else if (step === 2) {
       formRef.current?.requestSubmit();
     } else if (step === 3) {
-      // proceed to generation
-      if (formData) runGeneration(formData, selectedAnalysisFileIds);
+      // proceed to review (do NOT generate yet)
       setStep(4);
+    } else if (step === 4) {
+      // confirm → generate and go to result
+      if (formData) runGeneration(formData, selectedAnalysisFileIds);
+      setStep(5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, documentType, formData, selectedAnalysisFileIds]);
@@ -93,12 +98,9 @@ export default function DocumentWizard() {
   const handleBack = useCallback(() => {
     if (step === 2) setStep(1);
     else if (step === 3) setStep(2);
-    else if (step === 4) {
-      resetGeneration();
-      // back to docs step if caseId, else back to dados
-      setStep(formData?.caseId ? 3 : 2);
-    }
-  }, [step, resetGeneration, formData?.caseId]);
+    else if (step === 4) setStep(formData?.caseId ? 3 : 2);
+    else if (step === 5) setStep(4); // back to review, do NOT regenerate
+  }, [step, formData?.caseId]);
 
   const runGeneration = useCallback(
     async (data: DocumentGenerationFormData, analysisIds: string[]) => {
@@ -149,12 +151,11 @@ export default function DocumentWizard() {
         // Go to documents step; user picks which analyses to use
         setStep(3);
       } else {
-        // No case linked: skip docs step, generate immediately
+        // No case linked: skip docs step, go to review (do NOT generate yet)
         setStep(4);
-        runGeneration(data, []);
       }
     },
-    [runGeneration],
+    [],
   );
 
   const persistDocument = useCallback(async () => {
@@ -269,7 +270,7 @@ export default function DocumentWizard() {
   }, [formData, resetGeneration, runGeneration, selectedAnalysisFileIds]);
 
   // Build visible steps list — hide step 3 when no case is linked (or unknown yet)
-  const visibleSteps: Step[] = hasCaseId ? [1, 2, 3, 4] : [1, 2, 4];
+  const visibleSteps: Step[] = hasCaseId ? [1, 2, 3, 4, 5] : [1, 2, 4, 5];
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -305,7 +306,17 @@ export default function DocumentWizard() {
             onSelectionChange={setSelectedAnalysisFileIds}
           />
         )}
-        {step === 4 && (
+        {step === 4 && documentType && formData && (
+          <StepReview
+            documentType={documentType}
+            formData={formData}
+            selectedJurisprudence={selectedJurisprudence}
+            selectedAnalysisFileIds={selectedAnalysisFileIds}
+            onEditStep={(s) => setStep(s)}
+            onConfirm={handleNext}
+          />
+        )}
+        {step === 5 && (
           <StepDocumentResult
             isGenerating={isGenerating}
             generatedDocument={generatedDocument}
@@ -323,7 +334,7 @@ export default function DocumentWizard() {
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — hidden on Review (its own button) and Result */}
       {step < 4 && (
         <>
           <Separator />
@@ -332,7 +343,17 @@ export default function DocumentWizard() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
             </Button>
             <Button onClick={handleNext} disabled={!canGoNext()}>
-              {step === 3 ? "Gerar petição" : "Próximo"} <ArrowRight className="ml-2 h-4 w-4" />
+              Próximo <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
+      {step === 4 && (
+        <>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={handleBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
             </Button>
           </div>
         </>
