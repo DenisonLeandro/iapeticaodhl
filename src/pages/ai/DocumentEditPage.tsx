@@ -39,6 +39,9 @@ import { exportDocumentToPDF } from "@/lib/pdf/export-document";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
 import { downloadBlob } from "@/lib/document-parser";
 import LegalEditor from "@/components/ai/LegalEditor";
+import DocumentChatPanel from "@/components/ai/chat/DocumentChatPanel";
+import DocumentVersionsPanel from "@/components/ai/versions/DocumentVersionsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DocumentStatus } from "@/types/ai";
 
 // ---------------------------------------------------------------------------
