@@ -104,7 +104,7 @@ export default function DocumentChatPanel({
         <h3 className="text-sm font-semibold">Converse com a IA sobre esta petição</h3>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-3" viewportRef={scrollRef as never}>
+      <div className="flex-1 overflow-y-auto px-4 py-3" ref={scrollRef}>
         <div className="space-y-4">
           {isLoading && (
             <div className="flex justify-center py-6">
