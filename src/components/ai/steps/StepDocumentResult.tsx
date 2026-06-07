@@ -297,6 +297,27 @@ export default function StepDocumentResult({
           </Button>
         </div>
       </div>
+
+      {/* Chat IA — disponível após auto-save */}
+      {isSaved && savedDocumentId && generatedDocument && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-primary" />
+                Conversar com a IA sobre esta petição
+              </span>
+              <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <DocumentChatPanel
+              documentId={savedDocumentId}
+              currentContent={generatedDocument.content}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }
