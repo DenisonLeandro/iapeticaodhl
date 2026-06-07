@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentGeneration } from "@/hooks/useDocumentGeneration";
 import { useCreateDocument } from "@/hooks/useDocuments";
+import { updateDocument } from "@/services/documents";
 import { useLogAIUsage } from "@/hooks/useDocuments";
 import { estimateCost } from "@/lib/ai/pricing";
 import { buildContext } from "@/lib/ai/prompt-builder";
