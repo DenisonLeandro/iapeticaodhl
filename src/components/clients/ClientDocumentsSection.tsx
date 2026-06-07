@@ -17,6 +17,9 @@ interface DocumentRecord {
   type: string;
   status: string;
   created_at: string;
+  case_id: string | null;
+  represented_party: string | null;
+  source_file_ids: string[] | null;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
