@@ -80,7 +80,11 @@ export default function CaseDocuments({ documents, isLoading }: CaseDocumentsPro
         </TableHeader>
         <TableBody>
           {documents.map((doc) => (
-            <TableRow key={doc.id}>
+            <TableRow
+              key={doc.id}
+              className="cursor-pointer hover:bg-muted/40"
+              onClick={() => navigate(`/ai/documents/${doc.id}/edit`)}
+            >
               <TableCell className="font-medium">{doc.title}</TableCell>
               <TableCell className="text-muted-foreground">
                 {TYPE_LABELS[doc.type] ?? doc.type}
