@@ -56,6 +56,10 @@ export default function StepCaseDocuments({
     () => files.filter((f) => f.processing_status === "analyzed").length,
     [files],
   );
+  const pendingCount = useMemo(
+    () => files.filter((f) => (f.processing_status ?? "pending") !== "analyzed").length,
+    [files],
+  );
 
   const toggle = (id: string) => {
     if (selectedIds.includes(id)) {
