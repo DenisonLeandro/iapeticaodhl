@@ -14,16 +14,24 @@ import {
   ArrowLeft,
   Sparkles,
   CheckCircle2,
+  MessageCircle,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { exportDocumentToPDF } from "@/lib/pdf/export-document";
 import { toSafeHtml } from "@/lib/ai/normalize-html";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
 import { downloadBlob } from "@/lib/document-parser";
+import DocumentChatPanel from "@/components/ai/chat/DocumentChatPanel";
 import type { GeneratedDocument } from "@/types/ai";
 
 interface StepDocumentResultProps {
@@ -32,6 +40,7 @@ interface StepDocumentResultProps {
   error: Error | null;
   isSaving: boolean;
   isSaved: boolean;
+  savedDocumentId?: string | null;
   autoSaveError?: string | null;
   title?: string;
   onSave: () => void;
