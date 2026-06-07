@@ -5,6 +5,7 @@
 
 import jsPDF from "jspdf";
 import { parseHTML } from "@/lib/document-parser";
+import { normalizeToHtml } from "@/lib/ai/normalize-html";
 
 /**
  * Export document content (HTML) to a PDF blob with Brazilian legal margins.
