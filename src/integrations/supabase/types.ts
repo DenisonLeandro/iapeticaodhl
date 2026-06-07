@@ -408,12 +408,17 @@ export type Database = {
           llm_model: string
           llm_provider: Database["public"]["Enums"]["llm_provider_type"]
           organization_id: string
+          parent_document_id: string | null
           prompt_used: string
+          represented_party: string | null
+          source_file_ids: string[] | null
           status: Database["public"]["Enums"]["document_status"]
           storage_path: string | null
+          template_id: string | null
           title: string
           tokens_used: number
           type: Database["public"]["Enums"]["document_type"]
+          version: number
         }
         Insert: {
           case_id?: string | null
@@ -425,12 +430,17 @@ export type Database = {
           llm_model: string
           llm_provider: Database["public"]["Enums"]["llm_provider_type"]
           organization_id: string
+          parent_document_id?: string | null
           prompt_used?: string
+          represented_party?: string | null
+          source_file_ids?: string[] | null
           status?: Database["public"]["Enums"]["document_status"]
           storage_path?: string | null
+          template_id?: string | null
           title: string
           tokens_used?: number
           type?: Database["public"]["Enums"]["document_type"]
+          version?: number
         }
         Update: {
           case_id?: string | null
@@ -442,12 +452,17 @@ export type Database = {
           llm_model?: string
           llm_provider?: Database["public"]["Enums"]["llm_provider_type"]
           organization_id?: string
+          parent_document_id?: string | null
           prompt_used?: string
+          represented_party?: string | null
+          source_file_ids?: string[] | null
           status?: Database["public"]["Enums"]["document_status"]
           storage_path?: string | null
+          template_id?: string | null
           title?: string
           tokens_used?: number
           type?: Database["public"]["Enums"]["document_type"]
+          version?: number
         }
         Relationships: [
           {
@@ -462,6 +477,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
