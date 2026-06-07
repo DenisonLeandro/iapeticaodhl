@@ -49,8 +49,10 @@ export default function DocumentWizard() {
   const [documentType, setDocumentType] = useState<DocumentType | null>(isDemo ? "petition" : null);
   const [formData, setFormData] = useState<DocumentGenerationFormData | null>(demoInitialData);
   const [savedDocumentId, setSavedDocumentId] = useState<string | null>(null);
+  const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [selectedJurisprudence, setSelectedJurisprudence] = useState<JurisprudenceResult[]>([]);
   const [selectedAnalysisFileIds, setSelectedAnalysisFileIds] = useState<string[]>([]);
+  const autoSaveAttemptedRef = useRef(false);
 
   const formRef = useRef<HTMLFormElement | null>(null);
 
