@@ -1,64 +1,69 @@
-# Auto-preenchimento Cliente → Processo (passos 1-3)
+# Correção: tags HTML aparecendo no preview da petição
 
-## Confirmações rápidas
+## Diagnóstico
 
-**Arquivos alterados/criados:**
-- **novo** `src/lib/ai/buildPetitionContext.ts` — helper + tipos (`FieldSource`, `ConsolidatedField`, `PetitionContext`, `buildPetitionContextFromClientCaseAndDocuments`).
-- `src/lib/validators/document-generation.ts` — adicionar `representedParty?`, `assunto?` opcionais (não quebra forms existentes).
-- `src/components/ai/steps/StepDocumentData.tsx` — integrar helper nos `onSelect` de cliente e processo, corrigir bug do `vara`, mapear `court→tribunal`, mostrar badge de origem.
-- `src/types/case.ts` — sem alteração (campos já existem em `Case`).
+**Causa raiz:** o `ai-generate` instrui a IA a devolver **HTML** (regra 8 do system prompt em `src/lib/ai/prompt-builder.ts`), e o conteúdo realmente vem em HTML (`<h1>`, `<p>`, `<strong>`...). Mas o `StepDocumentResult` renderiza esse conteúdo dentro de uma `<div>` com `whitespace-pre-wrap` como **texto** — então as tags aparecem literais.
 
-**Migration:** nenhuma. Todos os campos já existem em `clients` e `cases`.
-
-## Como evitar sobrescrever campos manuais
-
-- Usar `form.formState.dirtyFields` do react-hook-form como fonte da verdade.
-- Em cada `handleSelectClient` / `handleSelect` (case), iterar a lista de campos auto-preenchíveis e **só chamar `setValue` quando `dirtyFields[campo]` for falsy**.
-- Sempre passar `setValue(name, value, { shouldDirty: false })` para que a aplicação automática não marque o campo como "tocado pelo usuário".
-- Guardar em estado local `fieldSources: Record<string, FieldSource>` para renderizar o badge ("preenchido a partir do processo" / "do cliente"). Reset por campo quando o usuário digita (via `form.watch` + comparação) — se ficar dirty, source vira `"manual"` e badge some.
-
-**Mapeamento `court → tribunal`:**
-- Lista canônica dos enums (`STF`, `STJ`, `TST`, `TSE`, `STM`, `TJPE`, `TJSP`, `TJRJ`, `TJMG`, `TRF-1..5`).
-- Normalizar `cases.court.toUpperCase().trim()`. Se bater com algum enum, usar; senão `"Outro"` + alert info ("Tribunal '{x}' definido como Outro").
-
-**Alertas básicos nesta fase:**
-- `tribunal-fallback` quando o mapeamento cai em "Outro".
-- Conflitos com análise ficam para a fase futura (passo 5).
-
-## Como testar
-
-1. Cliente sem processo → seleção do cliente preenche autor (nome, CPF, endereço); badges aparecem.
-2. Editar manualmente `autor.nome`, depois trocar de cliente → `autor.nome` permanece o digitado; demais campos atualizam.
-3. Selecionar processo → `numeroProcesso`, `vara` (de `branch`, **não `court`**), `tribunal`, `reu.nome` (de `opposing_party`), `assunto`, `representedParty` preenchem; badges aparecem.
-4. Editar `vara` manualmente, trocar processo → `vara` mantém valor manual.
-5. Processo com `court="TJES"` (fora do enum) → `tribunal = "Outro"`, alerta info exibido discretamente.
-6. Limpar processo (`__none__`) → campos auto-preenchidos do processo voltam ao default; os do cliente permanecem; os marcados como manuais permanecem.
-
-## Contrato do helper (resumo)
-
-```ts
-type FieldSource = "manual" | "case" | "client" | "analysis" | "default";
-
-interface ConsolidatedField<T> { value: T | undefined; source: FieldSource }
-
-interface PetitionContextInput {
-  client?: Client | null;
-  caseRow?: Case | null;
-  analyses?: ClientFile[]; // reservado para fase futura — aceito mas só lido se passar
-  manual: Partial<DocumentGenerationFormData>; // campos com dirty=true
-}
-
-interface PetitionContext {
-  values: Partial<DocumentGenerationFormData>;
-  sources: Record<string, FieldSource>;
-  alerts: Array<{ field: string; message: string; severity: "info" | "warn" }>;
-}
-
-function buildPetitionContextFromClientCaseAndDocuments(
-  input: PetitionContextInput
-): PetitionContext;
+```tsx
+// src/components/ai/steps/StepDocumentResult.tsx (atual)
+<div className="whitespace-pre-wrap ..." data-testid="generated-content">
+  {generatedDocument.content}   // ← string HTML virando texto
+</div>
 ```
 
-Hierarquia por campo: `manual > case > client > analysis > default`. Análise fica como hook preparado mas vazio nesta entrega.
+Pontos verificados:
+- **Formato retornado pelo ai-generate:** HTML (às vezes com cerca ```html ... ``` ao redor — depende do modelo).
+- **Onde aparece errado:** apenas no **Step 3 (resultado)** do wizard. O `LegalEditor` (Tiptap) usado em `/ai/documents/:id/edit` já renderiza HTML corretamente via `setContent`.
+- **Exportação Word/PDF:** já usa `parseHTML` (`src/lib/document-parser.ts`) → recebe HTML corretamente. **Não está quebrada**, mas vale higienizar antes para remover eventuais cercas ```html.
+- **Documentos antigos salvos:** continuam funcionando. O conteúdo já está em HTML no banco; só mudamos a forma de exibir.
+- **Sanitização:** usar `DOMPurify` (allowlist: `h1,h2,h3,h4,p,br,strong,b,em,i,u,ol,ul,li,blockquote,span`). Sem `script`, `style`, `iframe`, atributos `on*`, `href javascript:`.
 
-Confirma para eu implementar?
+## Escopo da correção
+
+### 1. Helper de normalização — `src/lib/ai/normalize-html.ts` (novo)
+- `stripCodeFences(raw)` — remove ```html ... ``` ou ``` ... ``` envolvendo a resposta.
+- `looksLikeHtml(raw)` — heurística (`/<\/?(p|h[1-6]|strong|em|ul|ol|li|blockquote|br)\b/i`).
+- `markdownToHtml(raw)` — fallback simples se o modelo devolver markdown (negrito `**`, headings `#`, listas, parágrafos por linha em branco).
+- `normalizeToHtml(raw)` — pipeline: strip fences → se já é HTML, retorna; senão converte markdown/plain text → wrappa parágrafos.
+- `sanitizeHtml(html)` — `DOMPurify.sanitize` com allowlist.
+
+### 2. Preview rich no Step 3 — `StepDocumentResult.tsx`
+- Substituir a `<div whitespace-pre-wrap>{content}</div>` por um bloco com `dangerouslySetInnerHTML` usando `sanitizeHtml(normalizeToHtml(content))`.
+- Classes de documento jurídico: fundo claro tipo "papel", fonte Tahoma 12pt, line-height 1.5, texto justificado, margens internas (3cm/2cm equivalentes em px), `prose` desativado para não conflitar.
+- Adicionar estilos em `src/index.css` (classe `.legal-doc-preview`) replicando o look do `.legal-editor` já existente.
+
+### 3. Pequeno ajuste no prompt — `src/lib/ai/prompt-builder.ts`
+- Reforçar regra 8: "Retorne **apenas HTML**, sem cercas de código (sem ```html```), sem comentários, sem texto fora das tags. Tags permitidas: h1, h2, h3, p, strong, em, ol, ul, li, blockquote, br."
+
+### 4. Dependência
+- `bun add dompurify` + `bun add -d @types/dompurify`.
+
+## Arquivos alterados
+
+| Arquivo | Mudança |
+|---|---|
+| `src/lib/ai/normalize-html.ts` | **novo** — strip fences + markdown→html + sanitize |
+| `src/components/ai/steps/StepDocumentResult.tsx` | render HTML sanitizado |
+| `src/index.css` | classe `.legal-doc-preview` |
+| `src/lib/ai/prompt-builder.ts` | ajuste textual na regra 8 |
+| `package.json` | + dompurify |
+
+**Não alterar agora:** `LegalEditor` (já correto), `export-document.ts` (PDF/DOCX) — mas o normalize será aplicado na entrada do editor e dos exports em fase futura se necessário.
+
+## Riscos
+
+- **Baixo.** Mudança isolada à camada de apresentação.
+- DOMPurify roda no cliente, sem afetar dados salvos.
+- Documentos antigos: já estão em HTML → vão renderizar melhor que antes.
+- XSS: mitigado pela allowlist do DOMPurify.
+
+## Como testar no preview
+
+1. Gerar uma nova petição completa (cliente + processo + PDF).
+2. Verificar Step 3: deve aparecer formatada (negrito visível, parágrafos, títulos), **sem `<p>` ou `<strong>` visíveis**.
+3. Clicar "Copiar texto" — ainda copia o HTML cru (ok, é o conteúdo armazenado).
+4. Exportar PDF e DOCX — abrir e conferir formatação preservada.
+5. Abrir documento antigo via `/ai/documents/:id/edit` — Tiptap deve continuar funcionando normalmente.
+6. Console: zero erros de DOMPurify ou React.
+
+Após sua aprovação, implemento direto.
