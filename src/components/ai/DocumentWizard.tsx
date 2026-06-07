@@ -85,9 +85,12 @@ export default function DocumentWizard() {
     } else if (step === 2) {
       formRef.current?.requestSubmit();
     } else if (step === 3) {
-      // proceed to generation
-      if (formData) runGeneration(formData, selectedAnalysisFileIds);
+      // proceed to review (do NOT generate yet)
       setStep(4);
+    } else if (step === 4) {
+      // confirm → generate and go to result
+      if (formData) runGeneration(formData, selectedAnalysisFileIds);
+      setStep(5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, documentType, formData, selectedAnalysisFileIds]);
@@ -95,12 +98,9 @@ export default function DocumentWizard() {
   const handleBack = useCallback(() => {
     if (step === 2) setStep(1);
     else if (step === 3) setStep(2);
-    else if (step === 4) {
-      resetGeneration();
-      // back to docs step if caseId, else back to dados
-      setStep(formData?.caseId ? 3 : 2);
-    }
-  }, [step, resetGeneration, formData?.caseId]);
+    else if (step === 4) setStep(formData?.caseId ? 3 : 2);
+    else if (step === 5) setStep(4); // back to review, do NOT regenerate
+  }, [step, formData?.caseId]);
 
   const runGeneration = useCallback(
     async (data: DocumentGenerationFormData, analysisIds: string[]) => {
