@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import StepDocumentType from "@/components/ai/steps/StepDocumentType";
 import StepDocumentData from "@/components/ai/steps/StepDocumentData";
 import StepCaseDocuments from "@/components/ai/steps/StepCaseDocuments";
+import StepReview from "@/components/ai/steps/StepReview";
 import StepDocumentResult from "@/components/ai/steps/StepDocumentResult";
 import JurisprudenceSearch from "@/components/ai/JurisprudenceSearch";
 import { DOCUMENT_TYPE_LABELS } from "@/types/ai";
@@ -28,13 +29,14 @@ import type { DocumentType } from "@/types/ai";
 import type { DocumentGenerationFormData } from "@/lib/validators/document-generation";
 import type { JurisprudenceResult } from "@/types/jurisprudence";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const STEP_LABELS: Record<Step, string> = {
   1: "Tipo",
   2: "Dados",
   3: "Documentos",
-  4: "Resultado",
+  4: "Conferência",
+  5: "Resultado",
 };
 
 export default function DocumentWizard() {
