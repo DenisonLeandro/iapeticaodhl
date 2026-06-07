@@ -8,7 +8,7 @@ import { Loader2, Send, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import ChatMessage from "./ChatMessage";
 import ApplyPatchDialog from "./ApplyPatchDialog";
 import { useDocumentChat } from "@/hooks/useDocumentChat";
