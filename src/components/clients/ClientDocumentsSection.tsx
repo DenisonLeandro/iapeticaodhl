@@ -87,31 +87,46 @@ export default function ClientDocumentsSection({
 
   return (
     <div className="space-y-3">
-      {documents.map((doc) => (
-        <div
-          key={doc.id}
-          className="flex items-center justify-between rounded-lg border border-border p-4"
-        >
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{doc.title}</span>
+      {documents.map((doc) => {
+        const filesCount = doc.source_file_ids?.length ?? 0;
+        return (
+          <Link
+            to={`/ai/documents/${doc.id}/edit`}
+            key={doc.id}
+            className="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{doc.title}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">
+                  {DOC_TYPE_LABELS[doc.type] ?? doc.type}
+                </Badge>
+                <Badge variant="secondary">
+                  {STATUS_LABELS[doc.status] ?? doc.status}
+                </Badge>
+                {doc.represented_party && (
+                  <Badge variant="outline" className="capitalize">
+                    representa: {doc.represented_party}
+                  </Badge>
+                )}
+                {filesCount > 0 && (
+                  <Badge variant="outline" className="gap-1">
+                    <Paperclip className="h-3 w-3" />
+                    {filesCount} PDF{filesCount > 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Criado em{" "}
+                {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: ptBR })}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {DOC_TYPE_LABELS[doc.type] ?? doc.type}
-              </Badge>
-              <Badge variant="secondary">
-                {STATUS_LABELS[doc.status] ?? doc.status}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Criado em{" "}
-              {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: ptBR })}
-            </p>
-          </div>
-        </div>
-      ))}
+          </Link>
+        );
+      })}
     </div>
   );
 }
