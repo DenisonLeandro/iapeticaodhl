@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { exportDocumentToPDF } from "@/lib/pdf/export-document";
+import { toSafeHtml } from "@/lib/ai/normalize-html";
 import { exportDocumentToDOCX } from "@/lib/docx/export-document";
 import { downloadBlob } from "@/lib/document-parser";
 import type { GeneratedDocument } from "@/types/ai";
@@ -165,17 +166,14 @@ export default function StepDocumentResult({
         </div>
       </div>
 
-      {/* Document Content */}
-      <Card className="border-border">
-        <CardContent className="p-6">
-          <div className="prose prose-invert max-w-none">
-            <div
-              className="whitespace-pre-wrap text-sm leading-relaxed text-foreground"
-              data-testid="generated-content"
-            >
-              {generatedDocument.content}
-            </div>
-          </div>
+      {/* Document Content — rendered HTML, sanitized */}
+      <Card className="border-border bg-muted/40">
+        <CardContent className="p-4 sm:p-6">
+          <div
+            className="legal-doc-preview"
+            data-testid="generated-content"
+            dangerouslySetInnerHTML={{ __html: toSafeHtml(generatedDocument.content) }}
+          />
         </CardContent>
       </Card>
 

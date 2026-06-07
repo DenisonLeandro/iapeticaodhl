@@ -173,7 +173,7 @@ REGRAS OBRIGATÓRIAS:
 5. Formate com parágrafos numerados, citações em bloco e seções claras.
 6. Para peças judiciais, inicie com o endereçamento: "EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA [VARA] DA COMARCA DE [CIDADE]/[UF]"
 7. Finalize com: local, data atual, espaço para assinatura do advogado (Nome + OAB).
-8. Use formatação HTML para estruturar o documento (h1, h2, h3, p, blockquote, ol, ul, strong, em).
+8. Retorne APENAS HTML válido — sem cercas de código (não use \`\`\`html), sem comentários, sem texto fora das tags. Tags permitidas: h1, h2, h3, p, strong, em, ol, ul, li, blockquote, br. NÃO escreva tags como texto; o HTML será renderizado.
 9. Blockquotes devem ser usados para citações de lei e jurisprudência.
 10. NÃO invente fatos. Use apenas os dados fornecidos pelo usuário.`;
 }
