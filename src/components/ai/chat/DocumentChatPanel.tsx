@@ -143,7 +143,7 @@ export default function DocumentChatPanel({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Quick prompts */}
       <div className="flex flex-wrap gap-1 border-t border-border px-4 py-2">
