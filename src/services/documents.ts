@@ -28,12 +28,20 @@ export interface CreateDocumentInput {
   created_by: string;
   case_id?: string | null;
   client_id?: string | null;
+  // Fase A
+  represented_party?: string | null;
+  source_file_ids?: string[] | null;
+  parent_document_id?: string | null;
+  version?: number;
+  template_id?: string | null;
 }
 
 export interface UpdateDocumentInput {
   title?: string;
   content?: string;
   status?: DocumentStatus;
+  represented_party?: string | null;
+  source_file_ids?: string[] | null;
 }
 
 export interface LogAIUsageInput {
