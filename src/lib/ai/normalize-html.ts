@@ -19,14 +19,34 @@ const ALLOWED_ATTR = ["style", "class"];
 export function stripCodeFences(raw: string): string {
   if (!raw) return "";
   let s = raw.trim();
-  // Strip leading ```html or ```
-  const fenceStart = /^```(?:html|HTML)?\s*\n?/;
-  const fenceEnd = /\n?```\s*$/;
-  if (fenceStart.test(s)) {
-    s = s.replace(fenceStart, "");
-    s = s.replace(fenceEnd, "");
+  // Repeat-strip in case the model wrapped twice
+  for (let i = 0; i < 2; i++) {
+    const fenceStart = /^```(?:html|HTML|markdown|md)?\s*\n?/;
+    const fenceEnd = /\n?```\s*$/;
+    if (fenceStart.test(s)) {
+      s = s.replace(fenceStart, "").replace(fenceEnd, "").trim();
+    }
   }
-  return s.trim();
+  return s;
+}
+
+/**
+ * If the string looks like HTML but with entities escaped
+ * (e.g. "&lt;p&gt;hello&lt;/p&gt;"), un-escape it so the browser renders tags.
+ */
+export function unescapeIfDoubleEscaped(raw: string): string {
+  if (!raw) return "";
+  const hasEscaped = /&lt;\/?(p|h[1-6]|strong|em|ul|ol|li|blockquote|br|div|span)\b/i.test(raw);
+  const hasReal = /<\/?(p|h[1-6]|strong|em|ul|ol|li|blockquote|br|div|span)\b/i.test(raw);
+  if (hasEscaped && !hasReal) {
+    return raw
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+  }
+  return raw;
 }
 
 /** Heuristic: does the string already look like HTML? */
@@ -97,12 +117,14 @@ export function markdownToHtml(raw: string): string {
   return out.join("\n");
 }
 
-/** Pipeline: strip fences → ensure HTML → return raw HTML (unsanitized). */
+/** Pipeline: strip fences → unescape entities → ensure HTML → return raw HTML (unsanitized). */
 export function normalizeToHtml(raw: string): string {
-  const stripped = stripCodeFences(raw || "");
-  if (!stripped) return "";
-  if (looksLikeHtml(stripped)) return stripped;
-  return markdownToHtml(stripped);
+  if (!raw) return "";
+  let s = stripCodeFences(raw);
+  s = unescapeIfDoubleEscaped(s);
+  if (!s) return "";
+  if (looksLikeHtml(s)) return s;
+  return markdownToHtml(s);
 }
 
 /** Sanitize HTML with a conservative allowlist. */
