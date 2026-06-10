@@ -763,8 +763,15 @@ export default function StepDocumentData({
                 <FormLabel>Tribunal *</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Selecione o tribunal" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {TRIBUNAIS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  <SelectContent className="max-h-[320px]">
+                    {Object.entries(TRIBUNAIS_GROUPED).map(([groupName, items]) => (
+                      <SelectGroup key={groupName}>
+                        <SelectLabel>{groupName}</SelectLabel>
+                        {items.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
