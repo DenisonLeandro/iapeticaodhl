@@ -1,18 +1,35 @@
 // =============================================================================
 // PDF Export — Convert HTML document content to PDF with legal margins CNJ/ABNT
-// Story 2.3 — Legal Document Editor
+// Sobre papel timbrado (Denison Leandro Advogados Associados)
 // =============================================================================
 
 import jsPDF from "jspdf";
 import { parseHTML } from "@/lib/document-parser";
 import { normalizeToHtml } from "@/lib/ai/normalize-html";
+import letterheadAsset from "@/assets/letterhead-full.jpg.asset.json";
+
+// Cache the letterhead as base64 (data URL) so we only fetch it once per session
+let letterheadCache: string | null = null;
+
+async function getLetterheadDataUrl(): Promise<string> {
+  if (letterheadCache) return letterheadCache;
+  const res = await fetch(letterheadAsset.url);
+  const blob = await res.blob();
+  letterheadCache = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  return letterheadCache;
+}
 
 /**
- * Export document content (HTML) to a PDF blob with Brazilian legal margins.
+ * Export document content (HTML) to a PDF blob over the firm's letterhead.
  *
- * Margins per ABNT/CNJ:
- *  - Left: 30mm, Right: 20mm, Top: 30mm, Bottom: 20mm
- *  - Font: Helvetica 12pt, line height 1.5
+ * Margens (deixam espaço para a faixa laranja + logo no topo e endereços no rodapé):
+ *  - Esquerda: 30mm, Direita: 20mm, Topo: 45mm, Rodapé: 55mm
+ *  - Fonte: Helvetica 12pt, line height 1.5
  */
 export async function exportDocumentToPDF(
   content: string,
@@ -23,29 +40,26 @@ export async function exportDocumentToPDF(
   const pageHeight = 297;
   const marginLeft = 30;
   const marginRight = 20;
-  const marginTop = 30;
-  const marginBottom = 20;
+  const marginTop = 45;
+  const marginBottom = 55;
   const usableWidth = pageWidth - marginLeft - marginRight;
   const lineHeight = 7;
   const fontSize = 12;
 
-  let cursorY = marginTop;
+  // Pré-carrega o timbrado
+  const letterhead = await getLetterheadDataUrl();
 
-  function addPageNumber() {
-    pdf.setFontSize(9);
-    pdf.setFont("helvetica", "normal");
-    pdf.text(
-      `Página ${pdf.getNumberOfPages()}`,
-      pageWidth / 2,
-      pageHeight - 10,
-      { align: "center" },
-    );
+  function drawLetterhead() {
+    pdf.addImage(letterhead, "JPEG", 0, 0, pageWidth, pageHeight);
   }
+
+  let cursorY = marginTop;
+  drawLetterhead();
 
   function checkPageBreak(needed: number) {
     if (cursorY + needed > pageHeight - marginBottom) {
-      addPageNumber();
       pdf.addPage();
+      drawLetterhead();
       cursorY = marginTop;
     }
   }
@@ -106,7 +120,6 @@ export async function exportDocumentToPDF(
         pdf.text("• ", marginLeft, cursorY);
       }
 
-      // Justify only full body lines (not last line of paragraph, not headings/lists)
       if (align === "justify" && i < lines.length - 1 && line.trim().split(/\s+/).length > 1) {
         try {
           pdf.text(line, x, cursorY, { align: "justify", maxWidth: effectiveWidth });
@@ -122,8 +135,6 @@ export async function exportDocumentToPDF(
     }
   }
 
-
-  addPageNumber();
   return pdf.output("blob");
 }
 
