@@ -23,7 +23,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -55,23 +57,9 @@ interface StepDocumentDataProps {
   formRef: React.RefObject<HTMLFormElement | null>;
 }
 
-const TRIBUNAIS = [
-  { value: "STF", label: "STF — Supremo Tribunal Federal" },
-  { value: "STJ", label: "STJ — Superior Tribunal de Justiça" },
-  { value: "TST", label: "TST — Tribunal Superior do Trabalho" },
-  { value: "TSE", label: "TSE — Tribunal Superior Eleitoral" },
-  { value: "STM", label: "STM — Superior Tribunal Militar" },
-  { value: "TJPE", label: "TJPE — Tribunal de Justiça de Pernambuco" },
-  { value: "TJSP", label: "TJSP — Tribunal de Justiça de São Paulo" },
-  { value: "TJRJ", label: "TJRJ — Tribunal de Justiça do Rio de Janeiro" },
-  { value: "TJMG", label: "TJMG — Tribunal de Justiça de Minas Gerais" },
-  { value: "TRF-1", label: "TRF-1 — Tribunal Regional Federal da 1ª Região" },
-  { value: "TRF-2", label: "TRF-2 — Tribunal Regional Federal da 2ª Região" },
-  { value: "TRF-3", label: "TRF-3 — Tribunal Regional Federal da 3ª Região" },
-  { value: "TRF-4", label: "TRF-4 — Tribunal Regional Federal da 4ª Região" },
-  { value: "TRF-5", label: "TRF-5 — Tribunal Regional Federal da 5ª Região" },
-  { value: "Outro", label: "Outro" },
-];
+import { getTribunaisByGroup } from "@/lib/legal/tribunais";
+
+const TRIBUNAIS_GROUPED = getTribunaisByGroup();
 
 const ESTADOS_CIVIS = [
   "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável",
@@ -775,8 +763,15 @@ export default function StepDocumentData({
                 <FormLabel>Tribunal *</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Selecione o tribunal" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {TRIBUNAIS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  <SelectContent className="max-h-[320px]">
+                    {Object.entries(TRIBUNAIS_GROUPED).map(([groupName, items]) => (
+                      <SelectGroup key={groupName}>
+                        <SelectLabel>{groupName}</SelectLabel>
+                        {items.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

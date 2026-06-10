@@ -16,6 +16,7 @@ import { updateDocument } from "@/services/documents";
 import { useLogAIUsage } from "@/hooks/useDocuments";
 import { estimateCost } from "@/lib/ai/pricing";
 import { buildContext } from "@/lib/ai/prompt-builder";
+import { cleanUuid, cleanUuidArray } from "@/lib/utils/uuid";
 import { cn } from "@/lib/utils";
 import StepDocumentType from "@/components/ai/steps/StepDocumentType";
 import StepDocumentData from "@/components/ai/steps/StepDocumentData";
@@ -186,10 +187,10 @@ export default function DocumentWizard() {
       tokens_used: totalTokens,
       status: "draft",
       created_by: user.id,
-      client_id: formData.clienteVinculadoId ?? null,
-      case_id: formData.caseId ?? null,
+      client_id: cleanUuid(formData.clienteVinculadoId),
+      case_id: cleanUuid(formData.caseId),
       represented_party: formData.representedParty ?? null,
-      source_file_ids: selectedAnalysisFileIds.length > 0 ? selectedAnalysisFileIds : null,
+      source_file_ids: cleanUuidArray(selectedAnalysisFileIds),
       version: 1,
     });
     setSavedDocumentId(doc.id);

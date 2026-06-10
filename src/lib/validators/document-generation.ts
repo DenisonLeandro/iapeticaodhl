@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { z } from "zod";
+import { TRIBUNAL_VALUES } from "@/lib/legal/tribunais";
 
 /** Validacao basica de CPF (formato: 000.000.000-00 ou 00000000000) */
 const cpfPattern = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
@@ -38,12 +39,7 @@ const parteOpcionalSchema = z.object({
   estadoCivil: z.string().optional(),
 });
 
-const ALL_TRIBUNAIS = [
-  "STF", "STJ", "TST", "TSE", "STM",
-  "TJPE", "TJSP", "TJRJ", "TJMG",
-  "TRF-1", "TRF-2", "TRF-3", "TRF-4", "TRF-5",
-  "Outro",
-] as const;
+const ALL_TRIBUNAIS = TRIBUNAL_VALUES;
 
 const ALL_DOCUMENT_TYPES = [
   "petition", "contestation", "reply", "counterclaim",
