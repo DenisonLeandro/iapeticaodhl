@@ -1,5 +1,5 @@
 // =============================================================================
-// DOCX Export — Convert HTML document content to DOCX with legal margins CNJ/ABNT
+// DOCX Export — Convert HTML document content to DOCX over the firm's letterhead
 // =============================================================================
 
 import {
@@ -10,28 +10,51 @@ import {
   AlignmentType,
   HeadingLevel,
   LevelFormat,
+  Header,
   Footer,
-  PageNumber,
+  ImageRun,
   BorderStyle,
 } from "docx";
 import { parseHTML, type TextSegment } from "@/lib/document-parser";
 import { normalizeToHtml } from "@/lib/ai/normalize-html";
+import headerAsset from "@/assets/letterhead-header.png.asset.json";
+import footerAsset from "@/assets/letterhead-footer.png.asset.json";
 
 const FONT = "Tahoma";
 
-// CNJ/ABNT margins in DXA (1cm ≈ 567 DXA)
+// Margens (deixam espaço para o timbrado de cabeçalho/rodapé) em DXA (1cm ≈ 567 DXA)
 const MARGIN_LEFT = 1701;   // 3cm
 const MARGIN_RIGHT = 1134;  // 2cm
-const MARGIN_TOP = 1701;    // 3cm
-const MARGIN_BOTTOM = 1134; // 2cm
+const MARGIN_TOP = 2550;    // ~4,5cm
+const MARGIN_BOTTOM = 3120; // ~5,5cm
+const MARGIN_HEADER = 360;  // ~0,6cm da borda
+const MARGIN_FOOTER = 360;
+
+// Largura útil em EMU para escalar as imagens (A4 11906 DXA = 21cm = 793 pt = 7,5" usable)
+// docx ImageRun usa pixels (1px ≈ 9525 EMU mas a API aceita transformation em px @ 96dpi).
+// 17 cm ≈ 643 px @96dpi — usamos isso para header/footer ocuparem a largura.
+const LETTERHEAD_WIDTH_PX = 643;
+const HEADER_HEIGHT_PX = Math.round((320 / 1654) * LETTERHEAD_WIDTH_PX); // ~124px
+const FOOTER_HEIGHT_PX = Math.round((260 / 1654) * LETTERHEAD_WIDTH_PX); // ~101px
+
+async function fetchAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+  const res = await fetch(url);
+  return await res.arrayBuffer();
+}
 
 /**
- * Export document content (HTML) to a DOCX blob with Brazilian legal margins.
+ * Export document content (HTML) to a DOCX blob over the firm's letterhead.
  */
 export async function exportDocumentToDOCX(
   content: string,
   title: string,
 ): Promise<Blob> {
+  // Carrega imagens do timbrado em paralelo
+  const [headerBuf, footerBuf] = await Promise.all([
+    fetchAsArrayBuffer(headerAsset.url),
+    fetchAsArrayBuffer(footerAsset.url),
+  ]);
+
   const segments = parseHTML(normalizeToHtml(content));
   const children: Paragraph[] = [];
 
@@ -47,7 +70,6 @@ export async function exportDocumentToDOCX(
     }),
   );
 
-  // Build paragraphs from segments
   let currentRuns: TextRun[] = [];
   let currentType: TextSegment["type"] = "normal";
 
@@ -83,7 +105,6 @@ export async function exportDocumentToDOCX(
       continue;
     }
 
-    // If type changed, flush
     if (seg.type !== currentType && currentRuns.length > 0) {
       flushParagraph();
     }
@@ -92,7 +113,7 @@ export async function exportDocumentToDOCX(
     const fontSize = currentType === "heading1" ? 32
       : currentType === "heading2" ? 28
       : currentType === "heading3" ? 26
-      : 24; // 12pt
+      : 24;
 
     currentRuns.push(
       new TextRun({
@@ -105,6 +126,40 @@ export async function exportDocumentToDOCX(
     );
   }
   flushParagraph();
+
+  const letterheadHeader = new Header({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 0 },
+        children: [
+          new ImageRun({
+            type: "png",
+            data: headerBuf,
+            transformation: { width: LETTERHEAD_WIDTH_PX, height: HEADER_HEIGHT_PX },
+            altText: { title: "Cabeçalho", description: "Papel timbrado", name: "letterhead-header" },
+          }),
+        ],
+      }),
+    ],
+  });
+
+  const letterheadFooter = new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0 },
+        children: [
+          new ImageRun({
+            type: "png",
+            data: footerBuf,
+            transformation: { width: LETTERHEAD_WIDTH_PX, height: FOOTER_HEIGHT_PX },
+            altText: { title: "Rodapé", description: "Endereços", name: "letterhead-footer" },
+          }),
+        ],
+      }),
+    ],
+  });
 
   const doc = new Document({
     numbering: {
@@ -171,21 +226,13 @@ export async function exportDocumentToDOCX(
               right: MARGIN_RIGHT,
               top: MARGIN_TOP,
               bottom: MARGIN_BOTTOM,
+              header: MARGIN_HEADER,
+              footer: MARGIN_FOOTER,
             },
           },
         },
-        footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({ children: ["Página ", PageNumber.CURRENT], font: FONT, size: 18 }),
-                ],
-              }),
-            ],
-          }),
-        },
+        headers: { default: letterheadHeader },
+        footers: { default: letterheadFooter },
         children,
       },
     ],
