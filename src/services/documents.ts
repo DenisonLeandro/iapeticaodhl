@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { supabase } from "@/lib/backend/client";
+import { cleanUuid, cleanUuidArray } from "@/lib/utils/uuid";
 import type {
   Document,
   DocumentType,
@@ -63,9 +64,19 @@ export interface LogAIUsageInput {
 export async function createDocument(
   input: CreateDocumentInput,
 ): Promise<Document> {
+  // Sanitiza colunas UUID opcionais — Postgres rejeita "" como UUID.
+  const sanitized: CreateDocumentInput = {
+    ...input,
+    case_id: cleanUuid(input.case_id),
+    client_id: cleanUuid(input.client_id),
+    parent_document_id: cleanUuid(input.parent_document_id),
+    template_id: cleanUuid(input.template_id),
+    source_file_ids: cleanUuidArray(input.source_file_ids),
+  };
+
   const { data, error } = await supabase
     .from("documents")
-    .insert(input)
+    .insert(sanitized)
     .select("*")
     .single();
 
