@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/backend/client";
 import type { ClientFile } from "@/types/client";
+import { sanitizeStorageKey } from "@/lib/utils/sanitize-filename";
 
 export async function listFiles(clientId: string): Promise<ClientFile[]> {
   const { data, error } = await supabase
@@ -29,7 +30,8 @@ export async function uploadFile(
   description?: string,
   options?: UploadFileOptions,
 ): Promise<ClientFile> {
-  const storagePath = `${organizationId}/${clientId}/${Date.now()}_${file.name}`;
+  const safeName = sanitizeStorageKey(file.name);
+  const storagePath = `${organizationId}/${clientId}/${Date.now()}_${safeName}`;
 
   // 1. Upload to Supabase Storage
   const { error: uploadError } = await supabase.storage
