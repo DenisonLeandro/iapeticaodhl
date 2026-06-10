@@ -57,12 +57,7 @@ export interface PetitionContext {
   alerts: PetitionContextAlert[];
 }
 
-// Enum de tribunais aceito pelo schema do wizard.
-const TRIBUNAL_ENUM = [
-  "STF", "STJ", "TST", "TSE", "STM",
-  "TJPE", "TJSP", "TJRJ", "TJMG",
-  "TRF-1", "TRF-2", "TRF-3", "TRF-4", "TRF-5",
-] as const;
+import { isKnownTribunal } from "@/lib/legal/tribunais";
 
 /** Mapeia um valor livre de `cases.court` para o enum aceito; retorna "Outro" como fallback. */
 export function mapCourtToTribunal(court: string | null | undefined): {
@@ -70,12 +65,33 @@ export function mapCourtToTribunal(court: string | null | undefined): {
   matched: boolean;
 } {
   if (!court) return { value: "Outro", matched: false };
-  const normalized = court.trim().toUpperCase().replace(/\s+/g, "");
-  // Aceita variações TRF1 / TRF-1
-  const trfMatch = normalized.match(/^TRF-?([1-5])$/);
-  if (trfMatch) return { value: `TRF-${trfMatch[1]}`, matched: true };
-  const hit = TRIBUNAL_ENUM.find((t) => t.replace("-", "") === normalized);
-  if (hit) return { value: hit, matched: true };
+  const raw = court.trim();
+  const normalized = raw.toUpperCase().replace(/\s+/g, "");
+
+  // Match direto na lista oficial (TRT9, TJSP, STF, etc.)
+  if (isKnownTribunal(normalized)) return { value: normalized, matched: true };
+
+  // TRF1 → TRF-1
+  const trfMatch = normalized.match(/^TRF-?([1-6])$/);
+  if (trfMatch) {
+    const v = `TRF-${trfMatch[1]}`;
+    if (isKnownTribunal(v)) return { value: v, matched: true };
+  }
+
+  // TRT-9 / TRT09 → TRT9
+  const trtMatch = normalized.match(/^TRT-?0?(\d{1,2})$/);
+  if (trtMatch) {
+    const v = `TRT${parseInt(trtMatch[1], 10)}`;
+    if (isKnownTribunal(v)) return { value: v, matched: true };
+  }
+
+  // TRE-SP / TRESP → TRE-SP
+  const treMatch = normalized.match(/^TRE-?([A-Z]{2,3})$/);
+  if (treMatch) {
+    const v = `TRE-${treMatch[1]}`;
+    if (isKnownTribunal(v)) return { value: v, matched: true };
+  }
+
   return { value: "Outro", matched: false };
 }
 
