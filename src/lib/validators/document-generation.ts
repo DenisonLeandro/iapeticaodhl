@@ -38,12 +38,9 @@ const parteOpcionalSchema = z.object({
   estadoCivil: z.string().optional(),
 });
 
-const ALL_TRIBUNAIS = [
-  "STF", "STJ", "TST", "TSE", "STM",
-  "TJPE", "TJSP", "TJRJ", "TJMG",
-  "TRF-1", "TRF-2", "TRF-3", "TRF-4", "TRF-5",
-  "Outro",
-] as const;
+import { TRIBUNAL_VALUES } from "@/lib/legal/tribunais";
+
+const ALL_TRIBUNAIS = TRIBUNAL_VALUES;
 
 const ALL_DOCUMENT_TYPES = [
   "petition", "contestation", "reply", "counterclaim",
