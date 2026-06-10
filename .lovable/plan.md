@@ -1,32 +1,58 @@
-## Causa
+## Objetivo
+Toda petição exportada — tanto **PDF** quanto **Word (.docx)** — deve sair sobre o papel timbrado A4 anexo (faixa laranja + logo Denison Leandro no topo, endereços das filiais no rodapé) em todas as páginas.
 
-O Supabase Storage rejeita chaves (paths) com caracteres não-ASCII (acentos como "Ordinário") e, em alguns casos, espaços/caracteres especiais — daí o erro `Invalid key`. O arquivo enviado tem nome `Recurso Ordinário - Amadelli X Luzia Oliveira Caetano.pdf`, e em `src/services/client-file.service.ts` o `storagePath` é montado concatenando o `file.name` cru:
-
-```ts
-const storagePath = `${organizationId}/${clientId}/${Date.now()}_${file.name}`;
-```
-
-Sem sanitização, o "í" e os espaços quebram o upload. O mesmo padrão é usado em outros lugares (ex.: análise de PDF, OCR), então a correção precisa ser centralizada.
+## Como funciona hoje
+- `src/lib/pdf/export-document.ts` — jsPDF, A4, margens 30/20/30/20 mm, sem fundo.
+- `src/lib/docx/export-document.ts` — docx-js, A4, margens 3/2/3/2 cm, header vazio, footer só com "Página N".
+- Mesmo arquivo é usado pelo wizard (`StepDocumentResult`) e pela página de edição.
 
 ## Solução
 
-1. **Criar utilitário `src/lib/utils/sanitize-filename.ts`** com função `sanitizeStorageKey(name)` que:
-   - Normaliza Unicode (`NFKD`) e remove diacríticos (acentos).
-   - Substitui qualquer caractere fora de `[A-Za-z0-9._-]` por `_`.
-   - Colapsa underscores repetidos e remove os de borda.
-   - Garante extensão preservada e tamanho máximo razoável (ex.: 120 chars no nome base).
-   - Se o resultado ficar vazio, usa fallback `file`.
+### 1. Preparar os assets do timbrado
+A partir do `A4_logo.pdf` enviado, gerar:
+- **`letterhead-full.jpg`** — página A4 inteira em 200 dpi (≈1654×2339 px). Será o fundo do PDF.
+- **`letterhead-header.png`** — só o topo (faixa laranja + logo, ≈1654×450 px, fundo branco).
+- **`letterhead-footer.png`** — só o rodapé com os endereços das filiais (≈1654×420 px, fundo branco).
 
-2. **Aplicar em `src/services/client-file.service.ts`** dentro de `uploadFile`:
-   - Usar o nome sanitizado apenas para o `storagePath`.
-   - Manter o `file.name` original no campo `file_name` da tabela (para exibição ao usuário).
+Ambos sobem como Lovable Assets (`src/assets/letterhead-*.{jpg,png}.asset.json`) para não inchar o repo.
 
-3. **Verificar outros uploads** que usam `client-documents` (ex.: `supabase/functions/process-pdf-analyze`, `ocr-extract`) — se gerarem chaves a partir de nomes de usuário, aplicar a mesma sanitização (provavelmente já recebem o path do front, então basta a correção no front).
+Motivo dos três arquivos: o PDF aceita uma imagem A4 inteira como fundo (mais fiel ao timbrado original); o Word precisa de header/footer separados porque é assim que `docx-js` posiciona conteúdo repetido em todas as páginas.
 
-4. **Sem alterações em DB/RLS.** Nenhuma migração necessária.
+### 2. PDF (`src/lib/pdf/export-document.ts`)
+- Carregar `letterhead-full.jpg` como base64 uma vez.
+- Desenhar `pdf.addImage(bg, 'JPEG', 0, 0, 210, 297)` no início da primeira página e dentro de `checkPageBreak` antes de cada `addPage`.
+- Ajustar margens para o texto não invadir o timbrado:
+  - `marginTop`: 30 → **45 mm**
+  - `marginBottom`: 20 → **55 mm**
+  - laterais mantidas (30 / 20 mm)
+- Remover a numeração "Página N" do rodapé do PDF (o timbrado já ocupa o rodapé com os endereços). Se preferir manter, posicionar acima do bloco de endereços (~`pageHeight - 58mm`) — confirmar.
 
-## Resultado esperado
+### 3. Word (`src/lib/docx/export-document.ts`)
+- Adicionar `headers.default` com um `ImageRun` do `letterhead-header.png` centralizado, sem texto, ocupando a largura útil.
+- Substituir o `footers.default` atual: trocar "Página N" por um `ImageRun` do `letterhead-footer.png` (ou manter ambos: rodapé timbrado + linha "Página N" pequena abaixo — confirmar).
+- Ajustar margens do section para deixar espaço:
+  - `top`: 1701 → **2550 DXA** (≈4,5 cm)
+  - `bottom`: 1134 → **3120 DXA** (≈5,5 cm)
+  - `header`: 567 DXA (≈1 cm da borda)
+  - `footer`: 567 DXA
+- Carregar os PNGs via `fetch(asset.url).then(r => r.arrayBuffer())` antes de instanciar o `Document`. `ImageRun` exige `type: "png"` e buffer.
 
-- Upload do PDF `Recurso Ordinário - Amadelli X Luzia Oliveira Caetano.pdf` passa a funcionar.
-- No banco continua aparecendo o nome original (com acentos) na listagem; apenas o caminho interno no Storage fica sanitizado (`Recurso_Ordinario_-_Amadelli_X_Luzia_Oliveira_Caetano.pdf`).
-- Correção retroativa não é necessária — arquivos novos já entram corretos.
+### 4. Escopo multi-tenant
+O timbrado é do escritório Denison Leandro. Como hoje só há essa organização ativa, aplico globalmente nos dois exportadores via um helper `getLetterheadAssets(orgId)` que por enquanto retorna sempre o mesmo conjunto. Quando surgir outra organização, basta adicionar um campo `letterhead_*_url` em `organizations` — fora do escopo agora.
+
+### 5. Preview na tela
+Os previews HTML (`legal-doc-preview` no wizard e no editor) **não** mudam — continuam mostrando só o texto. O timbrado aparece apenas nos arquivos exportados (PDF e Word).
+
+### 6. QA antes de entregar
+- Gerar PDF de teste com 2–3 páginas, converter com `pdftoppm` e verificar: faixa laranja + logo em todas as páginas, rodapé em todas, texto sem invasão.
+- Gerar DOCX de teste, converter para PDF com LibreOffice e fazer a mesma checagem visual.
+
+## Arquivos afetados
+- Novo: `src/assets/letterhead-full.jpg.asset.json`, `letterhead-header.png.asset.json`, `letterhead-footer.png.asset.json`
+- Editado: `src/lib/pdf/export-document.ts`
+- Editado: `src/lib/docx/export-document.ts`
+- Sem mudanças de banco, RLS, edge functions ou UI.
+
+## Decisões a confirmar
+1. **Numeração "Página N"**: remover de PDF e Word, ou manter (pequena, acima do timbrado do rodapé)?
+2. **Aplicar a todos os documentos** (PDF + Word) ou só ao PDF nesta entrega?
