@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { z } from "zod";
+import { TRIBUNAL_VALUES } from "@/lib/legal/tribunais";
 
 /** Validacao basica de CPF (formato: 000.000.000-00 ou 00000000000) */
 const cpfPattern = /^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})$/;
@@ -37,8 +38,6 @@ const parteOpcionalSchema = z.object({
   profissao: z.string().optional(),
   estadoCivil: z.string().optional(),
 });
-
-import { TRIBUNAL_VALUES } from "@/lib/legal/tribunais";
 
 const ALL_TRIBUNAIS = TRIBUNAL_VALUES;
 
