@@ -57,13 +57,17 @@ const TJ_ESTADOS: Array<[string, string]> = [
 
 const TJS: TribunalOption[] = TJ_ESTADOS.map(([uf, nome]) => ({
   value: `TJ${uf}`,
-  label: `TJ${uf} — Tribunal de Justiça ${uf === "DFT" ? "do Distrito Federal e Territórios" : `de ${nome.startsWith("A") || nome.startsWith("E") ? "do" : "de"} ${nome}`}`,
+  label: uf === "DFT"
+    ? "TJDFT — Tribunal de Justiça do Distrito Federal e Territórios"
+    : `TJ${uf} — Tribunal de Justiça (${nome})`,
   group: "Estaduais (TJs)" as const,
 }));
 
 const TRES: TribunalOption[] = TJ_ESTADOS.map(([uf, nome]) => ({
   value: `TRE-${uf}`,
-  label: `TRE-${uf} — Tribunal Regional Eleitoral ${uf === "DFT" ? "do Distrito Federal" : `de ${nome}`}`,
+  label: uf === "DFT"
+    ? "TRE-DFT — Tribunal Regional Eleitoral do Distrito Federal"
+    : `TRE-${uf} — Tribunal Regional Eleitoral (${nome})`,
   group: "Eleitorais (TREs)" as const,
 }));
 
