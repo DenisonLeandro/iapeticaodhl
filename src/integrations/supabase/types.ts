@@ -78,6 +78,60 @@ export type Database = {
           },
         ]
       }
+      case_chat_messages: {
+        Row: {
+          case_id: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_pinned: boolean
+          message_kind: string
+          metadata: Json
+          organization_id: string
+          role: string
+        }
+        Insert: {
+          case_id: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_pinned?: boolean
+          message_kind?: string
+          metadata?: Json
+          organization_id: string
+          role: string
+        }
+        Update: {
+          case_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_pinned?: boolean
+          message_kind?: string
+          metadata?: Json
+          organization_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_chat_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_chat_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_movements: {
         Row: {
           case_id: string
@@ -141,6 +195,9 @@ export type Database = {
           client_id: string | null
           court: string
           created_at: string
+          executive_summary: Json | null
+          executive_summary_updated_at: string | null
+          executive_summary_version: number
           id: string
           opposing_party: string | null
           organization_id: string
@@ -156,6 +213,9 @@ export type Database = {
           client_id?: string | null
           court: string
           created_at?: string
+          executive_summary?: Json | null
+          executive_summary_updated_at?: string | null
+          executive_summary_version?: number
           id?: string
           opposing_party?: string | null
           organization_id: string
@@ -171,6 +231,9 @@ export type Database = {
           client_id?: string | null
           court?: string
           created_at?: string
+          executive_summary?: Json | null
+          executive_summary_updated_at?: string | null
+          executive_summary_version?: number
           id?: string
           opposing_party?: string | null
           organization_id?: string
@@ -201,7 +264,11 @@ export type Database = {
           analysis_json: Json | null
           analysis_summary: string | null
           case_id: string | null
+          classification: string | null
+          classification_confidence: number | null
+          classification_source: string | null
           client_id: string
+          content_hash: string | null
           created_at: string
           description: string | null
           document_kind: string | null
@@ -211,7 +278,12 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           id: string
+          media_type: string
           organization_id: string
+          page_count: number | null
+          page_from: number | null
+          page_to: number | null
+          parent_file_id: string | null
           petition_id: string | null
           processed_at: string | null
           processing_status: string | null
@@ -224,7 +296,11 @@ export type Database = {
           analysis_json?: Json | null
           analysis_summary?: string | null
           case_id?: string | null
+          classification?: string | null
+          classification_confidence?: number | null
+          classification_source?: string | null
           client_id: string
+          content_hash?: string | null
           created_at?: string
           description?: string | null
           document_kind?: string | null
@@ -234,7 +310,12 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          media_type?: string
           organization_id: string
+          page_count?: number | null
+          page_from?: number | null
+          page_to?: number | null
+          parent_file_id?: string | null
           petition_id?: string | null
           processed_at?: string | null
           processing_status?: string | null
@@ -247,7 +328,11 @@ export type Database = {
           analysis_json?: Json | null
           analysis_summary?: string | null
           case_id?: string | null
+          classification?: string | null
+          classification_confidence?: number | null
+          classification_source?: string | null
           client_id?: string
+          content_hash?: string | null
           created_at?: string
           description?: string | null
           document_kind?: string | null
@@ -257,7 +342,12 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          media_type?: string
           organization_id?: string
+          page_count?: number | null
+          page_from?: number | null
+          page_to?: number | null
+          parent_file_id?: string | null
           petition_id?: string | null
           processed_at?: string | null
           processing_status?: string | null
@@ -279,6 +369,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_files_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "client_files"
             referencedColumns: ["id"]
           },
         ]
@@ -438,6 +535,82 @@ export type Database = {
           },
         ]
       }
+      document_embeddings: {
+        Row: {
+          case_id: string | null
+          chunk_index: number
+          content: string
+          content_hash: string | null
+          created_at: string
+          embedding: string
+          file_id: string | null
+          id: string
+          metadata: Json
+          model_version: string
+          organization_id: string
+          page_from: number | null
+          page_to: number | null
+          source_kind: string
+          token_count: number | null
+        }
+        Insert: {
+          case_id?: string | null
+          chunk_index?: number
+          content: string
+          content_hash?: string | null
+          created_at?: string
+          embedding: string
+          file_id?: string | null
+          id?: string
+          metadata?: Json
+          model_version: string
+          organization_id: string
+          page_from?: number | null
+          page_to?: number | null
+          source_kind?: string
+          token_count?: number | null
+        }
+        Update: {
+          case_id?: string | null
+          chunk_index?: number
+          content?: string
+          content_hash?: string | null
+          created_at?: string
+          embedding?: string
+          file_id?: string | null
+          id?: string
+          metadata?: Json
+          model_version?: string
+          organization_id?: string
+          page_from?: number | null
+          page_to?: number | null
+          source_kind?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_embeddings_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_embeddings_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "client_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_embeddings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_versions: {
         Row: {
           change_summary: string | null
@@ -484,12 +657,16 @@ export type Database = {
       }
       documents: {
         Row: {
+          approval_notes: string | null
+          approved_at: string | null
+          approved_by: string | null
           case_id: string | null
           client_id: string | null
           content: string
           created_at: string
           created_by: string
           id: string
+          is_approved_template: boolean
           llm_model: string
           llm_provider: Database["public"]["Enums"]["llm_provider_type"]
           organization_id: string
@@ -506,12 +683,16 @@ export type Database = {
           version: number
         }
         Insert: {
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           case_id?: string | null
           client_id?: string | null
           content?: string
           created_at?: string
           created_by: string
           id?: string
+          is_approved_template?: boolean
           llm_model: string
           llm_provider: Database["public"]["Enums"]["llm_provider_type"]
           organization_id: string
@@ -528,12 +709,16 @@ export type Database = {
           version?: number
         }
         Update: {
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           case_id?: string | null
           client_id?: string | null
           content?: string
           created_at?: string
           created_by?: string
           id?: string
+          is_approved_template?: boolean
           llm_model?: string
           llm_provider?: Database["public"]["Enums"]["llm_provider_type"]
           organization_id?: string
@@ -550,6 +735,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_created_by_fkey"
             columns: ["created_by"]
@@ -960,6 +1152,23 @@ export type Database = {
       cleanup_expired_jurisprudence_cache: { Args: never; Returns: undefined }
       get_my_organization_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      match_case_chunks: {
+        Args: {
+          p_case_id: string
+          p_match_count?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          content: string
+          file_id: string
+          id: string
+          metadata: Json
+          page_from: number
+          page_to: number
+          similarity: number
+          source_kind: string
+        }[]
+      }
     }
     Enums: {
       case_status: "active" | "archived" | "closed"
