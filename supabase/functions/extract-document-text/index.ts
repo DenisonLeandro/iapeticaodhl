@@ -11,7 +11,7 @@ import { EXTRACTION_MODEL_PDFJS, EXTRACTION_VERSION } from "../_shared/versions.
 
 // pdf.js legacy build — funciona no Deno sem worker.
 // @ts-ignore — sem types
-import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs";
+import * as pdfjsLib from "npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
