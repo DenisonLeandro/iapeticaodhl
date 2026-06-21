@@ -67,6 +67,13 @@ export async function uploadFile(
     throw new Error(`Erro ao salvar metadados do arquivo: ${dbError.message}`);
   }
 
+  // Enfileira o processamento assíncrono (best-effort — não bloqueia o upload).
+  supabase.functions
+    .invoke("enqueue-file-processing", { body: { file_id: (data as ClientFile).id } })
+    .catch(() => {
+      /* erro de enqueue não bloqueia o usuário; será visível pelo pipeline_stage */
+    });
+
   return data as ClientFile;
 }
 
