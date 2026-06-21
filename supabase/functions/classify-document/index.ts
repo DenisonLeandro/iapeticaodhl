@@ -1,0 +1,104 @@
+// Classifica o documento usando Lovable AI (Gemini Flash).
+// Usa apenas as primeiras páginas para conter custo.
+// Interno — service_role only.
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { corsHeaders, json } from "../_shared/cors.ts";
+import { requireServiceRole, serviceClient } from "../_shared/auth.ts";
+import { CLASSIFICATION_MODEL, CLASSIFICATION_VERSION } from "../_shared/versions.ts";
+
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const TAXONOMY = [
+  "peticao_inicial",
+  "contestacao",
+  "replica",
+  "sentenca",
+  "acordao",
+  "despacho",
+  "decisao_interlocutoria",
+  "recurso",
+  "contrato",
+  "procuracao",
+  "documento_pessoal",
+  "comprovante",
+  "laudo_pericial",
+  "ata_audiencia",
+  "outros",
+];
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!requireServiceRole(req)) return json({ error: "Forbidden" }, 403);
+
+  let body: { file_id?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+  if (!body.file_id) return json({ error: "file_id required" }, 400);
+
+  const svc = serviceClient();
+  const { data: file, error: fErr } = await svc
+    .from("client_files")
+    .select("id, extracted_text")
+    .eq("id", body.file_id)
+    .maybeSingle();
+  if (fErr || !file) return json({ error: "file not found" }, 404);
+  if (!file.extracted_text) return json({ error: "no extracted_text" }, 400);
+
+  await svc.from("client_files").update({ pipeline_stage: "classifying" }).eq("id", file.id);
+
+  try {
+    // Limita o input a ~6k chars (primeiras páginas) — suficiente para classificar.
+    const sample = file.extracted_text.slice(0, 6000);
+    const prompt = `Classifique o documento jurídico brasileiro abaixo em UMA das categorias:
+${TAXONOMY.join(", ")}
+
+Responda APENAS um JSON: {"classification":"<categoria>","confidence":<0..1>}
+
+Documento:
+${sample}`;
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: CLASSIFICATION_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) throw new Error(`AI Gateway ${res.status}: ${await res.text()}`);
+    const out = await res.json();
+    const content = out.choices?.[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(content);
+    const classification = TAXONOMY.includes(parsed.classification)
+      ? parsed.classification
+      : "outros";
+    const confidence = Math.max(0, Math.min(1, Number(parsed.confidence) || 0));
+
+    await svc
+      .from("client_files")
+      .update({
+        classification,
+        classification_confidence: confidence,
+        classification_source: "ai",
+        classification_version: CLASSIFICATION_VERSION,
+        classification_model: CLASSIFICATION_MODEL,
+        classification_at: new Date().toISOString(),
+      })
+      .eq("id", file.id);
+
+    return json({ ok: true, classification, confidence });
+  } catch (e) {
+    const msg = (e as Error).message;
+    await svc
+      .from("client_files")
+      .update({ pipeline_stage: "failed", pipeline_last_error: `classify: ${msg}` })
+      .eq("id", file.id);
+    return json({ error: msg }, 500);
+  }
+});

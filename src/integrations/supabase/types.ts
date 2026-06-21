@@ -261,19 +261,31 @@ export type Database = {
       }
       client_files: {
         Row: {
+          analysis_at: string | null
           analysis_json: Json | null
+          analysis_model: string | null
           analysis_summary: string | null
+          analysis_version: string | null
           case_id: string | null
           classification: string | null
+          classification_at: string | null
           classification_confidence: number | null
+          classification_model: string | null
           classification_source: string | null
+          classification_version: string | null
           client_id: string
           content_hash: string | null
           created_at: string
           description: string | null
           document_kind: string | null
+          embedding_at: string | null
+          embedding_model: string | null
+          embedding_version: string | null
           error_message: string | null
           extracted_text: string | null
+          extraction_at: string | null
+          extraction_model: string | null
+          extraction_version: string | null
           file_name: string
           file_size: number | null
           file_type: string | null
@@ -285,6 +297,9 @@ export type Database = {
           page_to: number | null
           parent_file_id: string | null
           petition_id: string | null
+          pipeline_attempts: number
+          pipeline_last_error: string | null
+          pipeline_stage: string | null
           processed_at: string | null
           processing_status: string | null
           represented_party: string | null
@@ -293,19 +308,31 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          analysis_at?: string | null
           analysis_json?: Json | null
+          analysis_model?: string | null
           analysis_summary?: string | null
+          analysis_version?: string | null
           case_id?: string | null
           classification?: string | null
+          classification_at?: string | null
           classification_confidence?: number | null
+          classification_model?: string | null
           classification_source?: string | null
+          classification_version?: string | null
           client_id: string
           content_hash?: string | null
           created_at?: string
           description?: string | null
           document_kind?: string | null
+          embedding_at?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
           error_message?: string | null
           extracted_text?: string | null
+          extraction_at?: string | null
+          extraction_model?: string | null
+          extraction_version?: string | null
           file_name: string
           file_size?: number | null
           file_type?: string | null
@@ -317,6 +344,9 @@ export type Database = {
           page_to?: number | null
           parent_file_id?: string | null
           petition_id?: string | null
+          pipeline_attempts?: number
+          pipeline_last_error?: string | null
+          pipeline_stage?: string | null
           processed_at?: string | null
           processing_status?: string | null
           represented_party?: string | null
@@ -325,19 +355,31 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          analysis_at?: string | null
           analysis_json?: Json | null
+          analysis_model?: string | null
           analysis_summary?: string | null
+          analysis_version?: string | null
           case_id?: string | null
           classification?: string | null
+          classification_at?: string | null
           classification_confidence?: number | null
+          classification_model?: string | null
           classification_source?: string | null
+          classification_version?: string | null
           client_id?: string
           content_hash?: string | null
           created_at?: string
           description?: string | null
           document_kind?: string | null
+          embedding_at?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
           error_message?: string | null
           extracted_text?: string | null
+          extraction_at?: string | null
+          extraction_model?: string | null
+          extraction_version?: string | null
           file_name?: string
           file_size?: number | null
           file_type?: string | null
@@ -349,6 +391,9 @@ export type Database = {
           page_to?: number | null
           parent_file_id?: string | null
           petition_id?: string | null
+          pipeline_attempts?: number
+          pipeline_last_error?: string | null
+          pipeline_stage?: string | null
           processed_at?: string | null
           processing_status?: string | null
           represented_party?: string | null
@@ -535,17 +580,79 @@ export type Database = {
           },
         ]
       }
+      document_chunks: {
+        Row: {
+          case_id: string | null
+          chunk_index: number
+          chunking_version: string
+          content: string
+          content_hash: string | null
+          created_at: string
+          extraction_version: string | null
+          file_id: string
+          id: string
+          metadata: Json
+          organization_id: string
+          page_from: number | null
+          page_to: number | null
+          token_count: number | null
+        }
+        Insert: {
+          case_id?: string | null
+          chunk_index: number
+          chunking_version: string
+          content: string
+          content_hash?: string | null
+          created_at?: string
+          extraction_version?: string | null
+          file_id: string
+          id?: string
+          metadata?: Json
+          organization_id: string
+          page_from?: number | null
+          page_to?: number | null
+          token_count?: number | null
+        }
+        Update: {
+          case_id?: string | null
+          chunk_index?: number
+          chunking_version?: string
+          content?: string
+          content_hash?: string | null
+          created_at?: string
+          extraction_version?: string | null
+          file_id?: string
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          page_from?: number | null
+          page_to?: number | null
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "client_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_embeddings: {
         Row: {
           case_id: string | null
+          chunk_id: string | null
           chunk_index: number
           content: string
           content_hash: string | null
           created_at: string
           embedding: string
+          embedding_version: string
           file_id: string | null
           id: string
           metadata: Json
+          model_name: string | null
           model_version: string
           organization_id: string
           page_from: number | null
@@ -555,14 +662,17 @@ export type Database = {
         }
         Insert: {
           case_id?: string | null
+          chunk_id?: string | null
           chunk_index?: number
           content: string
           content_hash?: string | null
           created_at?: string
           embedding: string
+          embedding_version?: string
           file_id?: string | null
           id?: string
           metadata?: Json
+          model_name?: string | null
           model_version: string
           organization_id: string
           page_from?: number | null
@@ -572,14 +682,17 @@ export type Database = {
         }
         Update: {
           case_id?: string | null
+          chunk_id?: string | null
           chunk_index?: number
           content?: string
           content_hash?: string | null
           created_at?: string
           embedding?: string
+          embedding_version?: string
           file_id?: string | null
           id?: string
           metadata?: Json
+          model_name?: string | null
           model_version?: string
           organization_id?: string
           page_from?: number | null
@@ -940,6 +1053,71 @@ export type Database = {
         }
         Relationships: []
       }
+      processing_jobs: {
+        Row: {
+          attempts: number
+          case_id: string | null
+          created_at: string
+          file_id: string
+          finished_at: string | null
+          id: string
+          job_type: string
+          last_error: string | null
+          max_attempts: number
+          organization_id: string
+          payload: Json
+          priority: number
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          case_id?: string | null
+          created_at?: string
+          file_id: string
+          finished_at?: string | null
+          id?: string
+          job_type: string
+          last_error?: string | null
+          max_attempts?: number
+          organization_id: string
+          payload?: Json
+          priority?: number
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          case_id?: string | null
+          created_at?: string
+          file_id?: string
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          max_attempts?: number
+          organization_id?: string
+          payload?: Json
+          priority?: number
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_jobs_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "client_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1149,20 +1327,54 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      bootstrap_service_key_vault: {
+        Args: { p_key: string }
+        Returns: undefined
+      }
+      claim_processing_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          case_id: string | null
+          created_at: string
+          file_id: string
+          finished_at: string | null
+          id: string
+          job_type: string
+          last_error: string | null
+          max_attempts: number
+          organization_id: string
+          payload: Json
+          priority: number
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "processing_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cleanup_expired_jurisprudence_cache: { Args: never; Returns: undefined }
       get_my_organization_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       match_case_chunks: {
         Args: {
           p_case_id: string
+          p_embedding_version?: string
           p_match_count?: number
           p_query_embedding: string
         }
         Returns: {
           content: string
+          embedding_version: string
           file_id: string
           id: string
           metadata: Json
+          model_name: string
           page_from: number
           page_to: number
           similarity: number
