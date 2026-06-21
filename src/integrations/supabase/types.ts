@@ -1327,6 +1327,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      bootstrap_service_key_vault: {
+        Args: { p_key: string }
+        Returns: undefined
+      }
       claim_processing_jobs: {
         Args: { p_limit?: number }
         Returns: {
