@@ -1,18 +1,24 @@
 // =============================================================================
-// useCaseChat — PR-3
+// useCaseChat — PR-3 + PR-3.5 (streaming + feedback)
 // =============================================================================
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
 import {
+  listCaseChatFeedback,
   listCaseChatMessages,
-  sendCaseChatMessage,
   setCaseChatMessagePin,
+  streamCaseChatMessage,
+  upsertCaseChatFeedback,
+  type CaseChatCitation,
+  type CaseChatFeedbackValue,
   type CaseChatMessageKind,
+  type SendCaseChatResponse,
 } from "@/services/caseChat";
 
 const KEY = "case-chat";
+const FB_KEY = "case-chat-feedback";
 
 export function useCaseChat(caseId: string | undefined) {
   const queryClient = useQueryClient();
@@ -23,12 +29,38 @@ export function useCaseChat(caseId: string | undefined) {
     enabled: !!caseId,
   });
 
-  const sendMutation = useMutation({
-    mutationFn: (message: string) => sendCaseChatMessage(caseId!, message),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
-    },
+  const feedbackQuery = useQuery({
+    queryKey: [FB_KEY, caseId],
+    queryFn: () => listCaseChatFeedback(caseId!),
+    enabled: !!caseId,
   });
+
+  const [streamingText, setStreamingText] = useState("");
+  const [streamingCitations, setStreamingCitations] = useState<CaseChatCitation[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const sendMessage = useCallback(
+    async (message: string): Promise<SendCaseChatResponse> => {
+      if (!caseId) throw new Error("caseId ausente");
+      setStreamingText("");
+      setStreamingCitations([]);
+      setIsStreaming(true);
+      try {
+        // refresh imediato para mostrar a mensagem do usuário (persistida server-side)
+        const resp = await streamCaseChatMessage(caseId, message, {
+          onMeta: (cit) => setStreamingCitations(cit),
+          onDelta: (t) => setStreamingText((prev) => prev + t),
+        });
+        await queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
+        return resp;
+      } finally {
+        setIsStreaming(false);
+        setStreamingText("");
+        setStreamingCitations([]);
+      }
+    },
+    [caseId, queryClient],
+  );
 
   const pinMutation = useMutation({
     mutationFn: ({ id, isPinned, kind }: { id: string; isPinned: boolean; kind?: CaseChatMessageKind }) =>
@@ -38,7 +70,26 @@ export function useCaseChat(caseId: string | undefined) {
     },
   });
 
-  // Realtime — quando alguém da equipe escreve no mesmo caso, refresca.
+  const feedbackMutation = useMutation({
+    mutationFn: (params: {
+      messageId: string;
+      organizationId: string;
+      feedback: CaseChatFeedbackValue;
+      comment?: string | null;
+    }) =>
+      upsertCaseChatFeedback({
+        messageId: params.messageId,
+        caseId: caseId!,
+        organizationId: params.organizationId,
+        feedback: params.feedback,
+        comment: params.comment ?? null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [FB_KEY, caseId] });
+    },
+  });
+
+  // Realtime
   useEffect(() => {
     if (!caseId) return;
     const channel = supabase
@@ -46,9 +97,7 @@ export function useCaseChat(caseId: string | undefined) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "case_chat_messages", filter: `case_id=eq.${caseId}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
-        },
+        () => queryClient.invalidateQueries({ queryKey: [KEY, caseId] }),
       )
       .subscribe();
     return () => {
@@ -60,10 +109,15 @@ export function useCaseChat(caseId: string | undefined) {
     messages: messagesQuery.data ?? [],
     isLoading: messagesQuery.isLoading,
     refetch: messagesQuery.refetch,
-    sendMessage: sendMutation.mutateAsync,
-    isSending: sendMutation.isPending,
-    sendError: sendMutation.error as Error | null,
+    sendMessage,
+    isSending: isStreaming,
+    isStreaming,
+    streamingText,
+    streamingCitations,
     pinMessage: pinMutation.mutateAsync,
     isPinning: pinMutation.isPending,
+    feedback: feedbackQuery.data ?? [],
+    submitFeedback: feedbackMutation.mutateAsync,
+    isSubmittingFeedback: feedbackMutation.isPending,
   };
 }
