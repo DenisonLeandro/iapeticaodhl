@@ -215,6 +215,10 @@ export default function CaseDetailPage() {
           <TabsTrigger value="documents">
             Documentos ({documents.length})
           </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessageSquare className="mr-1 h-3.5 w-3.5" />
+            Chat IA
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline" className="mt-6">
@@ -230,6 +234,10 @@ export default function CaseDetailPage() {
             documents={documents}
             isLoading={documentsLoading}
           />
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-6">
+          <CaseChatPanel caseId={caseData.id} />
         </TabsContent>
       </Tabs>
     </div>
