@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, Briefcase, Link as LinkIcon, Scale, Sparkles, User } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Briefcase, Link as LinkIcon, MessageSquare, Scale, Sparkles, User } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 import CaseTimeline from "@/components/cases/CaseTimeline";
 import CaseDocuments from "@/components/cases/CaseDocuments";
 import CaseForm from "@/components/cases/CaseForm";
+import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import {
   STATUS_BADGE_COLORS,
   STATUS_LABELS,
@@ -214,6 +215,10 @@ export default function CaseDetailPage() {
           <TabsTrigger value="documents">
             Documentos ({documents.length})
           </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessageSquare className="mr-1 h-3.5 w-3.5" />
+            Chat IA
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline" className="mt-6">
@@ -229,6 +234,10 @@ export default function CaseDetailPage() {
             documents={documents}
             isLoading={documentsLoading}
           />
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-6">
+          <CaseChatPanel caseId={caseData.id} />
         </TabsContent>
       </Tabs>
     </div>
