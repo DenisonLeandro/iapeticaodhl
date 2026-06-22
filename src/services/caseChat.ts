@@ -80,8 +80,9 @@ export async function setCaseChatMessagePin(
   isPinned: boolean,
   kind?: CaseChatMessageKind,
 ): Promise<void> {
-  const update: Record<string, unknown> = { is_pinned: isPinned };
-  if (kind) update.message_kind = kind;
+  const update = kind
+    ? { is_pinned: isPinned, message_kind: kind }
+    : { is_pinned: isPinned };
   const { error } = await supabase
     .from("case_chat_messages")
     .update(update)
