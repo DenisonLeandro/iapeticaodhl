@@ -85,7 +85,7 @@ serve(async (req) => {
         case_id: file.case_id,
         file_id: file.id,
         chunk_id: c.id,
-        source_kind: "document",
+        source_kind: "pdf",
         chunk_index: c.chunk_index,
         page_from: c.page_from,
         page_to: c.page_to,
