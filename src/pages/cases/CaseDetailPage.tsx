@@ -230,12 +230,17 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-6">
-          <CaseDocuments
-            documents={documents}
-            isLoading={documentsLoading}
-          />
+        <TabsContent value="documents" className="mt-6 space-y-8">
+          <CaseFilesSection caseId={caseData.id} clientId={caseData.client_id} />
+          <div className="space-y-3">
+            <h3 className="font-display text-lg font-semibold">Peças geradas</h3>
+            <CaseDocuments
+              documents={documents}
+              isLoading={documentsLoading}
+            />
+          </div>
         </TabsContent>
+
 
         <TabsContent value="chat" className="mt-6">
           <CaseChatPanel caseId={caseData.id} />
