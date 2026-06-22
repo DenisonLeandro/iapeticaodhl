@@ -105,10 +105,10 @@ export default function FileUploadDialog({
   const resetState = useCallback(() => {
     setItems([]);
     setBatchKind(NO_KIND);
-    setCaseId(NO_CASE);
+    setCaseId(initialCaseId ?? NO_CASE);
     setRepresentedParty(DEFAULT_REPRESENTED_PARTY);
     setIsDragging(false);
-  }, []);
+  }, [initialCaseId]);
 
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
