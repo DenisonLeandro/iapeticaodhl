@@ -77,11 +77,13 @@ export default function FileUploadDialog({
   open,
   onOpenChange,
   clientId,
+  initialCaseId,
+  lockCase = false,
 }: FileUploadDialogProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [batchKind, setBatchKind] = useState<string>(NO_KIND);
-  const [caseId, setCaseId] = useState<string>(NO_CASE);
+  const [caseId, setCaseId] = useState<string>(initialCaseId ?? NO_CASE);
   const [representedParty, setRepresentedParty] = useState<RepresentedParty>(
     DEFAULT_REPRESENTED_PARTY,
   );
