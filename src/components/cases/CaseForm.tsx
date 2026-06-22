@@ -150,7 +150,7 @@ export default function CaseForm({
         </DialogTrigger>
       )}
 
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Processo" : "Novo Processo"}
