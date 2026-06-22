@@ -62,9 +62,10 @@ export async function splitPdfIfLarge(file: File): Promise<SplitResult> {
     const copied = await out.copyPages(src, indices);
     copied.forEach((p) => out.addPage(p));
     const outBytes = await out.save();
-    // pdf-lib retorna Uint8Array; embrulhamos em Blob para evitar incompatibilidade
-    // de tipos do lib DOM (Uint8Array<ArrayBufferLike> vs ArrayBufferView<ArrayBuffer>).
-    const blob = new Blob([outBytes.buffer.slice(outBytes.byteOffset, outBytes.byteOffset + outBytes.byteLength)], { type: "application/pdf" });
+    // Cópia para ArrayBuffer "puro" para satisfazer o tipo BlobPart do lib DOM.
+    const copy = new Uint8Array(outBytes.byteLength);
+    copy.set(outBytes);
+    const blob = new Blob([copy.buffer], { type: "application/pdf" });
     const partFile = new File(
       [blob],
       `${baseName} — parte ${i + 1} de ${totalParts}.pdf`,
