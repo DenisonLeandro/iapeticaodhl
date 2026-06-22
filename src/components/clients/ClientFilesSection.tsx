@@ -150,6 +150,11 @@ function FileRow({
         <p className="truncate text-sm font-medium">{file.file_name}</p>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{formatFileSize(file.file_size)}</span>
+          {file.total_parts && file.total_parts > 1 && (
+            <Badge variant="outline" className="font-normal">
+              Dividido em {file.total_parts} partes
+            </Badge>
+          )}
           <span>•</span>
           <span>
             {format(new Date(file.created_at), "dd/MM/yyyy", { locale: ptBR })}
