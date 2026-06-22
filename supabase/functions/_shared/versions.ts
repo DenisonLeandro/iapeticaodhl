@@ -13,7 +13,7 @@ export const CLASSIFICATION_MODEL = "google/gemini-2.5-flash";
 
 export const EMBEDDING_VERSION = "gemini-embedding-001@v1";
 export const EMBEDDING_MODEL = "google/gemini-embedding-001";
-export const EMBEDDING_DIMS = 3072;
+export const EMBEDDING_DIMS = 1536;
 export const EMBEDDING_BATCH_SIZE = 16;
 
 export const PIPELINE_STAGES = [
