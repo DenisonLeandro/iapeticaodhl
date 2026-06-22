@@ -98,52 +98,76 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
               </TableRow>
             </TableHeader>
             <TableBody>
-              {files.map((f) => (
-                <TableRow key={f.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {f.file_type === "application/pdf" ? (
-                        <FileText className="h-4 w-4 shrink-0 text-red-500" />
-                      ) : (
-                        <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="truncate max-w-[280px]" title={f.file_name}>
-                        {f.file_name}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatSize(f.file_size)}
-                    {f.page_count ? ` · ${f.page_count} pp.` : ""}
-                  </TableCell>
-                  <TableCell>
-                    <PipelineStageBadge
-                      stage={f.pipeline_stage}
-                      error={f.pipeline_last_error}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {f.classification ? (
-                      <span>
-                        {f.classification}
-                        {f.classification_confidence != null && (
-                          <span className="ml-1 text-xs">
-                            ({Number(f.classification_confidence).toFixed(2)})
-                          </span>
+              {files.map((f) => {
+                const hasParts = f.total_parts != null && f.total_parts > 1;
+                const progressPct = hasParts
+                  ? Math.round(((f.processed_parts ?? 0) / (f.total_parts ?? 1)) * 100)
+                  : null;
+                return (
+                  <TableRow key={f.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {f.file_type === "application/pdf" ? (
+                          <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                         )}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {f.chunk_count > 0 ? f.chunk_count : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(f.created_at)}
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <div className="min-w-0">
+                          <span className="block truncate max-w-[280px]" title={f.file_name}>
+                            {f.file_name}
+                          </span>
+                          {hasParts && (
+                            <span className="block text-xs text-muted-foreground">
+                              {f.processed_parts}/{f.total_parts} partes processadas
+                              {f.failed_parts > 0 ? ` · ${f.failed_parts} com falha` : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatSize(f.file_size)}
+                      {f.page_count ? ` · ${f.page_count} pp.` : ""}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <PipelineStageBadge
+                          stage={f.pipeline_stage}
+                          error={f.pipeline_last_error}
+                        />
+                        {hasParts && f.pipeline_stage !== "done" && f.pipeline_stage !== "failed" && (
+                          <div className="h-1 w-24 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${progressPct ?? 0}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {f.classification ? (
+                        <span>
+                          {f.classification}
+                          {f.classification_confidence != null && (
+                            <span className="ml-1 text-xs">
+                              ({Number(f.classification_confidence).toFixed(2)})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {f.chunk_count > 0 ? f.chunk_count : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(f.created_at)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

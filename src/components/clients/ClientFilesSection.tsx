@@ -103,6 +103,10 @@ function FileRow({
   const isHighlighted = !!file.document_kind && HIGHLIGHTED_KINDS.has(file.document_kind);
 
   const handleView = async () => {
+    if (!file.storage_path) {
+      toast.info("Este documento foi dividido em partes. Abra o processo para ver detalhes.");
+      return;
+    }
     try {
       const url = await getUrl.mutateAsync(file.storage_path);
       window.open(url, "_blank");
@@ -146,6 +150,11 @@ function FileRow({
         <p className="truncate text-sm font-medium">{file.file_name}</p>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{formatFileSize(file.file_size)}</span>
+          {file.total_parts && file.total_parts > 1 && (
+            <Badge variant="outline" className="font-normal">
+              Dividido em {file.total_parts} partes
+            </Badge>
+          )}
           <span>•</span>
           <span>
             {format(new Date(file.created_at), "dd/MM/yyyy", { locale: ptBR })}

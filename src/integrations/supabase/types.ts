@@ -348,12 +348,14 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           id: string
+          logical_file_name: string | null
           media_type: string
           organization_id: string
           page_count: number | null
           page_from: number | null
           page_to: number | null
           parent_file_id: string | null
+          part_index: number | null
           petition_id: string | null
           pipeline_attempts: number
           pipeline_last_error: string | null
@@ -361,7 +363,8 @@ export type Database = {
           processed_at: string | null
           processing_status: string | null
           represented_party: string | null
-          storage_path: string
+          storage_path: string | null
+          total_parts: number | null
           updated_at: string
           uploaded_by: string | null
         }
@@ -395,12 +398,14 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          logical_file_name?: string | null
           media_type?: string
           organization_id: string
           page_count?: number | null
           page_from?: number | null
           page_to?: number | null
           parent_file_id?: string | null
+          part_index?: number | null
           petition_id?: string | null
           pipeline_attempts?: number
           pipeline_last_error?: string | null
@@ -408,7 +413,8 @@ export type Database = {
           processed_at?: string | null
           processing_status?: string | null
           represented_party?: string | null
-          storage_path: string
+          storage_path?: string | null
+          total_parts?: number | null
           updated_at?: string
           uploaded_by?: string | null
         }
@@ -442,12 +448,14 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          logical_file_name?: string | null
           media_type?: string
           organization_id?: string
           page_count?: number | null
           page_from?: number | null
           page_to?: number | null
           parent_file_id?: string | null
+          part_index?: number | null
           petition_id?: string | null
           pipeline_attempts?: number
           pipeline_last_error?: string | null
@@ -455,7 +463,8 @@ export type Database = {
           processed_at?: string | null
           processing_status?: string | null
           represented_party?: string | null
-          storage_path?: string
+          storage_path?: string | null
+          total_parts?: number | null
           updated_at?: string
           uploaded_by?: string | null
         }

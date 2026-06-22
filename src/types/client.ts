@@ -66,7 +66,7 @@ export interface ClientFile {
   file_name: string;
   file_type: string | null;
   file_size: number | null;
-  storage_path: string;
+  storage_path: string | null;
   description: string | null;
   uploaded_by: string | null;
   created_at: string;
@@ -82,5 +82,10 @@ export interface ClientFile {
   analysis_summary?: string | null;
   analysis_json?: Record<string, unknown> | null;
   represented_party?: string | null;
+  // PR-3.6 — documento lógico com múltiplas partes
+  parent_file_id?: string | null;
+  logical_file_name?: string | null;
+  part_index?: number | null;
+  total_parts?: number | null;
 }
 
