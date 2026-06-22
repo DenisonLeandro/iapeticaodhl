@@ -46,7 +46,18 @@ serve(async (req) => {
   if (fErr || !file) return json({ error: "file not found" }, 404);
   if (!file.extracted_text) return json({ error: "no extracted_text" }, 400);
 
-  await svc.from("client_files").update({ pipeline_stage: "classifying" }).eq("id", file.id);
+  console.log("classify:start", { file_id: file.id, text_len: file.extracted_text.length });
+
+  {
+    const { error: stageErr } = await svc
+      .from("client_files")
+      .update({ pipeline_stage: "classifying" })
+      .eq("id", file.id);
+    if (stageErr) {
+      console.error("classify:error", { file_id: file.id, stage: "set_classifying", msg: stageErr.message });
+      return json({ error: `set stage: ${stageErr.message}` }, 500);
+    }
+  }
 
   try {
     // Limita o input a ~6k chars (primeiras páginas) — suficiente para classificar.
@@ -80,21 +91,27 @@ ${sample}`;
       : "outros";
     const confidence = Math.max(0, Math.min(1, Number(parsed.confidence) || 0));
 
-    await svc
+    console.log("classify:ai_response", { file_id: file.id, classification, confidence });
+
+    const { error: updErr } = await svc
       .from("client_files")
       .update({
         classification,
         classification_confidence: confidence,
-        classification_source: "ai",
+        classification_source: "auto",
         classification_version: CLASSIFICATION_VERSION,
         classification_model: CLASSIFICATION_MODEL,
         classification_at: new Date().toISOString(),
       })
       .eq("id", file.id);
+    if (updErr) throw new Error(`update classification: ${updErr.message}`);
+
+    console.log("classify:persisted", { file_id: file.id, classification });
 
     return json({ ok: true, classification, confidence });
   } catch (e) {
     const msg = (e as Error).message;
+    console.error("classify:error", { file_id: body.file_id, msg });
     await svc
       .from("client_files")
       .update({ pipeline_stage: "failed", pipeline_last_error: `classify: ${msg}` })
@@ -102,3 +119,4 @@ ${sample}`;
     return json({ error: msg }, 500);
   }
 });
+
