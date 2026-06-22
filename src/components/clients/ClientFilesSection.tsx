@@ -103,6 +103,10 @@ function FileRow({
   const isHighlighted = !!file.document_kind && HIGHLIGHTED_KINDS.has(file.document_kind);
 
   const handleView = async () => {
+    if (!file.storage_path) {
+      toast.info("Este documento foi dividido em partes. Abra o processo para ver detalhes.");
+      return;
+    }
     try {
       const url = await getUrl.mutateAsync(file.storage_path);
       window.open(url, "_blank");
