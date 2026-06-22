@@ -177,13 +177,19 @@ export async function uploadFile(
     }
   } catch (err) {
     // Rollback best-effort: remove storage e linhas criadas.
-    if (uploadedPaths.length) {
-      await supabase.storage.from("client-documents").remove(uploadedPaths).catch(() => {});
-    }
-    if (childIds.length) {
-      await supabase.from("client_files").delete().in("id", childIds).catch(() => {});
-    }
-    await supabase.from("client_files").delete().eq("id", parent.id).catch(() => {});
+    try {
+      if (uploadedPaths.length) {
+        await supabase.storage.from("client-documents").remove(uploadedPaths);
+      }
+    } catch { /* ignore */ }
+    try {
+      if (childIds.length) {
+        await supabase.from("client_files").delete().in("id", childIds);
+      }
+    } catch { /* ignore */ }
+    try {
+      await supabase.from("client_files").delete().eq("id", parent.id);
+    } catch { /* ignore */ }
     throw err;
   }
 
