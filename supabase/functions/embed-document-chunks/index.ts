@@ -8,6 +8,7 @@ import { requireServiceRole, serviceClient } from "../_shared/auth.ts";
 import {
   CHUNKING_VERSION,
   EMBEDDING_BATCH_SIZE,
+  EMBEDDING_DIMS,
   EMBEDDING_MODEL,
   EMBEDDING_VERSION,
 } from "../_shared/versions.ts";
@@ -21,7 +22,12 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
     },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: inputs }),
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      input: inputs,
+      dimensions: EMBEDDING_DIMS,
+      output_dimensionality: EMBEDDING_DIMS,
+    }),
   });
   if (!res.ok) throw new Error(`embeddings ${res.status}: ${await res.text()}`);
   const out = await res.json();
