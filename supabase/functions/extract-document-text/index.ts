@@ -82,8 +82,7 @@ async function extractPdfViaGemini(
   if (dErr || !blob) throw new Error(`fallback_download: ${dErr?.message ?? "no blob"}`);
 
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  const base64 = encodeBase64(bytes);
-  console.log("extract:fallback_encoded", { bytes: bytes.length, b64_chars: base64.length });
+  console.log("extract:fallback_downloaded", { bytes: bytes.length });
 
   const prompt =
     "Extraia TODO o texto deste PDF, preservando a ordem das páginas. " +
@@ -92,30 +91,45 @@ async function extractPdfViaGemini(
     "Devolva apenas o texto bruto extraído. Se a página estiver em branco, escreva `[[PAGE n]]` " +
     "seguido de uma linha vazia.";
 
+  // Para evitar estouro de memória ao fazer JSON.stringify de ~30 MB de base64,
+  // montamos o corpo como ReadableStream: prefixo JSON + base64 em chunks + sufixo JSON.
+  const escapedFilename = JSON.stringify(fileName);
+  const escapedPrompt = JSON.stringify(prompt);
+  const prefix =
+    `{"model":"google/gemini-2.5-flash","messages":[{"role":"user","content":[` +
+    `{"type":"file","file":{"filename":${escapedFilename},` +
+    `"file_data":"data:application/pdf;base64,`;
+  const suffix =
+    `"}},{"type":"text","text":${escapedPrompt}}]}]}`;
+
+  const encoder = new TextEncoder();
+  const CHUNK_BYTES = 768 * 1024; // múltiplo de 3 — base64 sem padding intermediário
+
+  const bodyStream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(prefix));
+      let offset = 0;
+      while (offset < bytes.length) {
+        const end = Math.min(offset + CHUNK_BYTES, bytes.length);
+        const slice = bytes.subarray(offset, end);
+        const b64 = encodeBase64(slice);
+        controller.enqueue(encoder.encode(b64));
+        offset = end;
+      }
+      controller.enqueue(encoder.encode(suffix));
+      controller.close();
+    },
+  });
+
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "file",
-              file: {
-                filename: fileName,
-                file_data: `data:application/pdf;base64,${base64}`,
-              },
-            },
-            { type: "text", text: prompt },
-          ],
-        },
-      ],
-    }),
+    body: bodyStream,
+    // @ts-ignore Deno fetch suporta duplex para streaming de upload.
+    duplex: "half",
   });
 
   const bodyText = await res.text();
