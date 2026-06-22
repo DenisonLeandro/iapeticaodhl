@@ -38,6 +38,10 @@ interface FileUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientId: string;
+  /** Pré-seleciona um processo (ex.: abertura via tela do processo). */
+  initialCaseId?: string;
+  /** Quando true, trava o Select de processo no initialCaseId e impede troca/remoção. */
+  lockCase?: boolean;
 }
 
 const NO_CASE = "__none__";
