@@ -23,6 +23,11 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 // Acima desse tamanho, vai direto para fallback (pdfjs estoura CPU no edge).
 const LARGE_PDF_THRESHOLD = 8 * 1024 * 1024; // 8 MB
 
+// Acima desse limite hard o próprio fallback multimodal não cabe no orçamento
+// de CPU/memória do edge runtime (encode base64 + upload de >15 MB excede o
+// CPU time budget). Falhamos limpo com mensagem clara para o usuário.
+const HARD_MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB
+
 const EXTRACTION_MODEL_MULTIMODAL = "gemini-2.5-flash@multimodal";
 const EXTRACTION_VERSION_MULTIMODAL = "v1-multimodal";
 
