@@ -15,12 +15,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/backend/client";
 import { useCaseChat } from "@/hooks/useCaseChat";
 import type { CaseChatCitation, CaseChatMessage } from "@/services/caseChat";
 
 interface Props {
   caseId: string;
-  hasProcessedFiles: boolean;
 }
 
 function Citations({ citations }: { citations: CaseChatCitation[] }) {
@@ -103,8 +104,23 @@ function MessageBubble({
   );
 }
 
-export default function CaseChatPanel({ caseId, hasProcessedFiles }: Props) {
+export default function CaseChatPanel({ caseId }: Props) {
   const { toast } = useToast();
+
+  const filesQuery = useQuery({
+    queryKey: ["case-chat-files", caseId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_files")
+        .select("id, pipeline_stage")
+        .eq("case_id", caseId);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    enabled: !!caseId,
+  });
+  const hasProcessedFiles = (filesQuery.data ?? []).some((f) => f.pipeline_stage === "done");
+
   const {
     messages,
     isLoading,
