@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useCaseDetail";
 import CaseTimeline from "@/components/cases/CaseTimeline";
 import CaseDocuments from "@/components/cases/CaseDocuments";
+import CaseFilesSection from "@/components/cases/CaseFilesSection";
 import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import {
