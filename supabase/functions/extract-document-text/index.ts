@@ -201,6 +201,18 @@ serve(async (req) => {
 
     if (isPdf) {
       const sizeBytes = Number(file.file_size ?? 0);
+
+      // Hard guard: o edge runtime não comporta encode/upload de PDFs muito grandes.
+      // Falha limpa antes de queimar 3 tentativas com WORKER_RESOURCE_LIMIT.
+      if (sizeBytes > HARD_MAX_PDF_BYTES) {
+        const mb = (sizeBytes / (1024 * 1024)).toFixed(1);
+        const limitMb = (HARD_MAX_PDF_BYTES / (1024 * 1024)).toFixed(0);
+        throw new Error(
+          `pdf_too_large_for_edge_runtime: ${mb} MB excede o limite de ${limitMb} MB. ` +
+            `Divida o PDF em arquivos menores antes de reenviar.`,
+        );
+      }
+
       const useFallbackFirst = sizeBytes > LARGE_PDF_THRESHOLD;
 
       let extractedText: string | null = null;
