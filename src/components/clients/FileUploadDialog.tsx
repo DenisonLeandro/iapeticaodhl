@@ -38,6 +38,10 @@ interface FileUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientId: string;
+  /** Pré-seleciona um processo (ex.: abertura via tela do processo). */
+  initialCaseId?: string;
+  /** Quando true, trava o Select de processo no initialCaseId e impede troca/remoção. */
+  lockCase?: boolean;
 }
 
 const NO_CASE = "__none__";
@@ -73,11 +77,13 @@ export default function FileUploadDialog({
   open,
   onOpenChange,
   clientId,
+  initialCaseId,
+  lockCase = false,
 }: FileUploadDialogProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [batchKind, setBatchKind] = useState<string>(NO_KIND);
-  const [caseId, setCaseId] = useState<string>(NO_CASE);
+  const [caseId, setCaseId] = useState<string>(initialCaseId ?? NO_CASE);
   const [representedParty, setRepresentedParty] = useState<RepresentedParty>(
     DEFAULT_REPRESENTED_PARTY,
   );
@@ -99,10 +105,10 @@ export default function FileUploadDialog({
   const resetState = useCallback(() => {
     setItems([]);
     setBatchKind(NO_KIND);
-    setCaseId(NO_CASE);
+    setCaseId(initialCaseId ?? NO_CASE);
     setRepresentedParty(DEFAULT_REPRESENTED_PARTY);
     setIsDragging(false);
-  }, []);
+  }, [initialCaseId]);
 
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
@@ -373,7 +379,9 @@ export default function FileUploadDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="case-link">Vincular todos a um processo (opcional)</Label>
+                <Label htmlFor="case-link">
+                  {lockCase ? "Vinculado a um processo" : "Vincular todos a um processo (opcional)"}
+                </Label>
                 {isLoadingCases ? (
                   <p className="text-xs text-muted-foreground">Carregando processos...</p>
                 ) : cases.length === 0 ? (
@@ -384,22 +392,30 @@ export default function FileUploadDialog({
                     </Button>
                   </div>
                 ) : (
-                  <Select value={caseId} onValueChange={setCaseId}>
-                    <SelectTrigger id="case-link">
-                      <SelectValue placeholder="Selecione um processo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_CASE}>Não vincular</SelectItem>
-                      {cases.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.case_number}
-                          {c.court ? ` — ${c.court}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Select value={caseId} onValueChange={setCaseId} disabled={lockCase}>
+                      <SelectTrigger id="case-link">
+                        <SelectValue placeholder="Selecione um processo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!lockCase && <SelectItem value={NO_CASE}>Não vincular</SelectItem>}
+                        {cases.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.case_number}
+                            {c.court ? ` — ${c.court}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {lockCase && (
+                      <p className="text-xs text-muted-foreground">
+                        Os arquivos serão salvos vinculados a este processo.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
+
 
               <div className="space-y-2">
                 <Label>Parte representada pelo escritório</Label>
