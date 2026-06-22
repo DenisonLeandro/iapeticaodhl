@@ -1,52 +1,211 @@
 // =============================================================================
-// CaseChatPanel — PR-3
-// Chat de análise e estratégia por processo. Não gera peças.
+// CaseChatPanel — PR-3 + PR-3.5 (streaming + citações ricas + feedback)
 // =============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-// remark-gfm not installed; using plain markdown is enough for chat answers.
-import { AlertCircle, FileText, Loader2, Pin, PinOff, Send, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Pin,
+  PinOff,
+  Send,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
 import { useCaseChat } from "@/hooks/useCaseChat";
-import type { CaseChatCitation, CaseChatMessage } from "@/services/caseChat";
+import type {
+  CaseChatCitation,
+  CaseChatFeedback,
+  CaseChatFeedbackValue,
+  CaseChatMessage,
+} from "@/services/caseChat";
 
 interface Props {
   caseId: string;
 }
 
-function Citations({ citations }: { citations: CaseChatCitation[] }) {
+function pagesLabel(c: CaseChatCitation): string {
+  if (c.page_from == null && c.page_to == null) return "página ?";
+  if (c.page_from === c.page_to || c.page_to == null) return `página ${c.page_from}`;
+  return `páginas ${c.page_from}–${c.page_to}`;
+}
+
+function CitationsBlock({ citations }: { citations: CaseChatCitation[] }) {
   if (!citations?.length) return null;
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
-      {citations.map((c) => {
-        const pages =
-          c.page_from === c.page_to
-            ? `p. ${c.page_from ?? "?"}`
-            : `pp. ${c.page_from ?? "?"}–${c.page_to ?? "?"}`;
-        return (
-          <Badge
+    <div className="mt-3 space-y-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Citações
+      </p>
+      <div className="grid gap-1.5">
+        {citations.map((c) => (
+          <div
             key={c.chunk_id}
-            variant="secondary"
-            className="gap-1 font-normal"
+            className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs"
             title={`Similaridade: ${(c.similarity * 100).toFixed(1)}%`}
           >
-            <FileText className="h-3 w-3" />
-            <span className="max-w-[180px] truncate">{c.file_name}</span>
-            <span className="text-muted-foreground">· {pages}</span>
-          </Badge>
-        );
-      })}
+            <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-foreground">
+                {c.classification ?? "Documento"}
+              </p>
+              <p className="truncate text-muted-foreground">{c.file_name}</p>
+              <p className="text-[11px] text-muted-foreground">{pagesLabel(c)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
+  );
+}
+
+interface FeedbackBarProps {
+  existing: CaseChatFeedback | undefined;
+  onSubmit: (feedback: CaseChatFeedbackValue, comment?: string | null) => Promise<void>;
+  disabled: boolean;
+}
+
+function FeedbackBar({ existing, onSubmit, disabled }: FeedbackBarProps) {
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [pendingValue, setPendingValue] = useState<CaseChatFeedbackValue>("useful");
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const openComment = (value: CaseChatFeedbackValue) => {
+    setPendingValue(value);
+    setComment(existing?.feedback === value ? existing?.comment ?? "" : "");
+    setCommentOpen(true);
+  };
+
+  const quickVote = async (value: CaseChatFeedbackValue) => {
+    if (disabled) return;
+    try {
+      await onSubmit(value, existing?.comment ?? null);
+    } catch { /* toast tratado fora */ }
+  };
+
+  const saveComment = async () => {
+    setSaving(true);
+    try {
+      await onSubmit(pendingValue, comment.trim() ? comment.trim() : null);
+      setCommentOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isUseful = existing?.feedback === "useful";
+  const isNotUseful = existing?.feedback === "not_useful";
+
+  return (
+    <>
+      <div className="mt-2 flex items-center gap-1 border-t pt-2">
+        <Button
+          type="button"
+          variant={isUseful ? "default" : "ghost"}
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={disabled}
+          onClick={() => quickVote("useful")}
+        >
+          <ThumbsUp className="mr-1 h-3 w-3" /> Útil
+        </Button>
+        <Button
+          type="button"
+          variant={isNotUseful ? "destructive" : "ghost"}
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={disabled}
+          onClick={() => quickVote("not_useful")}
+        >
+          <ThumbsDown className="mr-1 h-3 w-3" /> Não ajudou
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={disabled}
+          onClick={() => openComment(existing?.feedback ?? "useful")}
+        >
+          <MessageSquare className="mr-1 h-3 w-3" />
+          {existing?.comment ? "Editar comentário" : "Comentar"}
+        </Button>
+        {existing?.comment && (
+          <span className="ml-2 truncate text-[11px] italic text-muted-foreground">
+            "{existing.comment}"
+          </span>
+        )}
+      </div>
+
+      <Dialog open={commentOpen} onOpenChange={setCommentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Comentário sobre a resposta</DialogTitle>
+            <DialogDescription>
+              Opcional. Comentários ajudam a melhorar o sistema (ex.: "citou página errada",
+              "resposta genérica", "excelente fundamentação").
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={pendingValue === "useful" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPendingValue("useful")}
+              >
+                <ThumbsUp className="mr-1 h-3 w-3" /> Útil
+              </Button>
+              <Button
+                type="button"
+                variant={pendingValue === "not_useful" ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => setPendingValue("not_useful")}
+              >
+                <ThumbsDown className="mr-1 h-3 w-3" /> Não ajudou
+              </Button>
+            </div>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Comentário livre (opcional)"
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCommentOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={saveComment} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -54,10 +213,16 @@ function MessageBubble({
   message,
   onTogglePin,
   isPinning,
+  feedback,
+  onSubmitFeedback,
+  isSubmittingFeedback,
 }: {
   message: CaseChatMessage;
   onTogglePin: (m: CaseChatMessage) => void;
   isPinning: boolean;
+  feedback: CaseChatFeedback | undefined;
+  onSubmitFeedback: (m: CaseChatMessage, value: CaseChatFeedbackValue, comment?: string | null) => Promise<void>;
+  isSubmittingFeedback: boolean;
 }) {
   const isUser = message.role === "user";
   const citations = (message.metadata?.citations ?? []) as CaseChatCitation[];
@@ -75,10 +240,18 @@ function MessageBubble({
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
-        {!isUser && <Citations citations={citations} />}
+        {!isUser && <CitationsBlock citations={citations} />}
 
         {!isUser && (
-          <div className="mt-2 flex items-center justify-end gap-2">
+          <FeedbackBar
+            existing={feedback}
+            disabled={isSubmittingFeedback}
+            onSubmit={(value, comment) => onSubmitFeedback(message, value, comment)}
+          />
+        )}
+
+        {!isUser && (
+          <div className="mt-2 flex items-center justify-end">
             <Button
               type="button"
               variant="ghost"
@@ -126,9 +299,21 @@ export default function CaseChatPanel({ caseId }: Props) {
     isLoading,
     sendMessage,
     isSending,
+    streamingText,
+    streamingCitations,
     pinMessage,
     isPinning,
+    feedback,
+    submitFeedback,
+    isSubmittingFeedback,
   } = useCaseChat(caseId);
+
+  const feedbackByMsg = useMemo(() => {
+    const m = new Map<string, CaseChatFeedback>();
+    for (const f of feedback) m.set(f.message_id, f);
+    return m;
+  }, [feedback]);
+
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -140,7 +325,7 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSending]);
+  }, [messages, isSending, streamingText]);
 
   useEffect(() => {
     if (!isSending) textareaRef.current?.focus();
@@ -154,11 +339,7 @@ export default function CaseChatPanel({ caseId }: Props) {
       await sendMessage(text);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast({
-        title: "Falha no chat",
-        description: msg,
-        variant: "destructive",
-      });
+      toast({ title: "Falha no chat", description: msg, variant: "destructive" });
       setInput(text);
     }
   };
@@ -172,6 +353,29 @@ export default function CaseChatPanel({ caseId }: Props) {
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSubmitFeedback = async (
+    m: CaseChatMessage,
+    value: CaseChatFeedbackValue,
+    comment?: string | null,
+  ) => {
+    try {
+      await submitFeedback({
+        messageId: m.id,
+        organizationId: m.organization_id,
+        feedback: value,
+        comment: comment ?? null,
+      });
+      toast({ title: "Feedback registrado" });
+    } catch (e) {
+      toast({
+        title: "Falha ao registrar feedback",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+      throw e;
     }
   };
 
@@ -209,7 +413,7 @@ export default function CaseChatPanel({ caseId }: Props) {
                 <Skeleton className="h-16 w-2/3 ml-auto" />
                 <Skeleton className="h-16 w-3/4" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : messages.length === 0 && !isSending ? (
               <div className="text-center text-sm text-muted-foreground py-12">
                 Faça uma pergunta sobre o processo. Exemplo: <br />
                 <em>"Qual é o pedido principal?"</em> ou <em>"Quais são as principais teses da sentença?"</em>
@@ -222,13 +426,28 @@ export default function CaseChatPanel({ caseId }: Props) {
                     message={m}
                     onTogglePin={handleTogglePin}
                     isPinning={isPinning}
+                    feedback={feedbackByMsg.get(m.id)}
+                    onSubmitFeedback={handleSubmitFeedback}
+                    isSubmittingFeedback={isSubmittingFeedback}
                   />
                 ))}
+
                 {isSending && (
                   <div className="flex justify-start">
-                    <div className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Analisando os autos...
+                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                      {streamingText ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <ReactMarkdown>{streamingText}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Pensando…
+                        </div>
+                      )}
+                      {streamingCitations.length > 0 && (
+                        <CitationsBlock citations={streamingCitations} />
+                      )}
                     </div>
                   </div>
                 )}

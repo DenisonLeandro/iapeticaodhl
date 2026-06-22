@@ -78,6 +78,64 @@ export type Database = {
           },
         ]
       }
+      case_chat_feedback: {
+        Row: {
+          case_id: string
+          comment: string | null
+          created_at: string
+          created_by: string | null
+          feedback: string
+          id: string
+          message_id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          feedback: string
+          id?: string
+          message_id: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          feedback?: string
+          id?: string
+          message_id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_chat_feedback_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_chat_feedback_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "case_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_chat_feedback_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_chat_messages: {
         Row: {
           case_id: string
