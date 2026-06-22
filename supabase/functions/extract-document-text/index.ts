@@ -1,20 +1,30 @@
-// Extração de texto streaming, página a página.
-// PDFs nativos: pdfjs-dist com range requests (não carrega o PDF inteiro em RAM
-// — só os bytes necessários para o catálogo e a página corrente).
+// Extração de texto.
+// PDFs pequenos com texto nativo: pdfjs-dist (streaming página-a-página).
+// PDFs grandes (> LARGE_PDF_THRESHOLD) OU falha de pdfjs (parse/CPU/recurso):
+//   fallback para Gemini multimodal via Lovable AI Gateway.
 // Não-PDFs: tenta texto direto; caso contrário marca para OCR futuro.
 //
 // Interno — aceita apenas service_role.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { requireServiceRole, serviceClient } from "../_shared/auth.ts";
-import { EXTRACTION_MODEL_PDFJS, EXTRACTION_VERSION } from "../_shared/versions.ts";
+import {
+  EXTRACTION_MODEL_PDFJS,
+  EXTRACTION_VERSION,
+} from "../_shared/versions.ts";
 
 // pdf.js legacy build — funciona no Deno sem worker.
 // @ts-ignore — sem types
 import * as pdfjsLib from "npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+// Acima desse tamanho, vai direto para fallback (pdfjs estoura CPU no edge).
+const LARGE_PDF_THRESHOLD = 8 * 1024 * 1024; // 8 MB
+
+const EXTRACTION_MODEL_MULTIMODAL = "gemini-2.5-flash@multimodal";
+const EXTRACTION_VERSION_MULTIMODAL = "v1-multimodal";
 
 async function signedUrl(storagePath: string): Promise<string> {
   const svc = serviceClient();
@@ -29,7 +39,6 @@ async function extractPdfStreaming(
   url: string,
   onPage: (pageNum: number, text: string) => Promise<void>,
 ): Promise<number> {
-  // disableAutoFetch + disableStream:false => pdfjs usa Range requests sob demanda.
   const loadingTask = pdfjsLib.getDocument({
     url,
     disableAutoFetch: true,
@@ -44,12 +53,95 @@ async function extractPdfStreaming(
     const tc = await page.getTextContent();
     const text = tc.items.map((it: { str?: string }) => it.str ?? "").join(" ");
     await onPage(i, text.replace(/\s+/g, " ").trim());
-    // Libera memória da página antes de carregar a próxima.
     page.cleanup();
   }
   await pdf.cleanup();
   await pdf.destroy();
   return n;
+}
+
+/**
+ * Fallback: envia o PDF inteiro como inline file para Gemini 2.5 Flash
+ * via Lovable AI Gateway e pede o texto bruto com marcadores [[PAGE n]].
+ * Retorna { text, pages } — `pages` é o maior n encontrado nos marcadores
+ * ou 1 quando o modelo não conseguir paginar.
+ */
+async function extractPdfViaGemini(
+  storagePath: string,
+  fileName: string,
+): Promise<{ text: string; pages: number }> {
+  if (!LOVABLE_API_KEY) {
+    throw new Error("multimodal_fallback_unavailable: LOVABLE_API_KEY missing");
+  }
+  console.log("extract:fallback_start", { fileName });
+
+  const svc = serviceClient();
+  const { data: blob, error: dErr } = await svc.storage
+    .from("client-documents")
+    .download(storagePath);
+  if (dErr || !blob) throw new Error(`fallback_download: ${dErr?.message ?? "no blob"}`);
+
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const base64 = encodeBase64(bytes);
+  console.log("extract:fallback_encoded", { bytes: bytes.length, b64_chars: base64.length });
+
+  const prompt =
+    "Extraia TODO o texto deste PDF, preservando a ordem das páginas. " +
+    "Inicie cada página com um marcador exato no formato `[[PAGE n]]` em sua própria linha, " +
+    "onde n é o número da página (começando em 1). Não resuma, não comente, não traduza. " +
+    "Devolva apenas o texto bruto extraído. Se a página estiver em branco, escreva `[[PAGE n]]` " +
+    "seguido de uma linha vazia.";
+
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "file",
+              file: {
+                filename: fileName,
+                file_data: `data:application/pdf;base64,${base64}`,
+              },
+            },
+            { type: "text", text: prompt },
+          ],
+        },
+      ],
+    }),
+  });
+
+  const bodyText = await res.text();
+  if (!res.ok) {
+    console.error("extract:fallback_gateway_error", { status: res.status, body: bodyText.slice(0, 400) });
+    if (res.status === 429) throw new Error("multimodal_rate_limited");
+    if (res.status === 402) throw new Error("multimodal_credits_exhausted");
+    throw new Error(`multimodal_gateway_${res.status}: ${bodyText.slice(0, 200)}`);
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    throw new Error("multimodal_invalid_json_response");
+  }
+  const text: string = parsed?.choices?.[0]?.message?.content ?? "";
+  if (!text || text.trim().length === 0) {
+    throw new Error("multimodal_empty_text");
+  }
+
+  const pageMarkers = [...text.matchAll(/\[\[PAGE\s+(\d+)\]\]/g)].map((m) => Number(m[1]));
+  const pages = pageMarkers.length > 0 ? Math.max(...pageMarkers) : 1;
+
+  console.log("extract:fallback_ok", { chars: text.length, pages });
+  return { text, pages };
 }
 
 serve(async (req) => {
@@ -67,7 +159,7 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, organization_id, storage_path, file_type, file_size")
+    .select("id, organization_id, storage_path, file_type, file_size, file_name")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
@@ -77,36 +169,84 @@ serve(async (req) => {
     .update({ pipeline_stage: "extracting", pipeline_last_error: null })
     .eq("id", file.id);
 
+  console.log("extract:start", {
+    file_id: file.id,
+    file_size: file.file_size,
+    file_type: file.file_type,
+  });
+
   try {
     const isPdf =
       (file.file_type ?? "").toLowerCase().includes("pdf") ||
       (file.storage_path ?? "").toLowerCase().endsWith(".pdf");
 
-    const pages: { page: number; text: string }[] = [];
-
     if (isPdf) {
-      const url = await signedUrl(file.storage_path);
-      // Página-a-página: mantemos só a página corrente em memória.
-      const totalPages = await extractPdfStreaming(url, async (pageNum, text) => {
-        pages.push({ page: pageNum, text });
-      });
+      const sizeBytes = Number(file.file_size ?? 0);
+      const useFallbackFirst = sizeBytes > LARGE_PDF_THRESHOLD;
 
-      // Persiste texto agregado (preservando marcação de página para chunking).
-      const aggregated = pages.map((p) => `\n\n[[PAGE ${p.page}]]\n${p.text}`).join("");
+      let extractedText: string | null = null;
+      let totalPages = 0;
+      let usedModel = EXTRACTION_MODEL_PDFJS;
+      let usedVersion = EXTRACTION_VERSION;
+
+      if (!useFallbackFirst) {
+        // Tenta pdfjs streaming primeiro.
+        try {
+          const url = await signedUrl(file.storage_path);
+          const pages: { page: number; text: string }[] = [];
+          totalPages = await extractPdfStreaming(url, async (pageNum, text) => {
+            pages.push({ page: pageNum, text });
+          });
+          extractedText = pages
+            .map((p) => `\n\n[[PAGE ${p.page}]]\n${p.text}`)
+            .join("");
+          console.log("extract:pdfjs_ok", { pages: totalPages, chars: extractedText.length });
+        } catch (e) {
+          console.warn("extract:pdfjs_failed_fallback", { error: (e as Error).message });
+          extractedText = null;
+        }
+      } else {
+        console.log("extract:large_pdf_fallback", { size: sizeBytes });
+      }
+
+      if (extractedText === null) {
+        // Fallback: Gemini multimodal.
+        const fb = await extractPdfViaGemini(
+          file.storage_path,
+          file.file_name ?? "document.pdf",
+        );
+        extractedText = fb.text;
+        totalPages = fb.pages;
+        usedModel = EXTRACTION_MODEL_MULTIMODAL;
+        usedVersion = EXTRACTION_VERSION_MULTIMODAL;
+      }
 
       await svc
         .from("client_files")
         .update({
-          extracted_text: aggregated,
+          extracted_text: extractedText,
           page_count: totalPages,
-          extraction_version: EXTRACTION_VERSION,
-          extraction_model: EXTRACTION_MODEL_PDFJS,
+          extraction_version: usedVersion,
+          extraction_model: usedModel,
           extraction_at: new Date().toISOString(),
           pipeline_stage: "extracting",
         })
         .eq("id", file.id);
 
-      return json({ ok: true, pages: totalPages, chars: aggregated.length });
+      console.log("extract:persisted", {
+        file_id: file.id,
+        model: usedModel,
+        version: usedVersion,
+        pages: totalPages,
+        chars: extractedText.length,
+      });
+
+      return json({
+        ok: true,
+        pages: totalPages,
+        chars: extractedText.length,
+        model: usedModel,
+      });
     }
 
     // Não-PDF: tenta como texto puro (txt/md/json) via download direto.
@@ -128,6 +268,7 @@ serve(async (req) => {
     return json({ ok: true, pages: 1, chars: text.length });
   } catch (e) {
     const msg = (e as Error).message;
+    console.error("extract:error", { file_id: file.id, error: msg });
     await svc
       .from("client_files")
       .update({ pipeline_stage: "failed", pipeline_last_error: `extract: ${msg}` })
