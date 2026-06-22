@@ -379,7 +379,9 @@ export default function FileUploadDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="case-link">Vincular todos a um processo (opcional)</Label>
+                <Label htmlFor="case-link">
+                  {lockCase ? "Vinculado a um processo" : "Vincular todos a um processo (opcional)"}
+                </Label>
                 {isLoadingCases ? (
                   <p className="text-xs text-muted-foreground">Carregando processos...</p>
                 ) : cases.length === 0 ? (
@@ -390,22 +392,30 @@ export default function FileUploadDialog({
                     </Button>
                   </div>
                 ) : (
-                  <Select value={caseId} onValueChange={setCaseId}>
-                    <SelectTrigger id="case-link">
-                      <SelectValue placeholder="Selecione um processo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_CASE}>Não vincular</SelectItem>
-                      {cases.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.case_number}
-                          {c.court ? ` — ${c.court}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Select value={caseId} onValueChange={setCaseId} disabled={lockCase}>
+                      <SelectTrigger id="case-link">
+                        <SelectValue placeholder="Selecione um processo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!lockCase && <SelectItem value={NO_CASE}>Não vincular</SelectItem>}
+                        {cases.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.case_number}
+                            {c.court ? ` — ${c.court}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {lockCase && (
+                      <p className="text-xs text-muted-foreground">
+                        Os arquivos serão salvos vinculados a este processo.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
+
 
               <div className="space-y-2">
                 <Label>Parte representada pelo escritório</Label>
