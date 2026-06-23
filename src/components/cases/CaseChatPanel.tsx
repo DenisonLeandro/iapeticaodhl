@@ -423,7 +423,7 @@ export default function CaseChatPanel({ caseId }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
       {/* Altura responsiva: usa 100dvh em telas baixas para nunca cortar o composer
           nem esconder a resposta atrás do scroll externo. lg mantém 640px fixo. */}
-      <Card className="flex flex-col h-[calc(100dvh-200px)] min-h-[320px] max-h-[720px] lg:h-[640px]">
+      <Card className="flex flex-col h-[calc(100dvh-180px)] min-h-[440px] max-h-[760px] lg:h-[640px]">
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
@@ -544,7 +544,7 @@ export default function CaseChatPanel({ caseId }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="h-[260px] lg:h-[640px] flex flex-col">
+      <Card className="hidden lg:flex h-[640px] flex-col">
         <CardContent className="p-0 flex flex-col h-full min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Pin className="h-4 w-4 text-primary" />
