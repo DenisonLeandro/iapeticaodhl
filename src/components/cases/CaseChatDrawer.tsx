@@ -31,13 +31,13 @@ export default function CaseChatDrawer({ caseId, open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className={cn("overflow-y-auto p-0", widthClasses)}
+        className={cn("flex h-full flex-col overflow-hidden p-0", widthClasses)}
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         aria-describedby={undefined}
       >
-        <SheetHeader className="border-b border-border px-6 py-4">
+        <SheetHeader className="flex-shrink-0 border-b border-border px-6 py-3">
           <div className="flex items-center justify-between gap-2 pr-8">
             <SheetTitle>Conversar com IA</SheetTitle>
             <Button
@@ -61,7 +61,9 @@ export default function CaseChatDrawer({ caseId, open, onOpenChange }: Props) {
             </Button>
           </div>
         </SheetHeader>
-        <div className="px-4 py-4 sm:px-6">
+        {/* Body rolável: evita double-scroll (sheet externo + scroll interno do panel) que
+            em viewports baixos empurrava a resposta para fora da janela visível. */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6">
           <CaseChatPanel caseId={caseId} />
         </div>
       </SheetContent>

@@ -342,8 +342,12 @@ export default function CaseChatPanel({ caseId }: Props) {
   }, [messages.length, isSending, streamingText, chatError]);
 
   useEffect(() => {
-    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSending, streamingText, chatError]);
+    // Sempre rolar para o fim quando: novas mensagens chegam, durante streaming,
+    // quando o streaming termina (messages.length cresce) ou aparece erro.
+    // `auto` durante streaming evita "jank"; `smooth` para o estado final.
+    const behavior: ScrollBehavior = isSending ? "auto" : "smooth";
+    scrollEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, [messages.length, isSending, streamingText, chatError]);
 
   useEffect(() => {
     if (!isSending) textareaRef.current?.focus();
@@ -417,8 +421,10 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-      <Card className="flex flex-col h-[640px]">
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+      {/* Altura responsiva: usa 100dvh em telas baixas para nunca cortar o composer
+          nem esconder a resposta atrás do scroll externo. lg mantém 640px fixo. */}
+      <Card className="flex flex-col h-[calc(100dvh-180px)] min-h-[440px] max-h-[760px] lg:h-[640px]">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
             <div>
@@ -538,8 +544,8 @@ export default function CaseChatPanel({ caseId }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="h-[640px] flex flex-col">
-        <CardContent className="p-0 flex flex-col h-full">
+      <Card className="hidden lg:flex h-[640px] flex-col">
+        <CardContent className="p-0 flex flex-col h-full min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Pin className="h-4 w-4 text-primary" />
             <p className="text-sm font-semibold">Mensagens fixadas</p>
