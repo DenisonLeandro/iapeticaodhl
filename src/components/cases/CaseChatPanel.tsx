@@ -328,6 +328,20 @@ export default function CaseChatPanel({ caseId }: Props) {
   );
 
   useEffect(() => {
+    ccdLog("panel", "mounted", { caseId });
+    return () => ccdLog("panel", "unmounted", { caseId });
+  }, [caseId]);
+
+  useEffect(() => {
+    ccdLog("panel", "state", {
+      messages_count: messages.length,
+      isSending,
+      streamingText_len: streamingText.length,
+      chatError_set: !!chatError,
+    });
+  }, [messages.length, isSending, streamingText, chatError]);
+
+  useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending, streamingText, chatError]);
 
@@ -337,12 +351,16 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isSending || sendingRef.current) return;
+    if (!text || isSending || sendingRef.current) {
+      ccdLog("panel", "handleSend_skip", { empty: !text, isSending, sendingRef: sendingRef.current });
+      return;
+    }
+    ccdLog("panel", "handleSend_start", { text_len: text.length });
     sendingRef.current = true;
     setInput("");
     try {
       await sendMessage(text);
-      // Erro já é exposto via chatError inline; não duplicar toast.
+      ccdLog("panel", "handleSend_done", {});
     } finally {
       sendingRef.current = false;
     }
