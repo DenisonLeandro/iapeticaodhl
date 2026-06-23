@@ -129,5 +129,8 @@ export function useCaseChat(caseId: string | undefined) {
     feedback: feedbackQuery.data ?? [],
     submitFeedback: feedbackMutation.mutateAsync,
     isSubmittingFeedback: feedbackMutation.isPending,
+    chatError,
+    clearChatError,
   };
 }
+
