@@ -48,3 +48,48 @@ Nenhuma alteração em RLS, em `client_files`, em `document_chunks`, em `documen
 
 ### Onda 2 (se executada)
 Reverter as 4 edge functions adicionais aos hashes registrados no checkpoint pós-Onda 1. Handler `full` continua suportado no worker durante toda a Onda 2 → jobs em voo nunca quebram.
+
+---
+
+# Onda 2 — Implementada (2026-06-23)
+
+## Mudanças aplicadas
+
+### Split (cliente — `src/lib/pdf/split-large-pdf.ts`)
+- `SPLIT_THRESHOLD_BYTES`: 7 MB → **5 MB**
+- `PART_TARGET_BYTES`: 6 MB → **4 MB**
+- Resultado esperado: 100% das partes ≤ 5 MB → todas processadas via pdfjs (limite 8 MB),
+  multimodal fallback nunca acionado em uploads novos.
+
+### Idempotência por etapa (edge functions)
+- `extract-document-text`: skip se já existe `extracted_text` na versão corrente.
+- `chunk-document`: skip se já existem chunks na `chunking_version`.
+- `classify-document`: skip se já existe `classification` na `classification_version`.
+- `embed-document-chunks`: já tinha early-return na Onda 1.
+
+### Jobs encadeados (`process-document-worker` + `enqueue-file-processing`)
+- Default de `enqueue-file-processing` mudou de `full` → `extract`.
+- Worker agora encadeia: `extract` → enfileira `chunk` → enfileira `classify` → enfileira `embed`.
+- Cada etapa = job independente → CPU/memória isolados → fim do `WORKER_RESOURCE_LIMIT` em pipelines longos.
+- Handler `full` preservado para jobs em voo da Onda 1 — zero quebra.
+
+## Hashes pós-Onda 2
+
+```
+7462e95694adb34b19f2aeb5a712d33e003f1775d69da2a1df7744747ebb4d34  supabase/functions/extract-document-text/index.ts
+b46c398425f66de2c74f9202d1a33a5e6c98631e5016d5fd7742bf8910114624  supabase/functions/chunk-document/index.ts
+41d23b757c96d59d916fb54c4a2daaeb250a4273a17887c5d97193a6f75427d9  supabase/functions/classify-document/index.ts
+af908255ae1c2d98aa439321dc4dd2a87fd0f197c2de811290296af441eef0bf  supabase/functions/process-document-worker/index.ts
+d00a086c2a2e540f0b06c03a498eeed60542c96729314d1804eae0d7cff05a0e  supabase/functions/enqueue-file-processing/index.ts
+96b249c4fc7628ffe4057a734dbba16beb5394e3f5f6fe38cf7b5a3d9aa317fd  src/lib/pdf/split-large-pdf.ts
+```
+
+## Rollback Onda 2
+1. Reverter os 6 arquivos acima aos hashes pós-Onda 1 (Git history).
+2. Nenhuma migration nova, nenhuma alteração de schema/RLS — rollback é puramente de código.
+3. Jobs em voo continuam funcionando: handler `full` segue suportado no worker.
+
+## Status PR-3.6
+**Implementado. Aguardando validação funcional final** (regra 3 das ressalvas):
+- O THAURUS atual foi gerado com o split antigo (partes de 11.5 MB / 10.7 MB) — essas continuarão falhando.
+- Para validar end-to-end é necessário **re-upload do PDF THAURUS** pela UI, que então usará o novo split de 4 MB.
