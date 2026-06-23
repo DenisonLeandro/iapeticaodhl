@@ -94,6 +94,7 @@ export async function streamCaseChatMessage(
   if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
   const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/case-chat`;
+  ccdLog("service", "POST_start", { caseId, message_len: message.length });
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -104,12 +105,15 @@ export async function streamCaseChatMessage(
     body: JSON.stringify({ caseId, message }),
   });
 
+  ccdLog("service", "POST_response", { status: res.status, ok: res.ok, hasBody: !!res.body });
+
   if (!res.ok || !res.body) {
     let errMsg = `HTTP ${res.status}`;
     try {
       const j = await res.json();
       errMsg = j?.error ?? errMsg;
     } catch { /* ignore */ }
+    ccdLog("service", "POST_error_body", { errMsg });
     throw new Error(errMsg);
   }
 
@@ -118,6 +122,10 @@ export async function streamCaseChatMessage(
   let buffer = "";
   let finalResp: SendCaseChatResponse | null = null;
   let streamError: string | null = null;
+  let chunkCount = 0;
+  let deltaCount = 0;
+  let metaCount = 0;
+  let firstChunkLogged = false;
 
   const processLine = (raw: string) => {
     const line = raw.trim();
@@ -127,12 +135,19 @@ export async function streamCaseChatMessage(
       evt = JSON.parse(line) as CaseChatStreamEvent;
     } catch (err) {
       // Linha malformada / ruído de keep-alive: ignora sem matar o stream
+      ccdLog("service", "ndjson_parse_skip", { len: line.length });
       console.debug("[caseChat] linha NDJSON ignorada:", line.slice(0, 120), err);
       return;
     }
-    if (evt.type === "meta") handlers.onMeta?.(evt.citations);
-    else if (evt.type === "delta") handlers.onDelta?.(evt.text);
-    else if (evt.type === "done") {
+    if (evt.type === "meta") {
+      metaCount++;
+      ccdLog("service", "evt_meta", { citations_count: evt.citations?.length ?? 0 });
+      handlers.onMeta?.(evt.citations);
+    } else if (evt.type === "delta") {
+      deltaCount++;
+      if (deltaCount === 1) ccdLog("service", "evt_delta_first", { len: evt.text.length });
+      handlers.onDelta?.(evt.text);
+    } else if (evt.type === "done") {
       finalResp = {
         assistantMessageId: (evt as { assistantMessageId: string }).assistantMessageId,
         created_at: (evt as { created_at: string }).created_at,
@@ -142,9 +157,15 @@ export async function streamCaseChatMessage(
         response_time_ms: (evt as { response_time_ms?: number }).response_time_ms,
         estimated_cost_usd: (evt as { estimated_cost_usd?: number }).estimated_cost_usd,
       };
+      ccdLog("service", "evt_done", {
+        assistantMessageId: finalResp.assistantMessageId,
+        content_len: finalResp.content.length,
+        citations_count: finalResp.citations.length,
+      });
       handlers.onDone?.(finalResp);
     } else if (evt.type === "error") {
       streamError = evt.error || "Erro no streaming";
+      ccdLog("service", "evt_error", { streamError });
       handlers.onError?.(streamError);
       // não lança: deixa o loop terminar e decide no final
     }
@@ -153,11 +174,23 @@ export async function streamCaseChatMessage(
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
+    chunkCount++;
+    if (!firstChunkLogged) {
+      ccdLog("service", "first_chunk", { bytes: value?.byteLength ?? 0 });
+      firstChunkLogged = true;
+    }
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const raw of lines) processLine(raw);
   }
+
+  ccdLog("service", "stream_end", {
+    chunkCount, deltaCount, metaCount,
+    residual_buffer_len: buffer.trim().length,
+    finalResp_set: !!finalResp,
+    streamError,
+  });
 
   // Drena buffer residual (último evento pode não ter terminado com \n)
   if (buffer.trim()) {
