@@ -4,10 +4,22 @@
 // =============================================================================
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { FileUp, FileText, Image as ImageIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FileUp, FileText, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteFile as deleteFileService } from "@/services/client-file.service";
 import {
   Table,
   TableBody,
@@ -38,8 +50,26 @@ function formatDate(s: string): string {
 
 export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionProps) {
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+    totalParts: number | null;
+  } | null>(null);
   const queryClient = useQueryClient();
   const { data: files = [], isLoading } = useCaseFiles(caseId);
+
+  const deleteMutation = useMutation({
+    mutationFn: (fileId: string) => deleteFileService(fileId),
+    onSuccess: () => {
+      toast.success("Documento excluído com sucesso.");
+      queryClient.invalidateQueries({ queryKey: ["case-files", caseId] });
+      setPendingDelete(null);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast.error(`Falha ao excluir documento: ${msg}`);
+    },
+  });
 
   const handleOpenChange = (v: boolean) => {
     setOpen(v);
@@ -48,6 +78,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
       queryClient.invalidateQueries({ queryKey: ["case-files", caseId] });
     }
   };
+
 
   return (
     <div className="space-y-3">
@@ -95,6 +126,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                 <TableHead>Classificação</TableHead>
                 <TableHead className="text-right">Chunks</TableHead>
                 <TableHead>Enviado em</TableHead>
+                <TableHead className="w-[60px] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,6 +135,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                 const progressPct = hasParts
                   ? Math.round(((f.processed_parts ?? 0) / (f.total_parts ?? 1)) * 100)
                   : null;
+
                 return (
                   <TableRow key={f.id}>
                     <TableCell className="font-medium">
@@ -165,6 +198,26 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                     <TableCell className="text-muted-foreground">
                       {formatDate(f.created_at)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={
+                          hasParts
+                            ? "Excluir documento lógico e todas as partes"
+                            : "Excluir arquivo"
+                        }
+                        onClick={() =>
+                          setPendingDelete({
+                            id: f.id,
+                            name: f.file_name,
+                            totalParts: f.total_parts,
+                          })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -182,6 +235,56 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
           lockCase
         />
       )}
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(v) => {
+          if (!v && !deleteMutation.isPending) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir documento</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete && pendingDelete.totalParts != null && pendingDelete.totalParts > 1 ? (
+                <>
+                  Tem certeza que deseja excluir o documento{" "}
+                  <strong>&quot;{pendingDelete.name}&quot;</strong> e suas{" "}
+                  {pendingDelete.totalParts} partes? Todos os chunks, embeddings, jobs
+                  de processamento e arquivos no storage serão removidos. Esta ação
+                  não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir o arquivo{" "}
+                  <strong>&quot;{pendingDelete?.name}&quot;</strong>? Todos os chunks,
+                  embeddings e jobs de processamento serão removidos. Esta ação não
+                  pode ser desfeita.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (pendingDelete) deleteMutation.mutate(pendingDelete.id);
+              }}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
