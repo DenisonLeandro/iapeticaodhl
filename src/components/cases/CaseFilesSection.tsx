@@ -35,6 +35,34 @@ import { useCaseFiles } from "@/hooks/useCaseFiles";
 interface CaseFilesSectionProps {
   caseId: string;
   clientId: string | null | undefined;
+  /**
+   * "technical" (default): comportamento original com tamanho, pipeline,
+   * classificação e contagem de chunks. Mantido como default para não
+   * impactar telas que já consomem este componente.
+   * "simple": modo amigável ao advogado — esconde jargão técnico
+   * (pipeline/chunks/bytes) e mostra apenas status humano.
+   */
+  variant?: "technical" | "simple";
+}
+
+const SIMPLE_STATUS_LABEL: Record<string, string> = {
+  done: "Pronto",
+  failed: "Erro",
+  queued: "Processando",
+  extracting: "Processando",
+  chunking: "Processando",
+  classifying: "Processando",
+  embedding: "Processando",
+  pending: "Aguardando",
+};
+
+function simpleStatusBadgeClass(stage: string | null | undefined): string {
+  if (stage === "done") return "bg-green-500/15 text-green-700 dark:text-green-400";
+  if (stage === "failed") return "bg-destructive/15 text-destructive";
+  if (stage && ["queued", "extracting", "chunking", "classifying", "embedding"].includes(stage)) {
+    return "bg-primary/15 text-primary";
+  }
+  return "bg-muted text-muted-foreground";
 }
 
 function formatSize(bytes: number | null): string {
@@ -48,7 +76,8 @@ function formatDate(s: string): string {
   return new Date(s).toLocaleDateString("pt-BR");
 }
 
-export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionProps) {
+export default function CaseFilesSection({ caseId, clientId, variant = "technical" }: CaseFilesSectionProps) {
+  const isSimple = variant === "simple";
   const [open, setOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
@@ -84,9 +113,13 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-lg font-semibold">Arquivos do processo</h3>
+          <h3 className="font-display text-lg font-semibold">
+            {isSimple ? "Documentos do caso" : "Arquivos do processo"}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            PDFs e imagens vinculados a este processo. O pipeline de IA roda automaticamente.
+            {isSimple
+              ? "Envie PDFs e imagens relacionados ao caso. O sistema prepara os documentos automaticamente."
+              : "PDFs e imagens vinculados a este processo. O pipeline de IA roda automaticamente."}
           </p>
         </div>
         <Button
@@ -121,10 +154,10 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
             <TableHeader>
               <TableRow>
                 <TableHead>Arquivo</TableHead>
-                <TableHead>Tamanho</TableHead>
-                <TableHead>Pipeline</TableHead>
-                <TableHead>Classificação</TableHead>
-                <TableHead className="text-right">Chunks</TableHead>
+                {!isSimple && <TableHead>Tamanho</TableHead>}
+                <TableHead>{isSimple ? "Status" : "Pipeline"}</TableHead>
+                {!isSimple && <TableHead>Classificação</TableHead>}
+                {!isSimple && <TableHead className="text-right">Chunks</TableHead>}
                 <TableHead>Enviado em</TableHead>
                 <TableHead className="w-[60px] text-right">Ações</TableHead>
               </TableRow>
@@ -149,7 +182,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                           <span className="block truncate max-w-[280px]" title={f.file_name}>
                             {f.file_name}
                           </span>
-                          {hasParts && (
+                          {hasParts && !isSimple && (
                             <span className="block text-xs text-muted-foreground">
                               {f.processed_parts}/{f.total_parts} partes processadas
                               {f.failed_parts > 0 ? ` · ${f.failed_parts} com falha` : ""}
@@ -158,43 +191,59 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatSize(f.file_size)}
-                      {f.page_count ? ` · ${f.page_count} pp.` : ""}
-                    </TableCell>
+                    {!isSimple && (
+                      <TableCell className="text-muted-foreground">
+                        {formatSize(f.file_size)}
+                        {f.page_count ? ` · ${f.page_count} pp.` : ""}
+                      </TableCell>
+                    )}
                     <TableCell>
-                      <div className="space-y-1">
-                        <PipelineStageBadge
-                          stage={f.pipeline_stage}
-                          error={f.pipeline_last_error}
-                        />
-                        {hasParts && f.pipeline_stage !== "done" && f.pipeline_stage !== "failed" && (
-                          <div className="h-1 w-24 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full bg-primary transition-all"
-                              style={{ width: `${progressPct ?? 0}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {f.classification ? (
-                        <span>
-                          {f.classification}
-                          {f.classification_confidence != null && (
-                            <span className="ml-1 text-xs">
-                              ({Number(f.classification_confidence).toFixed(2)})
-                            </span>
-                          )}
+                      {isSimple ? (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${simpleStatusBadgeClass(
+                            f.pipeline_stage,
+                          )}`}
+                        >
+                          {SIMPLE_STATUS_LABEL[f.pipeline_stage ?? "pending"] ?? "Aguardando"}
                         </span>
                       ) : (
-                        "—"
+                        <div className="space-y-1">
+                          <PipelineStageBadge
+                            stage={f.pipeline_stage}
+                            error={f.pipeline_last_error}
+                          />
+                          {hasParts && f.pipeline_stage !== "done" && f.pipeline_stage !== "failed" && (
+                            <div className="h-1 w-24 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full bg-primary transition-all"
+                                style={{ width: `${progressPct ?? 0}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {f.chunk_count > 0 ? f.chunk_count : "—"}
-                    </TableCell>
+                    {!isSimple && (
+                      <TableCell className="text-muted-foreground">
+                        {f.classification ? (
+                          <span>
+                            {f.classification}
+                            {f.classification_confidence != null && (
+                              <span className="ml-1 text-xs">
+                                ({Number(f.classification_confidence).toFixed(2)})
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    )}
+                    {!isSimple && (
+                      <TableCell className="text-right tabular-nums">
+                        {f.chunk_count > 0 ? f.chunk_count : "—"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-muted-foreground">
                       {formatDate(f.created_at)}
                     </TableCell>
@@ -249,17 +298,19 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
               {pendingDelete && pendingDelete.totalParts != null && pendingDelete.totalParts > 1 ? (
                 <>
                   Tem certeza que deseja excluir o documento{" "}
-                  <strong>&quot;{pendingDelete.name}&quot;</strong> e suas{" "}
-                  {pendingDelete.totalParts} partes? Todos os chunks, embeddings, jobs
-                  de processamento e arquivos no storage serão removidos. Esta ação
-                  não pode ser desfeita.
+                  <strong>&quot;{pendingDelete.name}&quot;</strong>
+                  {isSimple ? null : <> e suas {pendingDelete.totalParts} partes</>}?{" "}
+                  {isSimple
+                    ? "Todos os dados associados serão removidos. Esta ação não pode ser desfeita."
+                    : "Todos os chunks, embeddings, jobs de processamento e arquivos no storage serão removidos. Esta ação não pode ser desfeita."}
                 </>
               ) : (
                 <>
                   Tem certeza que deseja excluir o arquivo{" "}
-                  <strong>&quot;{pendingDelete?.name}&quot;</strong>? Todos os chunks,
-                  embeddings e jobs de processamento serão removidos. Esta ação não
-                  pode ser desfeita.
+                  <strong>&quot;{pendingDelete?.name}&quot;</strong>?{" "}
+                  {isSimple
+                    ? "Todos os dados associados serão removidos. Esta ação não pode ser desfeita."
+                    : "Todos os chunks, embeddings e jobs de processamento serão removidos. Esta ação não pode ser desfeita."}
                 </>
               )}
             </AlertDialogDescription>
