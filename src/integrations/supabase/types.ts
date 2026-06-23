@@ -1127,6 +1127,7 @@ export type Database = {
           created_at: string
           file_id: string
           finished_at: string | null
+          heartbeat_at: string | null
           id: string
           job_type: string
           last_error: string | null
@@ -1145,6 +1146,7 @@ export type Database = {
           created_at?: string
           file_id: string
           finished_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           job_type: string
           last_error?: string | null
@@ -1163,6 +1165,7 @@ export type Database = {
           created_at?: string
           file_id?: string
           finished_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           job_type?: string
           last_error?: string | null
@@ -1406,6 +1409,7 @@ export type Database = {
           created_at: string
           file_id: string
           finished_at: string | null
+          heartbeat_at: string | null
           id: string
           job_type: string
           last_error: string | null
@@ -1446,6 +1450,20 @@ export type Database = {
           page_to: number
           similarity: number
           source_kind: string
+        }[]
+      }
+      reap_orphan_processing_jobs: {
+        Args: { p_stale_minutes?: number }
+        Returns: {
+          action: string
+          reaped_id: string
+        }[]
+      }
+      reconcile_pipeline_stages: {
+        Args: never
+        Returns: {
+          action: string
+          file_id: string
         }[]
       }
     }
