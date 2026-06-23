@@ -38,21 +38,28 @@ export function useCaseChat(caseId: string | undefined) {
   const [streamingText, setStreamingText] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<CaseChatCitation[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   const sendMessage = useCallback(
-    async (message: string): Promise<SendCaseChatResponse> => {
+    async (message: string): Promise<SendCaseChatResponse | null> => {
       if (!caseId) throw new Error("caseId ausente");
+      setChatError(null);
       setStreamingText("");
       setStreamingCitations([]);
       setIsStreaming(true);
       try {
-        // refresh imediato para mostrar a mensagem do usuário (persistida server-side)
         const resp = await streamCaseChatMessage(caseId, message, {
           onMeta: (cit) => setStreamingCitations(cit),
           onDelta: (t) => setStreamingText((prev) => prev + t),
         });
         await queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
         return resp;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setChatError(msg);
+        // Refetch mesmo assim — assistant pode ter sido persistido server-side
+        await queryClient.invalidateQueries({ queryKey: [KEY, caseId] }).catch(() => {});
+        return null;
       } finally {
         setIsStreaming(false);
         setStreamingText("");
@@ -61,6 +68,9 @@ export function useCaseChat(caseId: string | undefined) {
     },
     [caseId, queryClient],
   );
+
+  const clearChatError = useCallback(() => setChatError(null), []);
+
 
   const pinMutation = useMutation({
     mutationFn: ({ id, isPinned, kind }: { id: string; isPinned: boolean; kind?: CaseChatMessageKind }) =>
