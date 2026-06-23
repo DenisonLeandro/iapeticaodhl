@@ -306,6 +306,8 @@ export default function CaseChatPanel({ caseId }: Props) {
     feedback,
     submitFeedback,
     isSubmittingFeedback,
+    chatError,
+    clearChatError,
   } = useCaseChat(caseId);
 
   const feedbackByMsg = useMemo(() => {
@@ -317,6 +319,7 @@ export default function CaseChatPanel({ caseId }: Props) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
+  const sendingRef = useRef(false);
 
   const pinnedMessages = useMemo(
     () => messages.filter((m) => m.is_pinned && m.role === "assistant"),
@@ -325,7 +328,7 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSending, streamingText]);
+  }, [messages, isSending, streamingText, chatError]);
 
   useEffect(() => {
     if (!isSending) textareaRef.current?.focus();
@@ -333,16 +336,17 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isSending) return;
+    if (!text || isSending || sendingRef.current) return;
+    sendingRef.current = true;
     setInput("");
     try {
       await sendMessage(text);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast({ title: "Falha no chat", description: msg, variant: "destructive" });
-      setInput(text);
+      // Erro já é exposto via chatError inline; não duplicar toast.
+    } finally {
+      sendingRef.current = false;
     }
   };
+
 
   const handleTogglePin = async (m: CaseChatMessage) => {
     try {
