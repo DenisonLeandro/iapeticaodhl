@@ -40,11 +40,17 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, extracted_text")
+    .select("id, extracted_text, classification, classification_version")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
   if (!file.extracted_text) return json({ error: "no extracted_text" }, 400);
+
+  // PR-3.6 Onda 2: idempotência. Se já temos classification na versão corrente, pula.
+  if (file.classification && file.classification_version === CLASSIFICATION_VERSION) {
+    console.log("classify:skip_idempotent", { file_id: file.id, classification: file.classification });
+    return json({ ok: true, skipped: true, classification: file.classification });
+  }
 
   console.log("classify:start", { file_id: file.id, text_len: file.extracted_text.length });
 
