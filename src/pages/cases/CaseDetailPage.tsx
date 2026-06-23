@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, Briefcase, DollarSign, Link as LinkIcon, MessageSquare, Scale, Sparkles, User } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, Link as LinkIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -27,12 +26,9 @@ import CaseFilesSection from "@/components/cases/CaseFilesSection";
 import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import CaseCostsTab from "@/components/cases/CaseCostsTab";
-import {
-  STATUS_BADGE_COLORS,
-  STATUS_LABELS,
-  type CaseStatus,
-} from "@/types/case";
-
+import CaseWorkbench from "@/components/cases/CaseWorkbench";
+import CaseChatDrawer from "@/components/cases/CaseChatDrawer";
+import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
 
 function DetailSkeleton() {
   return (
@@ -47,17 +43,26 @@ function DetailSkeleton() {
   );
 }
 
+type TabValue =
+  | "principal"
+  | "documents"
+  | "pieces"
+  | "history"
+  | "chat-advanced"
+  | "technical"
+  | "costs";
+
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabValue>("principal");
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
 
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
   const { documents, isLoading: documentsLoading } = useCaseDocuments(id);
-
 
   if (caseLoading) {
     return <DetailSkeleton />;
@@ -79,11 +84,18 @@ export default function CaseDetailPage() {
     );
   }
 
-  const aiDocUrl = `/ai/new?caseId=${caseData.id}&clientId=${caseData.client_id ?? ""}&court=${encodeURIComponent(caseData.court)}&caseNumber=${encodeURIComponent(caseData.case_number)}`;
+  const hasCaseNumber = !!caseData.case_number?.trim();
+  const phaseLabel = hasCaseNumber ? "Processo judicial" : "Caso em preparação";
+  const phaseBadgeClass = hasCaseNumber
+    ? "bg-primary/15 text-primary hover:bg-primary/20 border-transparent"
+    : "bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border-transparent";
+
+  const headerTitle = hasCaseNumber
+    ? caseData.case_number
+    : caseData.subject || caseData.client_name || "Caso em preparação";
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -93,38 +105,34 @@ export default function CaseDetailPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{caseData.case_number}</BreadcrumbPage>
+            <BreadcrumbPage>{headerTitle}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
+      {/* Header enxuto */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-2xl font-bold text-foreground">
-              {caseData.case_number}
+              {headerTitle}
             </h1>
-            <Badge className={STATUS_BADGE_COLORS[caseData.status as CaseStatus]}>
-              {STATUS_LABELS[caseData.status as CaseStatus]}
-            </Badge>
+            <Badge className={phaseBadgeClass}>{phaseLabel}</Badge>
           </div>
-          {caseData.subject && (
-            <p className="text-sm text-muted-foreground">{caseData.subject}</p>
+          {hasCaseNumber && caseData.subject && (
+            <p className="mt-1 text-sm text-muted-foreground">{caseData.subject}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(aiDocUrl)}
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Gerar Documento com IA
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             Editar
           </Button>
+          <CaseMoreMenu
+            isAdmin={isAdmin}
+            onOpenAdvancedChat={() => setActiveTab("chat-advanced")}
+            onOpenTechnical={() => setActiveTab("technical")}
+            onOpenCosts={() => setActiveTab("costs")}
+          />
           <CaseForm editCase={caseData} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
         </div>
       </div>
@@ -132,11 +140,10 @@ export default function CaseDetailPage() {
       {!caseData.client_id && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Processo sem cliente vinculado</AlertTitle>
+          <AlertTitle>Caso sem cliente vinculado</AlertTitle>
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Este processo ainda não está vinculado a nenhum cliente. Vincule um cliente
-              para usar documentos, PDFs e geração de petições com IA.
+              Vincule um cliente para enviar documentos e gerar peças com IA.
             </span>
             <Button size="sm" onClick={() => setEditOpen(true)}>
               <LinkIcon className="mr-2 h-4 w-4" />
@@ -146,93 +153,50 @@ export default function CaseDetailPage() {
         </Alert>
       )}
 
-      {/* Case Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Scale className="h-4 w-4" />
-              Tribunal / Vara
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{caseData.court}</p>
-            {caseData.branch && (
-              <p className="text-sm text-muted-foreground">{caseData.branch}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Cliente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {caseData.client_id ? (
-              <Link
-                to={`/clients/${caseData.client_id}`}
-                className="text-lg font-semibold text-primary hover:underline"
-              >
-                {caseData.client_name ?? "Cliente vinculado"}
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="text-lg font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                Não vinculado · vincular
-              </button>
-            )}
-            {caseData.opposing_party && (
-              <p className="text-sm text-muted-foreground">
-                vs. {caseData.opposing_party}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4" />
-              Advogado Responsável
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">
-              {caseData.lawyer_name ?? "Não atribuído"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="timeline" className="w-full">
-        <TabsList>
-          <TabsTrigger value="timeline">
-            Timeline ({movements.length})
+      {/* Tabs principais */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabValue)}
+        className="w-full"
+      >
+        <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="principal" data-tab-trigger="principal">
+            Principal
           </TabsTrigger>
-          <TabsTrigger value="documents">
-            Documentos ({documents.length})
+          <TabsTrigger value="documents" data-tab-trigger="documents">
+            Documentos ({documents.length === 0 ? 0 : ""}
+            {/* Contagem real vem do hook de files; mantemos rótulo simples */}
+            Documentos)
           </TabsTrigger>
-          <TabsTrigger value="chat">
-            <MessageSquare className="mr-1 h-3.5 w-3.5" />
-            Chat IA
+          <TabsTrigger value="pieces" data-tab-trigger="pieces">
+            Peças ({documents.length})
           </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="costs">
-              <DollarSign className="mr-1 h-3.5 w-3.5" />
-              Custos IA
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="history" data-tab-trigger="history">
+            Histórico ({movements.length})
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="timeline" className="mt-6">
+        <TabsContent value="principal" className="mt-6">
+          <CaseWorkbench
+            caseData={caseData}
+            documents={documents}
+            onOpenChat={() => setChatDrawerOpen(true)}
+          />
+        </TabsContent>
+
+        <TabsContent value="documents" className="mt-6">
+          <CaseFilesSection
+            caseId={caseData.id}
+            clientId={caseData.client_id}
+            variant="simple"
+          />
+        </TabsContent>
+
+        <TabsContent value="pieces" className="mt-6">
+          <CaseDocuments documents={documents} isLoading={documentsLoading} />
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
           <CaseTimeline
             movements={movements}
             isLoading={movementsLoading}
@@ -240,20 +204,17 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-6 space-y-8">
-          <CaseFilesSection caseId={caseData.id} clientId={caseData.client_id} />
-          <div className="space-y-3">
-            <h3 className="font-display text-lg font-semibold">Peças geradas</h3>
-            <CaseDocuments
-              documents={documents}
-              isLoading={documentsLoading}
-            />
-          </div>
+        {/* Abas ocultas — acessadas pelo menu "Mais opções" */}
+        <TabsContent value="chat-advanced" className="mt-6">
+          <CaseChatPanel caseId={caseData.id} />
         </TabsContent>
 
-
-        <TabsContent value="chat" className="mt-6">
-          <CaseChatPanel caseId={caseData.id} />
+        <TabsContent value="technical" className="mt-6">
+          <CaseFilesSection
+            caseId={caseData.id}
+            clientId={caseData.client_id}
+            variant="technical"
+          />
         </TabsContent>
 
         {isAdmin && (
@@ -262,6 +223,12 @@ export default function CaseDetailPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <CaseChatDrawer
+        caseId={caseData.id}
+        open={chatDrawerOpen}
+        onOpenChange={setChatDrawerOpen}
+      />
     </div>
   );
 }

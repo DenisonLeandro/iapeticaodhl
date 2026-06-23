@@ -298,17 +298,19 @@ export default function CaseFilesSection({ caseId, clientId, variant = "technica
               {pendingDelete && pendingDelete.totalParts != null && pendingDelete.totalParts > 1 ? (
                 <>
                   Tem certeza que deseja excluir o documento{" "}
-                  <strong>&quot;{pendingDelete.name}&quot;</strong> e suas{" "}
-                  {pendingDelete.totalParts} partes? Todos os chunks, embeddings, jobs
-                  de processamento e arquivos no storage serão removidos. Esta ação
-                  não pode ser desfeita.
+                  <strong>&quot;{pendingDelete.name}&quot;</strong>
+                  {isSimple ? null : <> e suas {pendingDelete.totalParts} partes</>}?{" "}
+                  {isSimple
+                    ? "Todos os dados associados serão removidos. Esta ação não pode ser desfeita."
+                    : "Todos os chunks, embeddings, jobs de processamento e arquivos no storage serão removidos. Esta ação não pode ser desfeita."}
                 </>
               ) : (
                 <>
                   Tem certeza que deseja excluir o arquivo{" "}
-                  <strong>&quot;{pendingDelete?.name}&quot;</strong>? Todos os chunks,
-                  embeddings e jobs de processamento serão removidos. Esta ação não
-                  pode ser desfeita.
+                  <strong>&quot;{pendingDelete?.name}&quot;</strong>?{" "}
+                  {isSimple
+                    ? "Todos os dados associados serão removidos. Esta ação não pode ser desfeita."
+                    : "Todos os chunks, embeddings e jobs de processamento serão removidos. Esta ação não pode ser desfeita."}
                 </>
               )}
             </AlertDialogDescription>
