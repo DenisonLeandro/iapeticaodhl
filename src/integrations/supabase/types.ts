@@ -16,50 +16,92 @@ export type Database = {
     Tables: {
       ai_usage_log: {
         Row: {
+          case_id: string | null
+          client_id: string | null
           cost_estimated: number
           created_at: string
           document_id: string | null
+          file_id: string | null
           id: string
+          metadata: Json
           model: string
+          operation: string
           organization_id: string
+          processing_time_ms: number | null
           profile_id: string
           prompt_summary: string
           provider: string
           tokens_input: number
           tokens_output: number
+          units: number | null
         }
         Insert: {
+          case_id?: string | null
+          client_id?: string | null
           cost_estimated?: number
           created_at?: string
           document_id?: string | null
+          file_id?: string | null
           id?: string
+          metadata?: Json
           model: string
+          operation?: string
           organization_id: string
+          processing_time_ms?: number | null
           profile_id: string
           prompt_summary?: string
           provider: string
           tokens_input?: number
           tokens_output?: number
+          units?: number | null
         }
         Update: {
+          case_id?: string | null
+          client_id?: string | null
           cost_estimated?: number
           created_at?: string
           document_id?: string | null
+          file_id?: string | null
           id?: string
+          metadata?: Json
           model?: string
+          operation?: string
           organization_id?: string
+          processing_time_ms?: number | null
           profile_id?: string
           prompt_summary?: string
           provider?: string
           tokens_input?: number
           tokens_output?: number
+          units?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_usage_log_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_usage_log_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "client_files"
             referencedColumns: ["id"]
           },
           {

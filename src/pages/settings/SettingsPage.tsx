@@ -1,10 +1,11 @@
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Users, Brain } from "lucide-react";
+import { User, Users, Brain, DollarSign } from "lucide-react";
 import UsersPage from "./UsersPage";
 import AISettingsPage from "./AISettingsPage";
 import ProfilePage from "./ProfilePage";
+import AICostsPage from "./AICostsPage";
 
 interface TabDef {
   value: string;
@@ -18,6 +19,7 @@ const tabs: TabDef[] = [
   { value: "ai", label: "Integrações IA", icon: Brain, component: <AISettingsPage /> },
   { value: "profile", label: "Meu Perfil", icon: User, component: <ProfilePage /> },
   { value: "users", label: "Usuários", icon: Users, adminOnly: true, component: <UsersPage /> },
+  { value: "costs", label: "Custos IA", icon: DollarSign, adminOnly: true, component: <AICostsPage /> },
 ];
 
 export default function SettingsPage() {

@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -155,10 +156,17 @@ Deno.serve(async (req) => {
     // 1. Caso
     const { data: caseRow, error: caseErr } = await supabase
       .from("cases")
-      .select("id, organization_id, case_number, court, branch, subject, opposing_party, status")
+      .select("id, organization_id, client_id, case_number, court, branch, subject, opposing_party, status")
       .eq("id", body.caseId)
       .maybeSingle();
     if (caseErr || !caseRow) return json({ error: "Processo não encontrado" }, 404);
+
+    // Service client para inserir telemetria sem depender de RLS de usuário.
+    const adminSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
 
     // 2. Arquivos
     const { data: files } = await supabase
@@ -407,6 +415,31 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             estimated_cost_usd: estimatedCostUsd,
           });
         }
+
+        // PR-3.7: registra custo (best-effort; nunca quebra a operação)
+        await logAiUsage(adminSupabase, {
+          organization_id: caseRow.organization_id,
+          profile_id: userId,
+          operation: "chat",
+          provider: "lovable",
+          model: CHAT_MODEL,
+          tokens_input: usageIn,
+          tokens_output: usageOut,
+          cost_estimated: estimatedCostUsd,
+          processing_time_ms: responseTimeMs,
+          case_id: caseRow.id,
+          client_id: caseRow.client_id ?? null,
+          prompt_summary: summaryTag("chat", caseRow.id),
+          metadata: {
+            embedding_model: EMBEDDING_MODEL,
+            embedding_tokens_approx: embedTokensApprox,
+            top_k: TOP_K_FINAL,
+            chunks_retrieved: chunksArr.length,
+            chunks_retrieved_raw: chunksAll.length,
+            embedding_time_ms: embedMs,
+          },
+        });
+
         controller.close();
       },
     });

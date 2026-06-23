@@ -13,6 +13,8 @@ import {
   EXTRACTION_MODEL_PDFJS,
   EXTRACTION_VERSION,
 } from "../_shared/versions.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 // pdf.js legacy build — funciona no Deno sem worker.
 // @ts-ignore — sem types
@@ -178,10 +180,12 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, organization_id, storage_path, file_type, file_size, file_name, extracted_text, extraction_version")
+    .select("id, organization_id, case_id, client_id, uploaded_by, storage_path, file_type, file_size, file_name, extracted_text, extraction_version")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
+
+  const startedAt = Date.now();
 
   // PR-3.6 Onda 2: idempotência. Se já temos extracted_text na versão corrente
   // (pdfjs@v1) OU multimodal (v1-multimodal), pula a etapa.
@@ -283,6 +287,33 @@ serve(async (req) => {
         chars: extractedText.length,
       });
 
+      // PR-3.7: telemetria. pdfjs → custo 0. Multimodal → estimativa por chars.
+      const isMultimodal = usedModel === EXTRACTION_MODEL_MULTIMODAL;
+      const tIn = isMultimodal ? Math.ceil((file.file_size ?? 0) / 4) : 0;
+      const tOut = isMultimodal ? Math.ceil(extractedText.length / 4) : 0;
+      await logAiUsage(svc, {
+        organization_id: file.organization_id,
+        profile_id: file.uploaded_by,
+        operation: "extraction",
+        provider: isMultimodal ? "lovable" : "local",
+        model: usedModel,
+        tokens_input: tIn,
+        tokens_output: tOut,
+        units: totalPages,
+        cost_estimated: estimateCost(usedModel, tIn, tOut),
+        processing_time_ms: Date.now() - startedAt,
+        case_id: file.case_id ?? null,
+        client_id: file.client_id ?? null,
+        file_id: file.id,
+        prompt_summary: summaryTag("extraction", file.id),
+        metadata: {
+          pages: totalPages,
+          chars: extractedText.length,
+          file_size: file.file_size,
+          multimodal: isMultimodal,
+        },
+      });
+
       return json({
         ok: true,
         pages: totalPages,
@@ -307,6 +338,26 @@ serve(async (req) => {
         extraction_at: new Date().toISOString(),
       })
       .eq("id", file.id);
+
+    // PR-3.7: passthrough — custo 0
+    await logAiUsage(svc, {
+      organization_id: file.organization_id,
+      profile_id: file.uploaded_by,
+      operation: "extraction",
+      provider: "local",
+      model: "text-passthrough@v1",
+      tokens_input: 0,
+      tokens_output: 0,
+      units: 1,
+      cost_estimated: 0,
+      processing_time_ms: Date.now() - startedAt,
+      case_id: file.case_id ?? null,
+      client_id: file.client_id ?? null,
+      file_id: file.id,
+      prompt_summary: summaryTag("extraction", file.id),
+      metadata: { chars: text.length, file_size: file.file_size, multimodal: false },
+    });
+
     return json({ ok: true, pages: 1, chars: text.length });
   } catch (e) {
     const msg = (e as Error).message;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, Briefcase, Link as LinkIcon, MessageSquare, Scale, Sparkles, User } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Briefcase, DollarSign, Link as LinkIcon, MessageSquare, Scale, Sparkles, User } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,13 @@ import {
   useCaseMovements,
   useCaseDocuments,
 } from "@/hooks/useCaseDetail";
+import { useAuth } from "@/hooks/useAuth";
 import CaseTimeline from "@/components/cases/CaseTimeline";
 import CaseDocuments from "@/components/cases/CaseDocuments";
 import CaseFilesSection from "@/components/cases/CaseFilesSection";
 import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
+import CaseCostsTab from "@/components/cases/CaseCostsTab";
 import {
   STATUS_BADGE_COLORS,
   STATUS_LABELS,
@@ -49,6 +51,8 @@ export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
 
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
@@ -220,6 +224,12 @@ export default function CaseDetailPage() {
             <MessageSquare className="mr-1 h-3.5 w-3.5" />
             Chat IA
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="costs">
+              <DollarSign className="mr-1 h-3.5 w-3.5" />
+              Custos IA
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="timeline" className="mt-6">
@@ -245,6 +255,12 @@ export default function CaseDetailPage() {
         <TabsContent value="chat" className="mt-6">
           <CaseChatPanel caseId={caseData.id} />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="costs" className="mt-6">
+            <CaseCostsTab caseId={caseData.id} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

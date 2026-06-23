@@ -14,6 +14,8 @@ import {
   EMBEDDING_MODEL,
   EMBEDDING_VERSION,
 } from "../_shared/versions.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
@@ -69,10 +71,12 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file } = await svc
     .from("client_files")
-    .select("id, organization_id, case_id")
+    .select("id, organization_id, case_id, client_id, uploaded_by")
     .eq("id", body.file_id)
     .maybeSingle();
   if (!file) return json({ error: "file not found" }, 404);
+
+  const startedAt = Date.now();
 
   await svc.from("client_files").update({ pipeline_stage: "embedding" }).eq("id", file.id);
 
@@ -111,6 +115,7 @@ serve(async (req) => {
     }
 
     let inserted = 0;
+    let tokensApprox = 0;
     let lastBatchError: string | null = null;
     for (let i = 0; i < todo.length; i += EMBEDDING_BATCH_SIZE) {
       const batch = todo.slice(i, i + EMBEDDING_BATCH_SIZE);
@@ -147,7 +152,9 @@ serve(async (req) => {
         });
       if (iErr) throw new Error(iErr.message);
       inserted += rows.length;
+      for (const c of batch) tokensApprox += Math.ceil(c.content.length / 4);
     }
+
 
     const totalDone = done.size + inserted;
     if (totalDone < chunks.length) {
@@ -172,6 +179,30 @@ serve(async (req) => {
         pipeline_last_error: null,
       })
       .eq("id", file.id);
+
+    // PR-3.7: telemetria (best-effort)
+    await logAiUsage(svc, {
+      organization_id: file.organization_id,
+      profile_id: file.uploaded_by,
+      operation: "embedding",
+      provider: "lovable",
+      model: EMBEDDING_MODEL,
+      tokens_input: tokensApprox,
+      tokens_output: 0,
+      units: inserted,
+      cost_estimated: estimateCost(EMBEDDING_MODEL, tokensApprox, 0),
+      processing_time_ms: Date.now() - startedAt,
+      case_id: file.case_id ?? null,
+      client_id: file.client_id ?? null,
+      file_id: file.id,
+      prompt_summary: summaryTag("embedding", file.id),
+      metadata: {
+        chunks_inserted: inserted,
+        total_chunks: chunks.length,
+        batch_size: EMBEDDING_BATCH_SIZE,
+        dims: EMBEDDING_DIMS,
+      },
+    });
 
     return json({ ok: true, inserted, total_chunks: chunks.length });
   } catch (e) {
