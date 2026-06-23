@@ -126,6 +126,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                 <TableHead>Classificação</TableHead>
                 <TableHead className="text-right">Chunks</TableHead>
                 <TableHead>Enviado em</TableHead>
+                <TableHead className="w-[60px] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,6 +135,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                 const progressPct = hasParts
                   ? Math.round(((f.processed_parts ?? 0) / (f.total_parts ?? 1)) * 100)
                   : null;
+
                 return (
                   <TableRow key={f.id}>
                     <TableCell className="font-medium">
