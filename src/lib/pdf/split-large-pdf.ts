@@ -62,7 +62,7 @@ async function measurePageSizes(src: PDFDocument): Promise<number[]> {
   return sizes;
 }
 
-/** Greedy bin-packing por bytes. Cada bin = uma parte. */
+/** Greedy bin-packing por bytes + cap de páginas. Cada bin = uma parte. */
 function planParts(pageSizes: number[]): Array<{ start: number; end: number }> {
   const plan: Array<{ start: number; end: number }> = [];
   let start = 0;
@@ -71,16 +71,20 @@ function planParts(pageSizes: number[]): Array<{ start: number; end: number }> {
   for (let i = 0; i < pageSizes.length; i++) {
     const pageSize = pageSizes[i];
     const wouldBe = acc + pageSize;
+    const wouldBePages = i - start + 1;
 
     if (i === start) {
-      // Sempre aceita ao menos 1 página, mesmo que a página sozinha exceda o
-      // hard cap (caso patológico — registramos warning na execução).
+      // Sempre aceita ao menos 1 página, mesmo que sozinha exceda hard cap.
       acc = wouldBe;
       continue;
     }
 
-    if (wouldBe > PART_HARD_MAX_BYTES || wouldBe > PART_TARGET_BYTES) {
-      // Fecha a parte corrente em [start, i) e começa nova com a página i.
+    // Fecha a parte se: estourou bytes (hard ou alvo) OU estourou o cap de páginas.
+    if (
+      wouldBe > PART_HARD_MAX_BYTES ||
+      wouldBe > PART_TARGET_BYTES ||
+      wouldBePages > PART_MAX_PAGES
+    ) {
       plan.push({ start, end: i });
       start = i;
       acc = PART_BASE_OVERHEAD_BYTES + pageSize;
