@@ -60,11 +60,48 @@ async function invoke(
   }
 }
 
+// PR-3.6 Onda 2: define a próxima etapa de cada job para encadeamento.
+// Cada etapa roda em seu próprio job → CPU/memória isolados.
+const NEXT_STAGE: Record<string, string | null> = {
+  extract: "chunk",
+  chunk: "classify",
+  classify: "embed",
+  embed: null,
+  full: null,
+};
+
+async function enqueueNext(
+  svc: ReturnType<typeof serviceClient>,
+  job: Job,
+  nextType: string,
+): Promise<void> {
+  await svc.from("processing_jobs").insert({
+    organization_id: job.organization_id,
+    file_id: job.file_id,
+    case_id: job.case_id,
+    job_type: nextType,
+    status: "queued",
+    priority: 100,
+    scheduled_at: new Date().toISOString(),
+  });
+  // Aciona o dispatcher imediatamente (best-effort).
+  fetch(`${SUPABASE_URL}/functions/v1/process-document-worker`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-token": SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+    },
+    body: JSON.stringify({ source: "chain" }),
+  }).catch(() => {});
+}
+
 async function runJob(svc: ReturnType<typeof serviceClient>, job: Job): Promise<void> {
   const fileId = job.file_id;
   let result: { ok: boolean; error?: string };
 
   if (job.job_type === "full") {
+    // Legado — preserva execução sequencial inline para jobs em voo criados antes da Onda 2.
     result = await invoke(svc, job.id, "extract-document-text", { file_id: fileId });
     if (result.ok) result = await invoke(svc, job.id, "chunk-document", { file_id: fileId });
     if (result.ok) result = await invoke(svc, job.id, "classify-document", { file_id: fileId });
@@ -84,6 +121,15 @@ async function runJob(svc: ReturnType<typeof serviceClient>, job: Job): Promise<
       .from("processing_jobs")
       .update({ status: "done", finished_at: new Date().toISOString(), last_error: null })
       .eq("id", job.id);
+    // Encadeia próxima etapa, se houver.
+    const next = NEXT_STAGE[job.job_type];
+    if (next) {
+      try {
+        await enqueueNext(svc, job, next);
+      } catch (e) {
+        console.error("worker:enqueue_next_failed", { job_id: job.id, next, error: (e as Error).message });
+      }
+    }
     return;
   }
 
