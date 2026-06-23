@@ -67,6 +67,7 @@ serve(async (req) => {
     }
   }
 
+  const startedAt = Date.now();
   try {
     // Limita o input a ~6k chars (primeiras páginas) — suficiente para classificar.
     const sample = file.extracted_text.slice(0, 6000);
@@ -101,6 +102,11 @@ ${sample}`;
 
     console.log("classify:ai_response", { file_id: file.id, classification, confidence });
 
+    // Tokens reais do gateway (fallback heurístico)
+    const tIn = Number(out?.usage?.prompt_tokens ?? Math.ceil(prompt.length / 4));
+    const tOut = Number(out?.usage?.completion_tokens ?? Math.ceil(content.length / 4));
+    const cost = estimateCost(CLASSIFICATION_MODEL, tIn, tOut);
+
     const { error: updErr } = await svc
       .from("client_files")
       .update({
@@ -115,6 +121,24 @@ ${sample}`;
     if (updErr) throw new Error(`update classification: ${updErr.message}`);
 
     console.log("classify:persisted", { file_id: file.id, classification });
+
+    // PR-3.7: telemetria (best-effort)
+    await logAiUsage(svc, {
+      organization_id: file.organization_id,
+      profile_id: file.uploaded_by,
+      operation: "classification",
+      provider: "lovable",
+      model: CLASSIFICATION_MODEL,
+      tokens_input: tIn,
+      tokens_output: tOut,
+      cost_estimated: cost,
+      processing_time_ms: Date.now() - startedAt,
+      case_id: file.case_id ?? null,
+      client_id: file.client_id ?? null,
+      file_id: file.id,
+      prompt_summary: summaryTag("classification", file.id),
+      metadata: { classification, confidence, sample_chars: sample.length },
+    });
 
     return json({ ok: true, classification, confidence });
   } catch (e) {
