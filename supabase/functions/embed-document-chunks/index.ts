@@ -14,6 +14,8 @@ import {
   EMBEDDING_MODEL,
   EMBEDDING_VERSION,
 } from "../_shared/versions.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
@@ -69,10 +71,12 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file } = await svc
     .from("client_files")
-    .select("id, organization_id, case_id")
+    .select("id, organization_id, case_id, client_id, uploaded_by")
     .eq("id", body.file_id)
     .maybeSingle();
   if (!file) return json({ error: "file not found" }, 404);
+
+  const startedAt = Date.now();
 
   await svc.from("client_files").update({ pipeline_stage: "embedding" }).eq("id", file.id);
 
