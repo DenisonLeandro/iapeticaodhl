@@ -51,6 +51,8 @@ export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
 
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
@@ -222,6 +224,12 @@ export default function CaseDetailPage() {
             <MessageSquare className="mr-1 h-3.5 w-3.5" />
             Chat IA
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="costs">
+              <DollarSign className="mr-1 h-3.5 w-3.5" />
+              Custos IA
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="timeline" className="mt-6">
@@ -247,6 +255,12 @@ export default function CaseDetailPage() {
         <TabsContent value="chat" className="mt-6">
           <CaseChatPanel caseId={caseData.id} />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="costs" className="mt-6">
+            <CaseCostsTab caseId={caseData.id} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
