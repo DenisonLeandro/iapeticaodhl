@@ -5,13 +5,15 @@
 // =============================================================================
 import { PDFDocument } from "pdf-lib";
 
-/** Acima deste tamanho, o PDF é dividido em partes. Mantém folga vs. o limite
- *  de extração (15 MB no edge) e vs. o caminho rápido do pdfjs (8 MB). */
-export const SPLIT_THRESHOLD_BYTES = 7 * 1024 * 1024; // 7 MB
+/** Acima deste tamanho, o PDF é dividido em partes.
+ *  PR-3.6 Onda 2: reduzido para 5 MB para garantir que TODAS as partes fiquem
+ *  abaixo de LARGE_PDF_THRESHOLD (8 MB) — o que evita completamente o fallback
+ *  multimodal (Gemini) que estourava timeout/JSON inválido em ≥10 MB. */
+export const SPLIT_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5 MB
 
-/** Alvo aproximado de tamanho por parte (em bytes). Mantém uma margem segura
- *  abaixo do hard limit do edge runtime. */
-const PART_TARGET_BYTES = 6 * 1024 * 1024; // 6 MB
+/** Alvo aproximado de tamanho por parte (em bytes). PR-3.6 Onda 2: 4 MB.
+ *  Confiabilidade > quantidade de partes. */
+const PART_TARGET_BYTES = 4 * 1024 * 1024; // 4 MB
 
 export interface SplitPart {
   file: File;
