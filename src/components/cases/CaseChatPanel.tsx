@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
 import { useCaseChat } from "@/hooks/useCaseChat";
+import { ccdLog } from "@/lib/debug/caseChatDebug";
 import type {
   CaseChatCitation,
   CaseChatFeedback,
