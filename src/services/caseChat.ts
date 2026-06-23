@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { supabase } from "@/lib/backend/client";
+import { ccdLog } from "@/lib/debug/caseChatDebug";
 
 export type CaseChatRole = "user" | "assistant" | "system";
 
