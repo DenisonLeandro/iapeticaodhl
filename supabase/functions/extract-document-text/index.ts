@@ -178,10 +178,21 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, organization_id, storage_path, file_type, file_size, file_name")
+    .select("id, organization_id, storage_path, file_type, file_size, file_name, extracted_text, extraction_version")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
+
+  // PR-3.6 Onda 2: idempotência. Se já temos extracted_text na versão corrente
+  // (pdfjs@v1) OU multimodal (v1-multimodal), pula a etapa.
+  if (
+    file.extracted_text &&
+    (file.extraction_version === EXTRACTION_VERSION ||
+      file.extraction_version === "v1-multimodal")
+  ) {
+    console.log("extract:skip_idempotent", { file_id: file.id, version: file.extraction_version });
+    return json({ ok: true, skipped: true, chars: file.extracted_text.length });
+  }
 
   await svc
     .from("client_files")
