@@ -50,8 +50,26 @@ function formatDate(s: string): string {
 
 export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionProps) {
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+    totalParts: number | null;
+  } | null>(null);
   const queryClient = useQueryClient();
   const { data: files = [], isLoading } = useCaseFiles(caseId);
+
+  const deleteMutation = useMutation({
+    mutationFn: (fileId: string) => deleteFileService(fileId),
+    onSuccess: () => {
+      toast.success("Documento excluído com sucesso.");
+      queryClient.invalidateQueries({ queryKey: ["case-files", caseId] });
+      setPendingDelete(null);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast.error(`Falha ao excluir documento: ${msg}`);
+    },
+  });
 
   const handleOpenChange = (v: boolean) => {
     setOpen(v);
@@ -60,6 +78,7 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
       queryClient.invalidateQueries({ queryKey: ["case-files", caseId] });
     }
   };
+
 
   return (
     <div className="space-y-3">
