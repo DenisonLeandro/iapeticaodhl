@@ -297,17 +297,31 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Log usage (reuse serviceSupabase)
+    // PR-3.7 — Log via helper compartilhado (sem PII no prompt_summary).
+    // document_type e tribunal são sanitizados: ASCII alfanumérico + espaço/hífen,
+    // máx. 64 chars. Qualquer outro campo do contexto fica FORA do metadata.
+    const sanitizeTag = (v: unknown): string | undefined => {
+      if (typeof v !== "string") return undefined;
+      const cleaned = v.replace(/[^\w\s\-./]/g, "").trim().slice(0, 64);
+      return cleaned.length ? cleaned : undefined;
+    };
+    const safeDocumentType = sanitizeTag(body.documentType);
+    const safeTribunal = sanitizeTag(body.context?.court);
     try {
-      await serviceSupabase.from("ai_usage_log").insert({
+      await logAiUsage(serviceSupabase, {
         organization_id: organizationId,
         profile_id: user.id,
+        operation: "generation",
         provider,
         model: result.model,
         tokens_input: result.tokensUsed.input,
         tokens_output: result.tokensUsed.output,
         cost_estimated: estimateCost(provider, result.tokensUsed.input, result.tokensUsed.output),
-        prompt_summary: prompt.substring(0, 500),
+        prompt_summary: summaryTag("generation", "ai-generate"),
+        metadata: {
+          document_type: safeDocumentType ?? null,
+          tribunal: safeTribunal ?? null,
+        },
       });
     } catch { /* best-effort logging */ }
 
