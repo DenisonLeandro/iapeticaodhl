@@ -4,10 +4,22 @@
 // =============================================================================
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { FileUp, FileText, Image as ImageIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FileUp, FileText, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteFile as deleteFileService } from "@/services/client-file.service";
 import {
   Table,
   TableBody,
