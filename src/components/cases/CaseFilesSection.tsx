@@ -113,9 +113,13 @@ export default function CaseFilesSection({ caseId, clientId, variant = "technica
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-lg font-semibold">Arquivos do processo</h3>
+          <h3 className="font-display text-lg font-semibold">
+            {isSimple ? "Documentos do caso" : "Arquivos do processo"}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            PDFs e imagens vinculados a este processo. O pipeline de IA roda automaticamente.
+            {isSimple
+              ? "Envie PDFs e imagens relacionados ao caso. O sistema prepara os documentos automaticamente."
+              : "PDFs e imagens vinculados a este processo. O pipeline de IA roda automaticamente."}
           </p>
         </div>
         <Button
@@ -150,10 +154,10 @@ export default function CaseFilesSection({ caseId, clientId, variant = "technica
             <TableHeader>
               <TableRow>
                 <TableHead>Arquivo</TableHead>
-                <TableHead>Tamanho</TableHead>
-                <TableHead>Pipeline</TableHead>
-                <TableHead>Classificação</TableHead>
-                <TableHead className="text-right">Chunks</TableHead>
+                {!isSimple && <TableHead>Tamanho</TableHead>}
+                <TableHead>{isSimple ? "Status" : "Pipeline"}</TableHead>
+                {!isSimple && <TableHead>Classificação</TableHead>}
+                {!isSimple && <TableHead className="text-right">Chunks</TableHead>}
                 <TableHead>Enviado em</TableHead>
                 <TableHead className="w-[60px] text-right">Ações</TableHead>
               </TableRow>
