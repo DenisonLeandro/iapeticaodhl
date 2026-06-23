@@ -35,6 +35,34 @@ import { useCaseFiles } from "@/hooks/useCaseFiles";
 interface CaseFilesSectionProps {
   caseId: string;
   clientId: string | null | undefined;
+  /**
+   * "technical" (default): comportamento original com tamanho, pipeline,
+   * classificação e contagem de chunks. Mantido como default para não
+   * impactar telas que já consomem este componente.
+   * "simple": modo amigável ao advogado — esconde jargão técnico
+   * (pipeline/chunks/bytes) e mostra apenas status humano.
+   */
+  variant?: "technical" | "simple";
+}
+
+const SIMPLE_STATUS_LABEL: Record<string, string> = {
+  done: "Pronto",
+  failed: "Erro",
+  queued: "Processando",
+  extracting: "Processando",
+  chunking: "Processando",
+  classifying: "Processando",
+  embedding: "Processando",
+  pending: "Aguardando",
+};
+
+function simpleStatusBadgeClass(stage: string | null | undefined): string {
+  if (stage === "done") return "bg-green-500/15 text-green-700 dark:text-green-400";
+  if (stage === "failed") return "bg-destructive/15 text-destructive";
+  if (stage && ["queued", "extracting", "chunking", "classifying", "embedding"].includes(stage)) {
+    return "bg-primary/15 text-primary";
+  }
+  return "bg-muted text-muted-foreground";
 }
 
 function formatSize(bytes: number | null): string {
