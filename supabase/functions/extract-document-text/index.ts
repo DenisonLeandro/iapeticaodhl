@@ -13,6 +13,8 @@ import {
   EXTRACTION_MODEL_PDFJS,
   EXTRACTION_VERSION,
 } from "../_shared/versions.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 // pdf.js legacy build — funciona no Deno sem worker.
 // @ts-ignore — sem types
@@ -178,10 +180,12 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, organization_id, storage_path, file_type, file_size, file_name, extracted_text, extraction_version")
+    .select("id, organization_id, case_id, client_id, uploaded_by, storage_path, file_type, file_size, file_name, extracted_text, extraction_version")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
+
+  const startedAt = Date.now();
 
   // PR-3.6 Onda 2: idempotência. Se já temos extracted_text na versão corrente
   // (pdfjs@v1) OU multimodal (v1-multimodal), pula a etapa.
