@@ -5,6 +5,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { requireServiceRole, serviceClient } from "../_shared/auth.ts";
 import { CLASSIFICATION_MODEL, CLASSIFICATION_VERSION } from "../_shared/versions.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const TAXONOMY = [

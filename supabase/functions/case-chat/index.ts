@@ -415,6 +415,31 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             estimated_cost_usd: estimatedCostUsd,
           });
         }
+
+        // PR-3.7: registra custo (best-effort; nunca quebra a operação)
+        await logAiUsage(adminSupabase, {
+          organization_id: caseRow.organization_id,
+          profile_id: userId,
+          operation: "chat",
+          provider: "lovable",
+          model: CHAT_MODEL,
+          tokens_input: usageIn,
+          tokens_output: usageOut,
+          cost_estimated: estimatedCostUsd,
+          processing_time_ms: responseTimeMs,
+          case_id: caseRow.id,
+          client_id: caseRow.client_id ?? null,
+          prompt_summary: summaryTag("chat", caseRow.id),
+          metadata: {
+            embedding_model: EMBEDDING_MODEL,
+            embedding_tokens_approx: embedTokensApprox,
+            top_k: TOP_K_FINAL,
+            chunks_retrieved: chunksArr.length,
+            chunks_retrieved_raw: chunksAll.length,
+            embedding_time_ms: embedMs,
+          },
+        });
+
         controller.close();
       },
     });
