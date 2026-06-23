@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
+import { ccdLog } from "@/lib/debug/caseChatDebug";
 import {
   listCaseChatFeedback,
   listCaseChatMessages,
