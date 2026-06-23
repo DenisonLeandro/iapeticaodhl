@@ -18,7 +18,10 @@ serve(async (req) => {
     return json({ error: "Invalid JSON" }, 400);
   }
   const fileId = body.file_id;
-  const jobType = body.job_type ?? "full";
+  // PR-3.6 Onda 2: job_type default agora é "extract" (jobs encadeados).
+  // O worker enfileira chunk → classify → embed automaticamente em sucessos.
+  // "full" continua aceito para reprocesso legado.
+  const jobType = body.job_type ?? "extract";
   if (!fileId || typeof fileId !== "string") {
     return json({ error: "file_id is required" }, 400);
   }

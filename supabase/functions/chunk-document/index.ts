@@ -66,6 +66,17 @@ serve(async (req) => {
   if (fErr || !file) return json({ error: "file not found" }, 404);
   if (!file.extracted_text) return json({ error: "no extracted_text" }, 400);
 
+  // PR-3.6 Onda 2: idempotência. Se já existem chunks na versão corrente, pula.
+  const { count: existingChunks } = await svc
+    .from("document_chunks")
+    .select("id", { count: "exact", head: true })
+    .eq("file_id", file.id)
+    .eq("chunking_version", CHUNKING_VERSION);
+  if ((existingChunks ?? 0) > 0) {
+    console.log("chunk:skip_idempotent", { file_id: file.id, chunks: existingChunks });
+    return json({ ok: true, skipped: true, chunks: existingChunks });
+  }
+
   await svc.from("client_files").update({ pipeline_stage: "chunking" }).eq("id", file.id);
 
   try {
