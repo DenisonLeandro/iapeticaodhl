@@ -44,6 +44,7 @@ export function useCaseChat(caseId: string | undefined) {
   const sendMessage = useCallback(
     async (message: string): Promise<SendCaseChatResponse | null> => {
       if (!caseId) throw new Error("caseId ausente");
+      ccdLog("hook", "sendMessage_start", { caseId, message_len: message.length });
       setChatError(null);
       setStreamingText("");
       setStreamingCitations([]);
@@ -53,15 +54,22 @@ export function useCaseChat(caseId: string | undefined) {
           onMeta: (cit) => setStreamingCitations(cit),
           onDelta: (t) => setStreamingText((prev) => prev + t),
         });
+        ccdLog("hook", "service_resolved", {
+          assistantMessageId: resp.assistantMessageId,
+          content_len: resp.content.length,
+        });
         await queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
+        ccdLog("hook", "invalidate_done", { key: KEY, caseId });
         return resp;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        ccdLog("hook", "service_error", { msg });
         setChatError(msg);
         // Refetch mesmo assim — assistant pode ter sido persistido server-side
         await queryClient.invalidateQueries({ queryKey: [KEY, caseId] }).catch(() => {});
         return null;
       } finally {
+        ccdLog("hook", "sendMessage_finally", {});
         setIsStreaming(false);
         setStreamingText("");
         setStreamingCitations([]);
