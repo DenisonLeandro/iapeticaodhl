@@ -32,6 +32,10 @@ export default function CaseChatDrawer({ caseId, open, onOpenChange }: Props) {
       <SheetContent
         side="right"
         className={cn("overflow-y-auto p-0", widthClasses)}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        aria-describedby={undefined}
       >
         <SheetHeader className="border-b border-border px-6 py-4">
           <div className="flex items-center justify-between gap-2 pr-8">
