@@ -198,6 +198,26 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
                     <TableCell className="text-muted-foreground">
                       {formatDate(f.created_at)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={
+                          hasParts
+                            ? "Excluir documento lógico e todas as partes"
+                            : "Excluir arquivo"
+                        }
+                        onClick={() =>
+                          setPendingDelete({
+                            id: f.id,
+                            name: f.file_name,
+                            totalParts: f.total_parts,
+                          })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -215,6 +235,56 @@ export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionP
           lockCase
         />
       )}
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(v) => {
+          if (!v && !deleteMutation.isPending) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir documento</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete && pendingDelete.totalParts != null && pendingDelete.totalParts > 1 ? (
+                <>
+                  Tem certeza que deseja excluir o documento{" "}
+                  <strong>&quot;{pendingDelete.name}&quot;</strong> e suas{" "}
+                  {pendingDelete.totalParts} partes? Todos os chunks, embeddings, jobs
+                  de processamento e arquivos no storage serão removidos. Esta ação
+                  não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir o arquivo{" "}
+                  <strong>&quot;{pendingDelete?.name}&quot;</strong>? Todos os chunks,
+                  embeddings e jobs de processamento serão removidos. Esta ação não
+                  pode ser desfeita.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (pendingDelete) deleteMutation.mutate(pendingDelete.id);
+              }}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
