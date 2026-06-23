@@ -164,9 +164,7 @@ export default function CaseDetailPage() {
             Principal
           </TabsTrigger>
           <TabsTrigger value="documents" data-tab-trigger="documents">
-            Documentos ({documents.length === 0 ? 0 : ""}
-            {/* Contagem real vem do hook de files; mantemos rótulo simples */}
-            Documentos)
+            Documentos
           </TabsTrigger>
           <TabsTrigger value="pieces" data-tab-trigger="pieces">
             Peças ({documents.length})
