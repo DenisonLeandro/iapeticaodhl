@@ -15,16 +15,19 @@ import { PDFDocument } from "pdf-lib";
 /** Acima deste tamanho, o PDF é dividido em partes. */
 export const SPLIT_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5 MB
 
-/** Alvo ideal por parte: 4–5 MB.
- *  Encerramos uma parte quando, ao incluir a próxima página, ela passaria
- *  do alvo. Resulta tipicamente em partes entre 3.5 e 5 MB. */
-const PART_TARGET_BYTES = 5 * 1024 * 1024; // 5 MB
+/** Alvo ideal por parte: ~4 MB (Onda 3.1 — reduzido de 5 MB). */
+const PART_TARGET_BYTES = 4 * 1024 * 1024; // 4 MB
 
-/** Hard cap absoluto. Nenhuma parte pode ser ≥ que isto, sob pena de cair no
- *  fallback multimodal (LARGE_PDF_THRESHOLD do extract = 8 MB). Mantemos 7 MB
- *  como margem de segurança contra a discrepância entre tamanho medido e
- *  tamanho final ao salvar com diferentes objetos de fonte/recurso. */
-const PART_HARD_MAX_BYTES = 7 * 1024 * 1024; // 7 MB
+/** Hard cap absoluto. Onda 3.1: 7 MB → 5 MB para isolar páginas densas que
+ *  estouram CPU do pdfjs no edge mesmo em arquivos pequenos. Margem
+ *  confortável contra LARGE_PDF_THRESHOLD do extract (8 MB). */
+const PART_HARD_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+/** Limite máximo de páginas por parte. Onda 3.1: cap por quantidade de
+ *  páginas, além do cap por bytes, para evitar partes "leves em MB mas
+ *  densas em conteúdo" que estouram CPU do pdfjs (WORKER_RESOURCE_LIMIT
+ *  observado na parte 14 do THAURUS — 2,47 MB / falhou no extract). */
+const PART_MAX_PAGES = 60;
 
 /** Estimativa de overhead fixo por PDF gerado (cross-ref, trailer, fontes). */
 const PART_BASE_OVERHEAD_BYTES = 80 * 1024; // ~80 KB
@@ -59,7 +62,7 @@ async function measurePageSizes(src: PDFDocument): Promise<number[]> {
   return sizes;
 }
 
-/** Greedy bin-packing por bytes. Cada bin = uma parte. */
+/** Greedy bin-packing por bytes + cap de páginas. Cada bin = uma parte. */
 function planParts(pageSizes: number[]): Array<{ start: number; end: number }> {
   const plan: Array<{ start: number; end: number }> = [];
   let start = 0;
@@ -68,16 +71,20 @@ function planParts(pageSizes: number[]): Array<{ start: number; end: number }> {
   for (let i = 0; i < pageSizes.length; i++) {
     const pageSize = pageSizes[i];
     const wouldBe = acc + pageSize;
+    const wouldBePages = i - start + 1;
 
     if (i === start) {
-      // Sempre aceita ao menos 1 página, mesmo que a página sozinha exceda o
-      // hard cap (caso patológico — registramos warning na execução).
+      // Sempre aceita ao menos 1 página, mesmo que sozinha exceda hard cap.
       acc = wouldBe;
       continue;
     }
 
-    if (wouldBe > PART_HARD_MAX_BYTES || wouldBe > PART_TARGET_BYTES) {
-      // Fecha a parte corrente em [start, i) e começa nova com a página i.
+    // Fecha a parte se: estourou bytes (hard ou alvo) OU estourou o cap de páginas.
+    if (
+      wouldBe > PART_HARD_MAX_BYTES ||
+      wouldBe > PART_TARGET_BYTES ||
+      wouldBePages > PART_MAX_PAGES
+    ) {
       plan.push({ start, end: i });
       start = i;
       acc = PART_BASE_OVERHEAD_BYTES + pageSize;
