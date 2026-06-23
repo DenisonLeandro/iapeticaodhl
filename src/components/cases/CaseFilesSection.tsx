@@ -76,7 +76,8 @@ function formatDate(s: string): string {
   return new Date(s).toLocaleDateString("pt-BR");
 }
 
-export default function CaseFilesSection({ caseId, clientId }: CaseFilesSectionProps) {
+export default function CaseFilesSection({ caseId, clientId, variant = "technical" }: CaseFilesSectionProps) {
+  const isSimple = variant === "simple";
   const [open, setOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
