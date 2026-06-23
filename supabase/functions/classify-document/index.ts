@@ -42,7 +42,7 @@ serve(async (req) => {
   const svc = serviceClient();
   const { data: file, error: fErr } = await svc
     .from("client_files")
-    .select("id, extracted_text, classification, classification_version")
+    .select("id, organization_id, case_id, client_id, uploaded_by, extracted_text, classification, classification_version")
     .eq("id", body.file_id)
     .maybeSingle();
   if (fErr || !file) return json({ error: "file not found" }, 404);
