@@ -116,6 +116,38 @@ export async function streamCaseChatMessage(
   const decoder = new TextDecoder();
   let buffer = "";
   let finalResp: SendCaseChatResponse | null = null;
+  let streamError: string | null = null;
+
+  const processLine = (raw: string) => {
+    const line = raw.trim();
+    if (!line) return;
+    let evt: CaseChatStreamEvent;
+    try {
+      evt = JSON.parse(line) as CaseChatStreamEvent;
+    } catch (err) {
+      // Linha malformada / ruído de keep-alive: ignora sem matar o stream
+      console.debug("[caseChat] linha NDJSON ignorada:", line.slice(0, 120), err);
+      return;
+    }
+    if (evt.type === "meta") handlers.onMeta?.(evt.citations);
+    else if (evt.type === "delta") handlers.onDelta?.(evt.text);
+    else if (evt.type === "done") {
+      finalResp = {
+        assistantMessageId: (evt as { assistantMessageId: string }).assistantMessageId,
+        created_at: (evt as { created_at: string }).created_at,
+        content: (evt as { content: string }).content ?? "",
+        citations: (evt as { citations: CaseChatCitation[] }).citations ?? [],
+        tokens: (evt as { tokens: { input: number; output: number } }).tokens ?? { input: 0, output: 0 },
+        response_time_ms: (evt as { response_time_ms?: number }).response_time_ms,
+        estimated_cost_usd: (evt as { estimated_cost_usd?: number }).estimated_cost_usd,
+      };
+      handlers.onDone?.(finalResp);
+    } else if (evt.type === "error") {
+      streamError = evt.error || "Erro no streaming";
+      handlers.onError?.(streamError);
+      // não lança: deixa o loop terminar e decide no final
+    }
+  };
 
   while (true) {
     const { value, done } = await reader.read();
@@ -123,37 +155,20 @@ export async function streamCaseChatMessage(
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) continue;
-      try {
-        const evt = JSON.parse(line) as CaseChatStreamEvent;
-        if (evt.type === "meta") handlers.onMeta?.(evt.citations);
-        else if (evt.type === "delta") handlers.onDelta?.(evt.text);
-        else if (evt.type === "done") {
-          finalResp = {
-            assistantMessageId: (evt as { assistantMessageId: string }).assistantMessageId,
-            created_at: (evt as { created_at: string }).created_at,
-            content: (evt as { content: string }).content ?? "",
-            citations: (evt as { citations: CaseChatCitation[] }).citations ?? [],
-            tokens: (evt as { tokens: { input: number; output: number } }).tokens ?? { input: 0, output: 0 },
-            response_time_ms: (evt as { response_time_ms?: number }).response_time_ms,
-            estimated_cost_usd: (evt as { estimated_cost_usd?: number }).estimated_cost_usd,
-          };
-          handlers.onDone?.(finalResp);
-        } else if (evt.type === "error") {
-          handlers.onError?.(evt.error);
-          throw new Error(evt.error);
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message) throw e;
-      }
-    }
+    for (const raw of lines) processLine(raw);
   }
 
-  if (!finalResp) throw new Error("Stream finalizou sem evento 'done'.");
-  return finalResp;
+  // Drena buffer residual (último evento pode não ter terminado com \n)
+  if (buffer.trim()) {
+    processLine(buffer);
+    buffer = "";
+  }
+
+  if (finalResp) return finalResp;
+  if (streamError) throw new Error(streamError);
+  throw new Error("Stream finalizou sem evento 'done'.");
 }
+
 
 export async function setCaseChatMessagePin(
   messageId: string,
