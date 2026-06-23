@@ -182,7 +182,7 @@ export default function CaseFilesSection({ caseId, clientId, variant = "technica
                           <span className="block truncate max-w-[280px]" title={f.file_name}>
                             {f.file_name}
                           </span>
-                          {hasParts && (
+                          {hasParts && !isSimple && (
                             <span className="block text-xs text-muted-foreground">
                               {f.processed_parts}/{f.total_parts} partes processadas
                               {f.failed_parts > 0 ? ` · ${f.failed_parts} com falha` : ""}
@@ -191,43 +191,59 @@ export default function CaseFilesSection({ caseId, clientId, variant = "technica
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatSize(f.file_size)}
-                      {f.page_count ? ` · ${f.page_count} pp.` : ""}
-                    </TableCell>
+                    {!isSimple && (
+                      <TableCell className="text-muted-foreground">
+                        {formatSize(f.file_size)}
+                        {f.page_count ? ` · ${f.page_count} pp.` : ""}
+                      </TableCell>
+                    )}
                     <TableCell>
-                      <div className="space-y-1">
-                        <PipelineStageBadge
-                          stage={f.pipeline_stage}
-                          error={f.pipeline_last_error}
-                        />
-                        {hasParts && f.pipeline_stage !== "done" && f.pipeline_stage !== "failed" && (
-                          <div className="h-1 w-24 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full bg-primary transition-all"
-                              style={{ width: `${progressPct ?? 0}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {f.classification ? (
-                        <span>
-                          {f.classification}
-                          {f.classification_confidence != null && (
-                            <span className="ml-1 text-xs">
-                              ({Number(f.classification_confidence).toFixed(2)})
-                            </span>
-                          )}
+                      {isSimple ? (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${simpleStatusBadgeClass(
+                            f.pipeline_stage,
+                          )}`}
+                        >
+                          {SIMPLE_STATUS_LABEL[f.pipeline_stage ?? "pending"] ?? "Aguardando"}
                         </span>
                       ) : (
-                        "—"
+                        <div className="space-y-1">
+                          <PipelineStageBadge
+                            stage={f.pipeline_stage}
+                            error={f.pipeline_last_error}
+                          />
+                          {hasParts && f.pipeline_stage !== "done" && f.pipeline_stage !== "failed" && (
+                            <div className="h-1 w-24 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full bg-primary transition-all"
+                                style={{ width: `${progressPct ?? 0}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {f.chunk_count > 0 ? f.chunk_count : "—"}
-                    </TableCell>
+                    {!isSimple && (
+                      <TableCell className="text-muted-foreground">
+                        {f.classification ? (
+                          <span>
+                            {f.classification}
+                            {f.classification_confidence != null && (
+                              <span className="ml-1 text-xs">
+                                ({Number(f.classification_confidence).toFixed(2)})
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    )}
+                    {!isSimple && (
+                      <TableCell className="text-right tabular-nums">
+                        {f.chunk_count > 0 ? f.chunk_count : "—"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-muted-foreground">
                       {formatDate(f.created_at)}
                     </TableCell>
