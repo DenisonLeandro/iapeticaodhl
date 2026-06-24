@@ -27,7 +27,7 @@ import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import CaseCostsTab from "@/components/cases/CaseCostsTab";
 import CaseWorkbench from "@/components/cases/CaseWorkbench";
-import CaseChatDrawer from "@/components/cases/CaseChatDrawer";
+
 import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
 
 function DetailSkeleton() {
