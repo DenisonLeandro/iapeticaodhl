@@ -309,6 +309,7 @@ export default function CaseChatPanel({ caseId }: Props) {
     isSubmittingFeedback,
     chatError,
     clearChatError,
+    assistantFallback,
   } = useCaseChat(caseId);
 
   const feedbackByMsg = useMemo(() => {
@@ -322,9 +323,24 @@ export default function CaseChatPanel({ caseId }: Props) {
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
 
+  // Ordenação determinística (ASC) com desempate por id.
+  const visibleMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const da = new Date(a.created_at).getTime();
+      const db = new Date(b.created_at).getTime();
+      if (da !== db) return da - db;
+      return a.id.localeCompare(b.id);
+    });
+  }, [messages]);
+
+  // Fallback só aparece se o id ainda não está em visibleMessages — evita duplicidade.
+  const showFallback =
+    !!assistantFallback &&
+    !visibleMessages.some((m) => m.id === assistantFallback.assistantMessageId);
+
   const pinnedMessages = useMemo(
-    () => messages.filter((m) => m.is_pinned && m.role === "assistant"),
-    [messages],
+    () => visibleMessages.filter((m) => m.is_pinned && m.role === "assistant"),
+    [visibleMessages],
   );
 
   useEffect(() => {
@@ -334,20 +350,18 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   useEffect(() => {
     ccdLog("panel", "state", {
-      messages_count: messages.length,
+      messages_count: visibleMessages.length,
       isSending,
       streamingText_len: streamingText.length,
       chatError_set: !!chatError,
+      showFallback,
     });
-  }, [messages.length, isSending, streamingText, chatError]);
+  }, [visibleMessages.length, isSending, streamingText, chatError, showFallback]);
 
   useEffect(() => {
-    // Sempre rolar para o fim quando: novas mensagens chegam, durante streaming,
-    // quando o streaming termina (messages.length cresce) ou aparece erro.
-    // `auto` durante streaming evita "jank"; `smooth` para o estado final.
     const behavior: ScrollBehavior = isSending ? "auto" : "smooth";
     scrollEndRef.current?.scrollIntoView({ behavior, block: "end" });
-  }, [messages.length, isSending, streamingText, chatError]);
+  }, [visibleMessages.length, isSending, streamingText, chatError, showFallback]);
 
   useEffect(() => {
     if (!isSending) textareaRef.current?.focus();
@@ -442,14 +456,14 @@ export default function CaseChatPanel({ caseId }: Props) {
                 <Skeleton className="h-16 w-2/3 ml-auto" />
                 <Skeleton className="h-16 w-3/4" />
               </div>
-            ) : messages.length === 0 && !isSending ? (
+            ) : visibleMessages.length === 0 && !isSending && !showFallback ? (
               <div className="text-center text-sm text-muted-foreground py-12">
                 Faça uma pergunta sobre o processo. Exemplo: <br />
                 <em>"Qual é o pedido principal?"</em> ou <em>"Quais são as principais teses da sentença?"</em>
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map((m) => (
+                {visibleMessages.map((m) => (
                   <MessageBubble
                     key={m.id}
                     message={m}
@@ -480,6 +494,23 @@ export default function CaseChatPanel({ caseId }: Props) {
                     </div>
                   </div>
                 )}
+
+                {showFallback && assistantFallback && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Resposta recebida
+                      </p>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{assistantFallback.content}</ReactMarkdown>
+                      </div>
+                      {assistantFallback.citations.length > 0 && (
+                        <CitationsBlock citations={assistantFallback.citations} />
+                      )}
+                    </div>
+                  </div>
+                )}
+
 
                 {chatError && !isSending && (
                   <div className="flex justify-start">
