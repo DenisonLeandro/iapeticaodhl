@@ -178,7 +178,7 @@ export default function CaseDetailPage() {
           <CaseWorkbench
             caseData={caseData}
             documents={documents}
-            onOpenChat={() => setChatDrawerOpen(true)}
+            onOpenChat={() => setActiveTab("chat-advanced")}
           />
         </TabsContent>
 
