@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
   FileText,
   Loader2,
   MessageSquare,
