@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
   FileText,
   Loader2,
   MessageSquare,
@@ -53,30 +55,41 @@ function pagesLabel(c: CaseChatCitation): string {
 }
 
 function CitationsBlock({ citations }: { citations: CaseChatCitation[] }) {
+  const [expanded, setExpanded] = useState(false);
   if (!citations?.length) return null;
+  const count = citations.length;
   return (
-    <div className="mt-3 space-y-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Citações
-      </p>
-      <div className="grid gap-1.5">
-        {citations.map((c) => (
-          <div
-            key={c.chunk_id}
-            className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs"
-            title={`Similaridade: ${(c.similarity * 100).toFixed(1)}%`}
-          >
-            <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-foreground">
-                {c.classification ?? "Documento"}
-              </p>
-              <p className="truncate text-muted-foreground">{c.file_name}</p>
-              <p className="text-[11px] text-muted-foreground">{pagesLabel(c)}</p>
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        aria-expanded={expanded}
+      >
+        <FileText className="h-3 w-3" />
+        {expanded ? `Ocultar fontes (${count})` : `Ver fontes utilizadas (${count})`}
+        {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+      {expanded && (
+        <div className="mt-2 grid gap-1.5">
+          {citations.map((c) => (
+            <div
+              key={c.chunk_id}
+              className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs"
+              title={`Similaridade: ${(c.similarity * 100).toFixed(1)}%`}
+            >
+              <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-foreground">
+                  {c.classification ?? "Documento"}
+                </p>
+                <p className="truncate text-muted-foreground">{c.file_name}</p>
+                <p className="text-[11px] text-muted-foreground">{pagesLabel(c)}</p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
