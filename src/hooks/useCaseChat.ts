@@ -1,13 +1,19 @@
 // =============================================================================
-// useCaseChat — PR-3 + PR-3.5 (streaming + feedback)
-// PR-4.0A Hotfix v2: fonte de verdade visual estável (state local merge),
-// optimistic user message, dedup robusto, sem dependência de refetch para render.
+// useCaseChat — PR-3 + PR-3.5 + PR-4.0A hotfix v3
+// Fonte visual estável por caseId via store de módulo (useSyncExternalStore),
+// sobrevivendo a remount/HMR do CaseChatPanel. Sem effect que faz set em
+// resposta a outro state — evita o "Cannot read properties of null (destroy)".
 // =============================================================================
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
 import { ccdLog } from "@/lib/debug/caseChatDebug";
+import {
+  getCaseChatSnapshot,
+  setCaseChatMessages,
+  subscribeCaseChat,
+} from "@/hooks/caseChatStore";
 import {
   listCaseChatFeedback,
   listCaseChatMessages,
@@ -47,24 +53,16 @@ function sortByCreatedAt(list: CaseChatMessage[]): CaseChatMessage[] {
   });
 }
 
-/**
- * Merge resultado do servidor com lista local:
- * - mantém mensagens locais (otimistas/assistente já promovido) que ainda não
- *   apareceram no servidor;
- * - substitui temp-user-* pela versão persistida com mesmo conteúdo na janela;
- * - preserva todas as mensagens do servidor.
- */
+/** Merge servidor → local, sem nunca apagar mensagens locais ainda não persistidas. */
 function mergeServerWithLocal(
   local: CaseChatMessage[],
   server: CaseChatMessage[],
 ): CaseChatMessage[] {
   const byId = new Map<string, CaseChatMessage>();
-  // Começa pelas do servidor (fonte de verdade canônica)
   for (const m of server) byId.set(m.id, m);
 
   for (const m of local) {
     if (m.id.startsWith(TEMP_USER_PREFIX)) {
-      // tenta achar correspondente persistido (mesmo conteúdo, role=user, próximo no tempo)
       const localTs = new Date(m.created_at).getTime();
       const match = server.find(
         (s) =>
@@ -73,11 +71,10 @@ function mergeServerWithLocal(
           Math.abs(new Date(s.created_at).getTime() - localTs) <
             TEMP_USER_DEDUP_WINDOW_MS,
       );
-      if (match) continue; // já presente via server
+      if (match) continue;
       byId.set(m.id, m);
-    } else {
-      // mensagem com id real (ex.: assistant promovido) — preserva se servidor ainda não trouxe
-      if (!byId.has(m.id)) byId.set(m.id, m);
+    } else if (!byId.has(m.id)) {
+      byId.set(m.id, m);
     }
   }
   return sortByCreatedAt(Array.from(byId.values()));
@@ -139,33 +136,32 @@ export function useCaseChat(caseId: string | undefined) {
     enabled: !!caseId,
   });
 
-  // ===== Fonte de verdade visual ESTÁVEL =====
-  // Inicializada com o que o servidor já tiver e mesclada a cada refetch.
-  const [visible, setVisible] = useState<CaseChatMessage[]>([]);
-  const initializedForCase = useRef<string | null>(null);
+  // ===== Fonte visual ESTÁVEL via store de módulo =====
+  // Sobrevive a remount/HMR do CaseChatPanel.
+  const subscribe = useCallback(
+    (l: () => void) => (caseId ? subscribeCaseChat(caseId, l) : () => {}),
+    [caseId],
+  );
+  const getSnapshot = useCallback(
+    () => getCaseChatSnapshot(caseId),
+    [caseId],
+  );
+  const visible = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  // Reset ao trocar de caso
+  // Merge do servidor no store, sem nunca apagar locais ainda não persistidos.
+  const serverData = messagesQuery.data;
   useEffect(() => {
-    if (initializedForCase.current !== caseId) {
-      initializedForCase.current = caseId ?? null;
-      setVisible([]);
-    }
-  }, [caseId]);
-
-  // Merge servidor → local, sem nunca apagar mensagens locais ainda não persistidas
-  useEffect(() => {
-    const server = messagesQuery.data;
-    if (!server) return;
-    setVisible((prev) => {
-      const merged = mergeServerWithLocal(prev, server);
+    if (!caseId || !serverData) return;
+    setCaseChatMessages(caseId, (prev) => {
+      const merged = mergeServerWithLocal(prev, serverData);
       ccdLog("hook", "merge_server", {
         prev: prev.length,
-        server: server.length,
+        server: serverData.length,
         merged: merged.length,
       });
       return merged;
     });
-  }, [messagesQuery.data]);
+  }, [caseId, serverData]);
 
   const [streamingText, setStreamingText] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<CaseChatCitation[]>([]);
@@ -173,17 +169,19 @@ export function useCaseChat(caseId: string | undefined) {
   const [chatError, setChatError] = useState<string | null>(null);
   const [assistantFallback, setAssistantFallback] = useState<AssistantFallback | null>(null);
 
-  // Limpa fallback quando a mensagem persistida aparece no estado visível
+  // Limpa fallback quando a mensagem persistida aparece no estado visível.
+  // Lê via ref para não criar dependência que reagenda effects e dispara o
+  // bug de cleanup já visto no stack trace (destroy em null).
+  const fallbackIdRef = useRef<string | null>(null);
+  fallbackIdRef.current = assistantFallback?.assistantMessageId ?? null;
   useEffect(() => {
-    if (!assistantFallback) return;
-    const found = visible.some((m) => m.id === assistantFallback.assistantMessageId);
-    if (found) {
-      ccdLog("hook", "fallback_clear_persisted", {
-        id: assistantFallback.assistantMessageId,
-      });
+    const id = fallbackIdRef.current;
+    if (!id) return;
+    if (visible.some((m) => m.id === id)) {
+      ccdLog("hook", "fallback_clear_persisted", { id });
       setAssistantFallback(null);
     }
-  }, [visible, assistantFallback]);
+  }, [visible]);
 
   const sendMessage = useCallback(
     async (message: string): Promise<SendCaseChatResponse | null> => {
@@ -194,7 +192,7 @@ export function useCaseChat(caseId: string | undefined) {
       setStreamingCitations([]);
       setIsStreaming(true);
 
-      // 1) Optimistic user message — pergunta visível IMEDIATAMENTE
+      // 1) Optimistic user — pergunta visível IMEDIATAMENTE no store estável.
       const tempUser: CaseChatMessage = {
         id: `${TEMP_USER_PREFIX}${Date.now()}`,
         case_id: caseId,
@@ -207,7 +205,7 @@ export function useCaseChat(caseId: string | undefined) {
         created_by: null,
         created_at: new Date().toISOString(),
       };
-      setVisible((prev) => sortByCreatedAt([...prev, tempUser]));
+      setCaseChatMessages(caseId, (prev) => sortByCreatedAt([...prev, tempUser]));
       ccdLog("hook", "optimistic_user_added", { temp_id: tempUser.id });
 
       let finalResp: SendCaseChatResponse | null = null;
@@ -221,21 +219,17 @@ export function useCaseChat(caseId: string | undefined) {
           content_len: finalResp.content.length,
         });
 
-        // 2) Promove resposta para o estado visual estável
-        setVisible((prev) => upsertAssistantFromFinal(prev, caseId, finalResp!));
-        ccdLog("hook", "local_visible_upsert_done", {
-          id: finalResp.assistantMessageId,
-        });
+        // 2) Promove resposta para o store visual estável.
+        setCaseChatMessages(caseId, (prev) =>
+          upsertAssistantFromFinal(prev, caseId, finalResp!),
+        );
 
-        // 3) Atualiza cache do React Query (não derruba a UI; só sincroniza)
+        // 3) Atualiza cache do React Query (sincronização).
         queryClient.setQueryData<CaseChatMessage[]>([KEY, caseId], (prev) =>
           upsertAssistantFromFinal(prev ?? [], caseId, finalResp!),
         );
-        ccdLog("hook", "cache_setQueryData_done", {
-          id: finalResp.assistantMessageId,
-        });
 
-        // 4) Fallback — só visível se o visible ainda não tem a mensagem (ex.: race)
+        // 4) Fallback de segurança.
         setAssistantFallback({
           assistantMessageId: finalResp.assistantMessageId,
           content: finalResp.content,
@@ -243,7 +237,7 @@ export function useCaseChat(caseId: string | undefined) {
           created_at: finalResp.created_at,
         });
 
-        // 5) Sincroniza com o banco — refetch agora é seguro (merge preserva visible)
+        // 5) Refetch só para sincronizar; merge preserva o que já está visível.
         queryClient
           .invalidateQueries({ queryKey: [KEY, caseId] })
           .then(() => ccdLog("hook", "invalidate_done", { key: KEY, caseId }))
@@ -254,7 +248,6 @@ export function useCaseChat(caseId: string | undefined) {
         const msg = e instanceof Error ? e.message : String(e);
         ccdLog("hook", "service_error", { msg });
         setChatError(msg);
-        // Mantém a pergunta otimista visível com o erro abaixo.
         return null;
       } finally {
         ccdLog("hook", "sendMessage_finally", { hadFinal: !!finalResp });
@@ -272,10 +265,11 @@ export function useCaseChat(caseId: string | undefined) {
     mutationFn: ({ id, isPinned, kind }: { id: string; isPinned: boolean; kind?: CaseChatMessageKind }) =>
       setCaseChatMessagePin(id, isPinned, kind),
     onSuccess: (_data, vars) => {
-      // Atualiza visible imediatamente para refletir pin
-      setVisible((prev) =>
-        prev.map((m) => (m.id === vars.id ? { ...m, is_pinned: vars.isPinned } : m)),
-      );
+      if (caseId) {
+        setCaseChatMessages(caseId, (prev) =>
+          prev.map((m) => (m.id === vars.id ? { ...m, is_pinned: vars.isPinned } : m)),
+        );
+      }
       queryClient.invalidateQueries({ queryKey: [KEY, caseId] });
     },
   });
@@ -300,9 +294,10 @@ export function useCaseChat(caseId: string | undefined) {
   });
 
   // Realtime — apenas invalida o query; o merge preserva o visível.
+  // Cleanup defensivo para não chamar destroy em handle nulo após HMR.
   useEffect(() => {
     if (!caseId) return;
-    const channel = supabase
+    let channel: ReturnType<typeof supabase.channel> | null = supabase
       .channel(`case_chat_${caseId}`)
       .on(
         "postgres_changes",
@@ -311,13 +306,20 @@ export function useCaseChat(caseId: string | undefined) {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      } catch { /* ignora cleanup duplo */ }
+      channel = null;
     };
   }, [caseId, queryClient]);
 
+  const sortedVisible = useMemo(() => sortByCreatedAt(visible), [visible]);
+
   return {
-    messages: visible,
-    isLoading: messagesQuery.isLoading && visible.length === 0,
+    messages: sortedVisible,
+    isLoading: messagesQuery.isLoading && sortedVisible.length === 0,
     refetch: messagesQuery.refetch,
     sendMessage,
     isSending: isStreaming,
