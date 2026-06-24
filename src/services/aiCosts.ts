@@ -3,7 +3,7 @@
 // =============================================================================
 // Toda agregação roda no banco — nunca carregamos logs brutos no client.
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/backend/client";
 
 export type AiOperation =
   | "chat"

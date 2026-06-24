@@ -456,7 +456,11 @@ export default function CaseChatPanel({ caseId }: Props) {
                 <Skeleton className="h-16 w-2/3 ml-auto" />
                 <Skeleton className="h-16 w-3/4" />
               </div>
-            ) : visibleMessages.length === 0 && !isSending && !showFallback ? (
+            ) : visibleMessages.length === 0 &&
+              !isSending &&
+              !showFallback &&
+              !streamingText &&
+              !chatError ? (
               <div className="text-center text-sm text-muted-foreground py-12">
                 Faça uma pergunta sobre o processo. Exemplo: <br />
                 <em>"Qual é o pedido principal?"</em> ou <em>"Quais são as principais teses da sentença?"</em>

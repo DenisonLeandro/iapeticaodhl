@@ -1,127 +1,106 @@
-## Diagnóstico resumido
+Aprovado com condições. Vou implementar nesta ordem, com diagnóstico antes de cada correção, e só fechar depois do teste 900x503 no processo `0000777-55.2025.5.09.0673`.
 
-O backend continua indicando que a IA responde e salva no banco: para o processo atual `9c035db9-faf4-40b4-9339-c0341c075e5f`, existem mensagens recentes de usuário e assistente em `case_chat_messages`, com conteúdo e citações. Também há registro em `ai_usage_log` com `operation='chat'`.
+## 1. Diagnosticar e corrigir o erro `Cannot read properties of null (reading 'destroy')`
 
-O sintoma descrito — aparece a pergunta em azul, a tela muda, depois “reinicia” para a tela inicial do chat sem resposta — aponta para falha de estado/renderização no frontend, não para falha da IA: o componente está deixando a lista visível depender do ciclo do React Query/refetch e do estado local efêmero do painel. Se a aba/painel remonta, se o refetch temporariamente devolve lista vazia/estado de loading, ou se a atualização direta não fica em uma fonte estável, a resposta some visualmente apesar de existir no banco.
-
-## Objetivo do hotfix definitivo
-
-Garantir a regra de produto:
-
-```text
-resposta salva/recebida da IA
-↓
-resposta imediatamente incorporada a uma fonte visual estável
-↓
-interface renderiza a resposta
-↓
-refetch apenas sincroniza, nunca apaga a resposta visível
+Pistas atuais do stack trace (já capturado em runtime errors):
+```
+TypeError: Cannot read properties of null (reading 'destroy')
+  at updateEffectImpl (react-dom)
+  at useEffect (react)
+  at useCaseChat (/src/hooks/useCaseChat.ts:107)
+  at CaseChatPanel (/src/components/cases/CaseChatPanel.tsx:392)
 ```
 
-## Plano de implementação
+Linha 107 do `useCaseChat.ts` cai no `useEffect` que reseta `visible` quando `caseId` muda (`initializedForCase.current`). Esse erro `destroy` é o React tentando rodar o cleanup do effect anterior depois que algo no estado interno do hook ficou null entre HMR/remount.
 
-### 1. Corrigir a fonte de verdade visual do chat
+Ação:
+- Auditar todos os `useEffect` de `useCaseChat` (reset por caseId, merge servidor→visible, limpeza de fallback, subscription realtime) e garantir que cada cleanup só toca refs/handles ainda não nulos (`channel?.unsubscribe?.()`, `if (ref.current) { ref.current = null }`).
+- Estabilizar a ordem dos hooks: reduzir a quantidade de `useEffect` que escrevem em `setVisible` e mover a lógica de merge para `useMemo` derivado, eliminando o effect que mais provavelmente está sofrendo HMR (linha ~107 atual).
+- Confirmar pelo console (após o fix) que o erro `destroy` não reaparece.
 
-No `src/hooks/useCaseChat.ts`:
+## 2. Unificar cliente backend e matar o alerta `Multiple GoTrueClient instances`
 
-- Trocar a dependência exclusiva de `messagesQuery.data` por um estado local estável de mensagens visíveis, por exemplo `visibleMessagesState`.
-- Quando o query carregar/refetchar, mesclar o resultado do banco com o estado local existente, em vez de substituir cegamente.
-- Quando `finalResp` chegar, inserir/atualizar a resposta nesse estado local imediatamente e também no cache do React Query com `queryClient.setQueryData`.
-- Se o refetch vier atrasado, vazio, em loading, ou sem a nova resposta por latência/RLS/realtime, ele não poderá remover a resposta já visível.
+Encontrado por busca:
+- `src/services/aiCosts.ts` ainda importa `@/integrations/supabase/client` (o cliente legado auto-gerado). Isso instancia um segundo `createClient` em paralelo ao wrapper `@/lib/backend/client`.
+- Resto do código já usa `@/lib/backend/client`.
 
-### 2. Mostrar também a pergunta do usuário de forma otimista e persistente
+Ação:
+- Trocar o import em `src/services/aiCosts.ts` para `@/lib/backend/client`.
+- Reescrever `src/integrations/supabase/client.ts` para reexportar o mesmo singleton de `@/lib/backend/client` (mantendo o caminho legado funcional, mas sem instanciar outro cliente). Esse arquivo é “auto-gerado”, mas a reexportação não altera schema/tipos — só remove o segundo `createClient`.
+- Rodar busca final e confirmar zero imports de `@/integrations/supabase/client` além do próprio arquivo de reexportação.
+- Validar no console que `Multiple GoTrueClient instances` sumiu.
 
-No `src/hooks/useCaseChat.ts`:
+## 3. Fonte visual estável por `caseId` que sobrevive a remount
 
-- Ao enviar a pergunta, criar uma mensagem local temporária do usuário com `role='user'` antes da chamada da edge.
-- Quando o banco retornar/refetchar a mensagem real do usuário, deduplicar por conteúdo + janela de tempo ou substituir a temporária.
-- Isso evita o efeito “pergunta aparece em azul e depois reinicia/some”.
+Hoje `visible` é `useState` dentro do hook — some no unmount do painel.
 
-### 3. Deduplicação robusta
+Ação:
+- Criar um store de módulo simples (`src/hooks/caseChatStore.ts`) com um `Map<caseId, CaseChatMessage[]>` + `Set<listener>`, expondo `getSnapshot`, `setMessages`, `subscribe`.
+- Usar `useSyncExternalStore` em `useCaseChat` para ler/escrever no store, sobrevivendo a remount do `CaseChatPanel`.
+- Mesclar servidor → store via `useEffect` separado, sem nunca apagar locais (mesma função `mergeServerWithLocal`).
+- Pergunta otimista (`temp-user-*`) e resposta `upsertAssistantFromFinal` escrevem direto no store + `queryClient.setQueryData`.
 
-Implementar uma função única de merge/dedup para mensagens:
+Regra garantida:
+```
+pergunta azul aparece → store persiste → remount/refetch não apagam
+finalResp / mensagem do banco → store + cache atualizam → renderiza
+```
 
-- Deduplicar assistente por `id === assistantMessageId`.
-- Deduplicar usuário temporário com a mensagem persistida por `role='user'`, mesmo conteúdo normalizado e proximidade temporal.
-- Ordenar sempre por `created_at ASC` com desempate por `id`.
-- Preservar metadados, citações, `organization_id`, `is_pinned` e feedback quando existirem.
+## 4. Pergunta otimista persistente
 
-### 4. Garantir que o streaming não desapareça antes da resposta final
+- `sendMessage` adiciona `temp-user-*` no store imediatamente (já existe; agora sobrevive a remount).
+- `mergeServerWithLocal` continua deduplicando por normalização de conteúdo + janela de 60s, e remove o `temp-user-*` quando a versão persistida aparece.
+- Em caso de erro do stream, mantém a pergunta visível com o card de erro abaixo.
 
-No envio:
+## 5. Resposta da IA imediatamente visível
 
-- Manter `streamingText` até a resposta final ter sido promovida para o estado visual estável.
-- Só limpar `streamingText` depois que `finalResp` foi inserido no estado local/cache ou fallback foi armado.
-- Em caso de erro, manter a pergunta local e mostrar erro abaixo, sem reiniciar a conversa.
+- `finalResp` → `upsertAssistantFromFinal` no store → `queryClient.setQueryData` → `invalidateQueries`.
+- `assistantFallback` continua, mas só é exibido quando o id ainda não está em `visible`; é limpo assim que a versão persistida aparece.
+- `invalidateQueries` nunca apaga visível porque o merge preserva mensagens locais.
 
-### 5. Simplificar o fallback temporário
+## 6. Empty state seguro no `CaseChatPanel`
 
-O fallback deve ser apenas rede de segurança:
+Alterar a condição atual:
+```ts
+visibleMessages.length === 0 && !isSending && !showFallback
+```
+para também considerar `streamingText`, `chatError`, e qualquer item já em cache. Enquanto qualquer um desses existir, não renderiza o empty state.
 
-- Renderizar somente se a resposta final existe mas ainda não está no estado visual estável.
-- Sumir automaticamente quando o estado visual contém a mensagem do assistente.
-- Nunca substituir a lista principal nem gerar duplicidade.
+## 7. Testes obrigatórios via Playwright
 
-### 6. Evitar “tela inicial” durante refetch
+Viewport `900x503`, processo `0000777-55.2025.5.09.0673` (`/cases/9c035db9-faf4-40b4-9339-c0341c075e5f`):
 
-No `CaseChatPanel.tsx`:
+1. Abrir Chat IA avançado.
+2. Enviar pergunta real: “Qual o valor atualizado no processo e quais os próximos passos?”.
+3. Conferir visualmente (screenshots): pergunta azul permanece, não volta para empty, resposta aparece, citações aparecem, feedback aparece, composer acessível, sem duplicidade.
+4. Coletar console: sem `destroy`, sem `Multiple GoTrueClient instances`.
+5. Conferir `ai_usage_log operation='chat'` para a pergunta recém-enviada.
+6. Reload da página → reabrir Chat IA avançado → confirmar histórico carregado.
 
-- Renderizar a lista estável retornada pelo hook, não uma lista que pode zerar durante refetch.
-- Mostrar skeleton apenas no carregamento inicial real, quando ainda não há mensagens locais/visíveis.
-- Não mostrar o empty state (“Faça uma pergunta...”) se existe pergunta local, streaming, fallback, erro ou mensagem já recebida.
+## 8. Não tocar no backend
 
-### 7. Revisar remounts e aba ampla
+Nada de: edge `case-chat`, RAG, embeddings, pipeline, migrations, RLS, telemetria, geração de peças, PR-4.1.
 
-No `CaseDetailPage.tsx` e `CaseChatPanel.tsx`:
+## Detalhes técnicos
 
-- Confirmar que o botão “Conversar com IA” continua apenas abrindo a aba ampla `chat-advanced`, sem drawer.
-- Confirmar que a troca/atualização de estado não desmonta o chat durante a resposta.
-- Se necessário, manter o painel de chat com `key` estável por `caseId`, não por estados transitórios.
+Arquivos alterados:
+- `src/services/aiCosts.ts` — troca de import.
+- `src/integrations/supabase/client.ts` — reexporta singleton.
+- `src/hooks/caseChatStore.ts` — novo store por `caseId`.
+- `src/hooks/useCaseChat.ts` — store via `useSyncExternalStore`, cleanups defensivos, menos effects.
+- `src/components/cases/CaseChatPanel.tsx` — empty state seguro.
 
-### 8. Instrumentação segura para provar o fluxo
+Critério final de “concluído”:
+```
+✔ erro destroy ausente
+✔ alerta GoTrue ausente
+✔ pergunta azul persistente
+✔ resposta visível
+✔ resposta sobrevive a refetch
+✔ histórico sobrevive a reload
+✔ backend intocado
+```
 
-Manter/ajustar logs sanitizados com a flag `CASE_CHAT_DEBUG`:
+## Relatório final
 
-- `send_start`
-- `optimistic_user_added`
-- `finalResp_received`
-- `local_visible_upsert_done`
-- `cache_setQueryData_done`
-- `invalidate_done`
-- `refetch_merged_preserved_local`
-
-Sem logar conteúdo jurídico completo, tokens ou dados sensíveis.
-
-### 9. Validação visual real
-
-Depois de aprovado e implementado, executar Playwright em viewport `900×503` no processo atual do preview e validar:
-
-- pergunta aparece em azul;
-- estado “Pensando…”/streaming aparece;
-- resposta aparece visualmente na aba Chat IA avançado;
-- a tela não volta para o empty state;
-- fallback não fica duplicado;
-- após refetch a resposta continua visível;
-- citações aparecem;
-- botões de feedback aparecem;
-- campo de pergunta continua acessível;
-- `ai_usage_log` registra `operation='chat'`;
-- nenhuma edge function, RAG, pipeline, migration, RLS ou telemetria é alterada.
-
-## Arquivos a alterar
-
-- `src/hooks/useCaseChat.ts` — correção principal: estado visual estável, merge/dedup, optimistic user, promoção de `finalResp`.
-- `src/components/cases/CaseChatPanel.tsx` — renderização usando lista estável e empty/loading states seguros.
-
-## Arquivos a não alterar
-
-- `supabase/functions/case-chat/index.ts`
-- RAG/embeddings/pipeline
-- migrations/RLS
-- telemetria
-- geração de peças
-- PR-4.1
-
-## Resultado esperado
-
-A resposta da IA não dependerá mais de `invalidateQueries`/refetch para aparecer e não será apagada por remount/refetch. Mesmo em viewport pequeno, a experiência deve permanecer: pergunta visível, resposta visível, citações e feedback visíveis, composer acessível.
+Será entregue ao final com: origem exata do erro `destroy`, arquivo/linha corrigidos, imports antigos encontrados e migrados, status do alerta GoTrue, mecanismo de persistência da pergunta otimista, mecanismo de persistência da resposta, sobrevivência a remount, resultado pós-reload, evidências do teste 900x503, confirmação de backend intocado.
