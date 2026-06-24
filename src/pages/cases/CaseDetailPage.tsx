@@ -27,7 +27,7 @@ import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import CaseCostsTab from "@/components/cases/CaseCostsTab";
 import CaseWorkbench from "@/components/cases/CaseWorkbench";
-import CaseChatDrawer from "@/components/cases/CaseChatDrawer";
+
 import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
 
 function DetailSkeleton() {
@@ -55,7 +55,7 @@ type TabValue =
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [editOpen, setEditOpen] = useState(false);
-  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<TabValue>("principal");
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -178,7 +178,7 @@ export default function CaseDetailPage() {
           <CaseWorkbench
             caseData={caseData}
             documents={documents}
-            onOpenChat={() => setChatDrawerOpen(true)}
+            onOpenChat={() => setActiveTab("chat-advanced")}
           />
         </TabsContent>
 
@@ -202,9 +202,11 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
-        {/* Abas ocultas — acessadas pelo menu "Mais opções" */}
+        {/* Abas ocultas — acessadas pelo card "Conversar com IA" e pelo menu "Mais opções" */}
         <TabsContent value="chat-advanced" className="mt-6">
-          <CaseChatPanel caseId={caseData.id} />
+          <div className="mx-auto w-full max-w-5xl">
+            <CaseChatPanel caseId={caseData.id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="technical" className="mt-6">
@@ -221,12 +223,6 @@ export default function CaseDetailPage() {
           </TabsContent>
         )}
       </Tabs>
-
-      <CaseChatDrawer
-        caseId={caseData.id}
-        open={chatDrawerOpen}
-        onOpenChange={setChatDrawerOpen}
-      />
     </div>
   );
 }
