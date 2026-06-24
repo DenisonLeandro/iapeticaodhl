@@ -202,9 +202,11 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
-        {/* Abas ocultas — acessadas pelo menu "Mais opções" */}
+        {/* Abas ocultas — acessadas pelo card "Conversar com IA" e pelo menu "Mais opções" */}
         <TabsContent value="chat-advanced" className="mt-6">
-          <CaseChatPanel caseId={caseData.id} />
+          <div className="mx-auto w-full max-w-5xl">
+            <CaseChatPanel caseId={caseData.id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="technical" className="mt-6">
@@ -221,12 +223,6 @@ export default function CaseDetailPage() {
           </TabsContent>
         )}
       </Tabs>
-
-      <CaseChatDrawer
-        caseId={caseData.id}
-        open={chatDrawerOpen}
-        onOpenChange={setChatDrawerOpen}
-      />
     </div>
   );
 }
