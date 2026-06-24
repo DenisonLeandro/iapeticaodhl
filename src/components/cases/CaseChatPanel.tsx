@@ -456,14 +456,14 @@ export default function CaseChatPanel({ caseId }: Props) {
                 <Skeleton className="h-16 w-2/3 ml-auto" />
                 <Skeleton className="h-16 w-3/4" />
               </div>
-            ) : messages.length === 0 && !isSending ? (
+            ) : visibleMessages.length === 0 && !isSending && !showFallback ? (
               <div className="text-center text-sm text-muted-foreground py-12">
                 Faça uma pergunta sobre o processo. Exemplo: <br />
                 <em>"Qual é o pedido principal?"</em> ou <em>"Quais são as principais teses da sentença?"</em>
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map((m) => (
+                {visibleMessages.map((m) => (
                   <MessageBubble
                     key={m.id}
                     message={m}
@@ -494,6 +494,23 @@ export default function CaseChatPanel({ caseId }: Props) {
                     </div>
                   </div>
                 )}
+
+                {showFallback && assistantFallback && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Resposta recebida
+                      </p>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{assistantFallback.content}</ReactMarkdown>
+                      </div>
+                      {assistantFallback.citations.length > 0 && (
+                        <CitationsBlock citations={assistantFallback.citations} />
+                      )}
+                    </div>
+                  </div>
+                )}
+
 
                 {chatError && !isSending && (
                   <div className="flex justify-start">
