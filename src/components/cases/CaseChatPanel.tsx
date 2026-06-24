@@ -309,6 +309,7 @@ export default function CaseChatPanel({ caseId }: Props) {
     isSubmittingFeedback,
     chatError,
     clearChatError,
+    assistantFallback,
   } = useCaseChat(caseId);
 
   const feedbackByMsg = useMemo(() => {
@@ -322,9 +323,24 @@ export default function CaseChatPanel({ caseId }: Props) {
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
 
+  // Ordenação determinística (ASC) com desempate por id.
+  const visibleMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const da = new Date(a.created_at).getTime();
+      const db = new Date(b.created_at).getTime();
+      if (da !== db) return da - db;
+      return a.id.localeCompare(b.id);
+    });
+  }, [messages]);
+
+  // Fallback só aparece se o id ainda não está em visibleMessages — evita duplicidade.
+  const showFallback =
+    !!assistantFallback &&
+    !visibleMessages.some((m) => m.id === assistantFallback.assistantMessageId);
+
   const pinnedMessages = useMemo(
-    () => messages.filter((m) => m.is_pinned && m.role === "assistant"),
-    [messages],
+    () => visibleMessages.filter((m) => m.is_pinned && m.role === "assistant"),
+    [visibleMessages],
   );
 
   useEffect(() => {
