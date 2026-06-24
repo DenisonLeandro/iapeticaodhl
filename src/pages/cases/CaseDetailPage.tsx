@@ -55,7 +55,7 @@ type TabValue =
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [editOpen, setEditOpen] = useState(false);
-  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<TabValue>("principal");
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
