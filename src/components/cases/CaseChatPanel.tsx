@@ -350,20 +350,18 @@ export default function CaseChatPanel({ caseId }: Props) {
 
   useEffect(() => {
     ccdLog("panel", "state", {
-      messages_count: messages.length,
+      messages_count: visibleMessages.length,
       isSending,
       streamingText_len: streamingText.length,
       chatError_set: !!chatError,
+      showFallback,
     });
-  }, [messages.length, isSending, streamingText, chatError]);
+  }, [visibleMessages.length, isSending, streamingText, chatError, showFallback]);
 
   useEffect(() => {
-    // Sempre rolar para o fim quando: novas mensagens chegam, durante streaming,
-    // quando o streaming termina (messages.length cresce) ou aparece erro.
-    // `auto` durante streaming evita "jank"; `smooth` para o estado final.
     const behavior: ScrollBehavior = isSending ? "auto" : "smooth";
     scrollEndRef.current?.scrollIntoView({ behavior, block: "end" });
-  }, [messages.length, isSending, streamingText, chatError]);
+  }, [visibleMessages.length, isSending, streamingText, chatError, showFallback]);
 
   useEffect(() => {
     if (!isSending) textareaRef.current?.focus();
