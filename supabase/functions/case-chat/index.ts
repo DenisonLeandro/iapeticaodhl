@@ -259,7 +259,7 @@ Deno.serve(async (req) => {
       const queries = [body.message];
       queriesUsed = queries;
       embedTokensApprox = Math.ceil(body.message.length / 4);
-      const queryVec = await callEmbedding(body.message, key);
+      const queryVec = await callEmbedding(body.message, key!);
       const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
         p_case_id: caseRow.id,
         p_query_embedding: queryVec,
@@ -286,7 +286,7 @@ Deno.serve(async (req) => {
         queriesUsed = queries;
         embedTokensApprox = queries.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
 
-        const vectors = await Promise.all(queries.map((q) => callEmbedding(q, key)));
+        const vectors = await Promise.all(queries.map((q) => callEmbedding(q, key!)));
         const buckets = await Promise.all(
           vectors.map((vec) =>
             supabase.rpc("match_case_chunks", {
