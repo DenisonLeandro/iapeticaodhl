@@ -582,11 +582,19 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           metadata: {
             embedding_model: EMBEDDING_MODEL,
             embedding_tokens_approx: embedTokensApprox,
-            top_k: TOP_K_FINAL,
+            top_k: strategyUsed === "pedidos_iniciais" ? TOP_K_FINAL_PEDIDOS : TOP_K_FINAL,
             chunks_retrieved: chunksArr.length,
             chunks_retrieved_raw: chunksAll.length,
             embedding_time_ms: embedMs,
+            intent: strategyUsed === "default" ? null : "pedidos_iniciais",
+            strategy: strategyUsed,
+            queries_count: queriesUsed.length,
+            initial_files_count: initialFileIds.size,
+            integral_pedidos_section: strategyUsed === "pedidos_iniciais"
+              ? hasIntegralPedidosSection(chunksArr)
+              : null,
           },
+
         });
 
         controller.close();
