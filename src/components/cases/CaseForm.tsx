@@ -118,21 +118,24 @@ export default function CaseForm({
 
   const onSubmit = async (values: CaseFormValues) => {
     try {
+      const isPre = values.case_kind === "pre_processual";
+      const noun = isPre ? "Caso" : "Processo";
       if (isEditing && editCase) {
         await updateCase({ caseId: editCase.id, values });
-        toast.success("Processo atualizado com sucesso");
+        toast.success(`${noun} atualizado com sucesso`);
       } else {
         await createCase(values);
-        toast.success("Processo cadastrado com sucesso");
+        toast.success(`${noun} cadastrado com sucesso`);
       }
       form.reset();
       setOpen(false);
       onSuccess?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Erro ao salvar processo";
+      const message = error instanceof Error ? error.message : "Erro ao salvar";
       toast.error(message);
     }
   };
+
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
