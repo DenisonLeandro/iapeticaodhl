@@ -494,7 +494,12 @@ export default function CaseForm({
                 {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
+                {isEditing
+                  ? "Salvar Alterações"
+                  : isPreProcessual
+                    ? "Cadastrar Caso"
+                    : "Cadastrar Processo"}
+
               </Button>
             </DialogFooter>
           </form>
