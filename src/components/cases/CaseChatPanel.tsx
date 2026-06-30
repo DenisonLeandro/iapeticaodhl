@@ -649,40 +649,6 @@ export default function CaseChatPanel({ caseId }: Props) {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="hidden lg:flex h-[640px] flex-col">
-        <CardContent className="p-0 flex flex-col h-full min-h-0">
-          <div className="border-b px-4 py-3 flex items-center gap-2">
-            <Pin className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold">Mensagens fixadas</p>
-          </div>
-          <ScrollArea className="flex-1 px-3 py-3">
-            {pinnedMessages.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                Nenhuma mensagem fixada ainda. Use "Fixar" em uma análise para mantê-la
-                priorizada no contexto futuro.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {pinnedMessages.map((m) => (
-                  <div key={m.id} className="rounded border bg-muted/30 p-2 text-xs">
-                    <div className="line-clamp-6 whitespace-pre-wrap">{m.content}</div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-1 h-6 px-1 text-[10px]"
-                      onClick={() => handleTogglePin(m)}
-                    >
-                      <PinOff className="mr-1 h-3 w-3" /> Desfixar
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
     </div>
   );
 }
