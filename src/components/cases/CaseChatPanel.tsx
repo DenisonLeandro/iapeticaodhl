@@ -502,7 +502,9 @@ export default function CaseChatPanel({ caseId }: Props) {
                     <div className="space-y-2 p-2">
                       {pinnedMessages.map((m) => (
                         <div key={m.id} className="rounded border bg-muted/30 p-2 text-xs">
-                          <div className="line-clamp-6 whitespace-pre-wrap">{m.content}</div>
+                          <div className={`line-clamp-6 ${ASSISTANT_MD_CLASS}`} style={{ hyphens: "auto" }}>
+                            <ReactMarkdown>{m.content}</ReactMarkdown>
+                          </div>
                           <Button
                             type="button"
                             variant="ghost"
