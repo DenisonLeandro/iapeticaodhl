@@ -73,6 +73,8 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
   const { data: files = [] } = useCaseFiles(caseData.id);
   const [placeholder, setPlaceholder] = useState<Placeholder>(null);
   const { analysis, isLoading: analysisLoading, isRunning, generate } = useCaseAnalysis(caseData.id);
+  const { intake } = useCaseIntake(caseData.id, caseData.client_id);
+
 
   const hasClient = !!caseData.client_id;
   const documentsReady = files.filter((f) => f.pipeline_stage === "done").length;
