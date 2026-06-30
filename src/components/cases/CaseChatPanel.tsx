@@ -249,13 +249,19 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-lg border px-4 py-3 ${
+        className={`${isUser ? "max-w-[85%]" : "max-w-[92%]"} rounded-lg border px-4 py-4 ${
           isUser
             ? "bg-primary text-primary-foreground border-primary/30"
             : "bg-card text-card-foreground"
         }`}
       >
-        <div className={`prose prose-sm max-w-none ${isUser ? "prose-invert" : "dark:prose-invert"}`}>
+        <div
+          className={
+            isUser
+              ? "prose prose-sm prose-invert max-w-none leading-relaxed [&_p]:my-1.5 [&_p:last-child]:mb-0 [&_p:first-child]:mt-0"
+              : "prose prose-sm dark:prose-invert max-w-none leading-relaxed [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1 [&_li>p]:my-0 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_strong]:font-semibold [&_strong]:text-foreground [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.85em]"
+          }
+        >
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
@@ -295,6 +301,10 @@ function MessageBubble({
     </div>
   );
 }
+
+// Classe reutilizável para markdown do assistant (streaming/fallback).
+const ASSISTANT_MD_CLASS =
+  "prose prose-sm dark:prose-invert max-w-none leading-relaxed [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1 [&_li>p]:my-0 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_strong]:font-semibold [&_strong]:text-foreground";
 
 export default function CaseChatPanel({ caseId }: Props) {
   const { toast } = useToast();
