@@ -188,15 +188,31 @@ export default function CasesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cases.map((caseItem) => (
+                {cases.map((caseItem) => {
+                  const hasNumber = !!caseItem.case_number?.trim();
+                  const primary = hasNumber
+                    ? caseItem.case_number
+                    : caseItem.subject || "Caso em preparação";
+                  return (
                   <TableRow
                     key={caseItem.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => navigate(`/cases/${caseItem.id}`)}
                   >
                     <TableCell className="font-medium">
-                      {caseItem.case_number}
+                      <div className="flex flex-col gap-1">
+                        <span>{primary}</span>
+                        {!hasNumber && (
+                          <Badge
+                            variant="outline"
+                            className="w-fit border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          >
+                            Caso em preparação
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
+
                     <TableCell className="text-muted-foreground">
                       {caseItem.client_name ?? "—"}
                     </TableCell>
