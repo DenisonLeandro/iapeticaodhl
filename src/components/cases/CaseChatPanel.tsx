@@ -462,19 +462,62 @@ export default function CaseChatPanel({ caseId }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+    <div className="w-full">
       {/* Altura responsiva: usa 100dvh em telas baixas para nunca cortar o composer
-          nem esconder a resposta atrás do scroll externo. lg mantém 640px fixo. */}
+          nem esconder a resposta atrás do scroll externo. */}
       <Card className="flex flex-col h-[calc(100dvh-180px)] min-h-[440px] max-h-[760px] lg:h-[640px]">
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Chat de análise do processo</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 Análise e estratégia, com citações dos autos. Não gera peças.
               </p>
             </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Pin className="mr-1 h-3.5 w-3.5" />
+                  Fixadas{pinnedMessages.length > 0 ? ` (${pinnedMessages.length})` : ""}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="border-b px-3 py-2 flex items-center gap-2">
+                  <Pin className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-xs font-semibold">Mensagens fixadas</p>
+                </div>
+                {pinnedMessages.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-muted-foreground">
+                    Nenhuma mensagem fixada.
+                  </p>
+                ) : (
+                  <ScrollArea className="max-h-80">
+                    <div className="space-y-2 p-2">
+                      {pinnedMessages.map((m) => (
+                        <div key={m.id} className="rounded border bg-muted/30 p-2 text-xs">
+                          <div className="line-clamp-6 whitespace-pre-wrap">{m.content}</div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1 h-6 px-1 text-[10px]"
+                            onClick={() => handleTogglePin(m)}
+                          >
+                            <PinOff className="mr-1 h-3 w-3" /> Desfixar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
 
           <ScrollArea className="flex-1 px-4 py-4">
