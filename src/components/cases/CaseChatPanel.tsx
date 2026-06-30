@@ -32,6 +32,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/backend/client";
@@ -244,13 +249,19 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-lg border px-4 py-3 ${
+        className={`${isUser ? "max-w-[85%]" : "max-w-[92%]"} rounded-lg border px-4 py-4 ${
           isUser
             ? "bg-primary text-primary-foreground border-primary/30"
             : "bg-card text-card-foreground"
         }`}
       >
-        <div className={`prose prose-sm max-w-none ${isUser ? "prose-invert" : "dark:prose-invert"}`}>
+        <div
+          className={
+            isUser
+              ? "prose prose-sm prose-invert max-w-none leading-relaxed [&_p]:my-1.5 [&_p:last-child]:mb-0 [&_p:first-child]:mt-0"
+              : "prose prose-sm dark:prose-invert max-w-none leading-relaxed [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1 [&_li>p]:my-0 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_strong]:font-semibold [&_strong]:text-foreground [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.85em]"
+          }
+        >
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
@@ -290,6 +301,10 @@ function MessageBubble({
     </div>
   );
 }
+
+// Classe reutilizável para markdown do assistant (streaming/fallback).
+const ASSISTANT_MD_CLASS =
+  "prose prose-sm dark:prose-invert max-w-none leading-relaxed [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1 [&_li>p]:my-0 [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_strong]:font-semibold [&_strong]:text-foreground";
 
 export default function CaseChatPanel({ caseId }: Props) {
   const { toast } = useToast();
@@ -447,19 +462,62 @@ export default function CaseChatPanel({ caseId }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+    <div className="w-full">
       {/* Altura responsiva: usa 100dvh em telas baixas para nunca cortar o composer
-          nem esconder a resposta atrás do scroll externo. lg mantém 640px fixo. */}
+          nem esconder a resposta atrás do scroll externo. */}
       <Card className="flex flex-col h-[calc(100dvh-180px)] min-h-[440px] max-h-[760px] lg:h-[640px]">
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden min-h-0">
           <div className="border-b px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Chat de análise do processo</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 Análise e estratégia, com citações dos autos. Não gera peças.
               </p>
             </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Pin className="mr-1 h-3.5 w-3.5" />
+                  Fixadas{pinnedMessages.length > 0 ? ` (${pinnedMessages.length})` : ""}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="border-b px-3 py-2 flex items-center gap-2">
+                  <Pin className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-xs font-semibold">Mensagens fixadas</p>
+                </div>
+                {pinnedMessages.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-muted-foreground">
+                    Nenhuma mensagem fixada.
+                  </p>
+                ) : (
+                  <ScrollArea className="max-h-80">
+                    <div className="space-y-2 p-2">
+                      {pinnedMessages.map((m) => (
+                        <div key={m.id} className="rounded border bg-muted/30 p-2 text-xs">
+                          <div className="line-clamp-6 whitespace-pre-wrap">{m.content}</div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1 h-6 px-1 text-[10px]"
+                            onClick={() => handleTogglePin(m)}
+                          >
+                            <PinOff className="mr-1 h-3 w-3" /> Desfixar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
 
           <ScrollArea className="flex-1 px-4 py-4">
@@ -494,9 +552,9 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {isSending && (
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
                       {streamingText ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className={ASSISTANT_MD_CLASS}>
                           <ReactMarkdown>{streamingText}</ReactMarkdown>
                         </div>
                       ) : (
@@ -514,11 +572,11 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {showFallback && assistantFallback && (
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Resposta recebida
                       </p>
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <div className={ASSISTANT_MD_CLASS}>
                         <ReactMarkdown>{assistantFallback.content}</ReactMarkdown>
                       </div>
                       {assistantFallback.citations.length > 0 && (
@@ -589,40 +647,6 @@ export default function CaseChatPanel({ caseId }: Props) {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="hidden lg:flex h-[640px] flex-col">
-        <CardContent className="p-0 flex flex-col h-full min-h-0">
-          <div className="border-b px-4 py-3 flex items-center gap-2">
-            <Pin className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold">Mensagens fixadas</p>
-          </div>
-          <ScrollArea className="flex-1 px-3 py-3">
-            {pinnedMessages.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                Nenhuma mensagem fixada ainda. Use "Fixar" em uma análise para mantê-la
-                priorizada no contexto futuro.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {pinnedMessages.map((m) => (
-                  <div key={m.id} className="rounded border bg-muted/30 p-2 text-xs">
-                    <div className="line-clamp-6 whitespace-pre-wrap">{m.content}</div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-1 h-6 px-1 text-[10px]"
-                      onClick={() => handleTogglePin(m)}
-                    >
-                      <PinOff className="mr-1 h-3 w-3" /> Desfixar
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
         </CardContent>
       </Card>
     </div>

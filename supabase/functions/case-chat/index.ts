@@ -43,7 +43,19 @@ REGRAS OBRIGATÓRIAS DE CAUTELA JURÍDICA:
 7. Quando faltar documento relevante, marque como "Documento ausente sugerido" para o advogado.
 8. Considere o histórico recente da conversa para resolver referências (ex.: "ele", "essa tese", "esse documento").
 
-FORMATO DA RESPOSTA: texto em markdown, com seções curtas quando útil. Não retorne JSON. Não invente links.`;
+FORMATO DA RESPOSTA:
+- Markdown enxuto e bem espaçado.
+- Use títulos curtos (### Título) quando houver mais de um tópico.
+- Prefira bullets curtos a parágrafos longos; parágrafos de até 3 linhas.
+- Use **negrito** para destacar termos-chave.
+- Para perguntas objetivas (ex.: número do processo, partes), responda com títulos curtos + valor abaixo. Exemplo:
+  ### Número do processo
+  0000000-00.0000.0.00.0000
+  ### Partes
+  - Autor: ...
+  - Ré: ...
+- Quando útil, encerre com uma seção curta "### Conclusão" objetiva.
+- Não retorne JSON. Não invente links.`;
 
 interface UIMessage {
   role: "user" | "assistant" | "system";
