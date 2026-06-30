@@ -467,8 +467,9 @@ Deno.serve(async (req) => {
       "",
       `Retorne APENAS o JSON no formato exigido. Estrutura: ${STRUCTURE}`,
     ]
-      .filter((x) => x !== null && x !== "" ? true : x === "")
+      .filter((x): x is string => typeof x === "string" && x.length > 0)
       .join("\n");
+
 
 
     // 5. Chama o modelo
