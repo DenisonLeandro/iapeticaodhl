@@ -106,6 +106,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     defaultValues: EMPTY,
   });
 
+  const [isPrefilling, setIsPrefilling] = useState(false);
+  const [pendingPrefill, setPendingPrefill] = useState<{
+    values: Partial<CaseIntakeFormValues>;
+    conflicts: (keyof CaseIntakeFormValues)[];
+  } | null>(null);
+
   // Hidrata o form quando intake chega
   useEffect(() => {
     if (intake) {
