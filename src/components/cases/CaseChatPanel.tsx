@@ -521,7 +521,39 @@ export default function CaseChatPanel({ caseId }: Props) {
             </Popover>
           </div>
 
-          <ScrollArea className="flex-1 px-4 py-4">
+          <ScrollArea
+            className="chat-scroll flex-1 px-4 py-4 outline-none focus-visible:ring-1 focus-visible:ring-primary/30 rounded-md"
+            tabIndex={0}
+            aria-label="Conversa do Chat IA"
+            onKeyDown={(e) => {
+              const target = e.target as HTMLElement;
+              const tag = target.tagName;
+              if (tag === "TEXTAREA" || tag === "INPUT" || target.isContentEditable) return;
+              const viewport = e.currentTarget.querySelector<HTMLElement>(
+                "[data-radix-scroll-area-viewport]",
+              );
+              if (!viewport) return;
+              const page = Math.max(40, viewport.clientHeight * 0.9);
+              switch (e.key) {
+                case "ArrowDown":
+                  viewport.scrollBy({ top: 60, behavior: "smooth" }); break;
+                case "ArrowUp":
+                  viewport.scrollBy({ top: -60, behavior: "smooth" }); break;
+                case "PageDown":
+                case " ":
+                  viewport.scrollBy({ top: page, behavior: "smooth" }); break;
+                case "PageUp":
+                  viewport.scrollBy({ top: -page, behavior: "smooth" }); break;
+                case "Home":
+                  viewport.scrollTo({ top: 0, behavior: "smooth" }); break;
+                case "End":
+                  viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" }); break;
+                default:
+                  return;
+              }
+              e.preventDefault();
+            }}
+          >
             {isLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-16 w-3/4" />
