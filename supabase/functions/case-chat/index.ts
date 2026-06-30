@@ -5,6 +5,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import {
+  hasProcessualFiles as hasProcessualFilesFn,
+  resolveIntent,
+  filterFileIds,
+  type LegalIntent,
+} from "./legal-intents.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
