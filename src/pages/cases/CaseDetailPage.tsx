@@ -165,6 +165,9 @@ export default function CaseDetailPage() {
           <TabsTrigger value="principal" data-tab-trigger="principal">
             Principal
           </TabsTrigger>
+          <TabsTrigger value="intake" data-tab-trigger="intake">
+            Ficha
+          </TabsTrigger>
           <TabsTrigger value="documents" data-tab-trigger="documents">
             Documentos
           </TabsTrigger>
@@ -184,6 +187,13 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
+        <TabsContent value="intake" className="mt-6">
+          <CaseIntakeForm
+            caseData={caseData}
+            onAnalyzed={() => setActiveTab("principal")}
+          />
+        </TabsContent>
+
         <TabsContent value="documents" className="mt-6">
           <CaseFilesSection
             caseId={caseData.id}
@@ -191,6 +201,7 @@ export default function CaseDetailPage() {
             variant="simple"
           />
         </TabsContent>
+
 
         <TabsContent value="pieces" className="mt-6">
           <CaseDocuments documents={documents} isLoading={documentsLoading} />
