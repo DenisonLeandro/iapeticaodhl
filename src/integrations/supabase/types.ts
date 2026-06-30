@@ -374,9 +374,9 @@ export type Database = {
         Row: {
           assigned_to: string | null
           branch: string | null
-          case_number: string
+          case_number: string | null
           client_id: string | null
-          court: string
+          court: string | null
           created_at: string
           executive_summary: Json | null
           executive_summary_updated_at: string | null
@@ -392,9 +392,9 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           branch?: string | null
-          case_number: string
+          case_number?: string | null
           client_id?: string | null
-          court: string
+          court?: string | null
           created_at?: string
           executive_summary?: Json | null
           executive_summary_updated_at?: string | null
@@ -410,9 +410,9 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           branch?: string | null
-          case_number?: string
+          case_number?: string | null
           client_id?: string | null
-          court?: string
+          court?: string | null
           created_at?: string
           executive_summary?: Json | null
           executive_summary_updated_at?: string | null
