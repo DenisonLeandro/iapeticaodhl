@@ -315,6 +315,148 @@ export type Database = {
           },
         ]
       }
+      case_intake_forms: {
+        Row: {
+          ai_complementary_questions: Json | null
+          ai_initial_risks: Json | null
+          ai_missing_information: Json | null
+          ai_next_steps: Json | null
+          ai_recommended_documents: Json | null
+          ai_suggested_area: string | null
+          ai_suggested_at: string | null
+          ai_suggested_subtype: string | null
+          amount_involved: string | null
+          case_id: string
+          client_goal: string | null
+          client_goal_other: string | null
+          client_id: string | null
+          client_story: string | null
+          created_at: string
+          created_by: string | null
+          deadline_date: string | null
+          existing_case_number: string | null
+          existing_documents: string | null
+          facts_location: string | null
+          facts_period: string | null
+          has_existing_lawsuit: boolean | null
+          id: string
+          internal_notes: string | null
+          legal_area: string | null
+          legal_area_other: string | null
+          missing_documents: string | null
+          opposing_party: string | null
+          organization_id: string
+          other_evidence: string | null
+          problem_summary: string | null
+          represented_party: string | null
+          updated_at: string
+          updated_by: string | null
+          uploaded_documents_notes: string | null
+          urgency: string | null
+          witnesses: string | null
+        }
+        Insert: {
+          ai_complementary_questions?: Json | null
+          ai_initial_risks?: Json | null
+          ai_missing_information?: Json | null
+          ai_next_steps?: Json | null
+          ai_recommended_documents?: Json | null
+          ai_suggested_area?: string | null
+          ai_suggested_at?: string | null
+          ai_suggested_subtype?: string | null
+          amount_involved?: string | null
+          case_id: string
+          client_goal?: string | null
+          client_goal_other?: string | null
+          client_id?: string | null
+          client_story?: string | null
+          created_at?: string
+          created_by?: string | null
+          deadline_date?: string | null
+          existing_case_number?: string | null
+          existing_documents?: string | null
+          facts_location?: string | null
+          facts_period?: string | null
+          has_existing_lawsuit?: boolean | null
+          id?: string
+          internal_notes?: string | null
+          legal_area?: string | null
+          legal_area_other?: string | null
+          missing_documents?: string | null
+          opposing_party?: string | null
+          organization_id: string
+          other_evidence?: string | null
+          problem_summary?: string | null
+          represented_party?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_documents_notes?: string | null
+          urgency?: string | null
+          witnesses?: string | null
+        }
+        Update: {
+          ai_complementary_questions?: Json | null
+          ai_initial_risks?: Json | null
+          ai_missing_information?: Json | null
+          ai_next_steps?: Json | null
+          ai_recommended_documents?: Json | null
+          ai_suggested_area?: string | null
+          ai_suggested_at?: string | null
+          ai_suggested_subtype?: string | null
+          amount_involved?: string | null
+          case_id?: string
+          client_goal?: string | null
+          client_goal_other?: string | null
+          client_id?: string | null
+          client_story?: string | null
+          created_at?: string
+          created_by?: string | null
+          deadline_date?: string | null
+          existing_case_number?: string | null
+          existing_documents?: string | null
+          facts_location?: string | null
+          facts_period?: string | null
+          has_existing_lawsuit?: boolean | null
+          id?: string
+          internal_notes?: string | null
+          legal_area?: string | null
+          legal_area_other?: string | null
+          missing_documents?: string | null
+          opposing_party?: string | null
+          organization_id?: string
+          other_evidence?: string | null
+          problem_summary?: string | null
+          represented_party?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_documents_notes?: string | null
+          urgency?: string | null
+          witnesses?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_intake_forms_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_intake_forms_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_intake_forms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_movements: {
         Row: {
           case_id: string
