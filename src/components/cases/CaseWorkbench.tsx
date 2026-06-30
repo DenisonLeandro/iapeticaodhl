@@ -24,6 +24,9 @@ import ComingSoonDialog from "./ComingSoonDialog";
 
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
+import { useCaseIntake } from "@/hooks/useCaseIntake";
+import CaseIntakeStatus from "./CaseIntakeStatus";
+
 
 interface Props {
   caseData: CaseWithRelations;
