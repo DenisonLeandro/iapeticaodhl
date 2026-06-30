@@ -5,7 +5,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Save, Sparkles, Wand2 } from "lucide-react";
+import { Download, Loader2, Save, Sparkles, Wand2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { buildIntakePrefill } from "@/services/caseIntakePrefill";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
