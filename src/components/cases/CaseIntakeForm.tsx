@@ -5,7 +5,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Save, Sparkles, Wand2 } from "lucide-react";
+import { Download, Loader2, Save, Sparkles, Wand2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { buildIntakePrefill } from "@/services/caseIntakePrefill";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +105,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     resolver: zodResolver(caseIntakeFormSchema),
     defaultValues: EMPTY,
   });
+
+  const [isPrefilling, setIsPrefilling] = useState(false);
+  const [pendingPrefill, setPendingPrefill] = useState<{
+    values: Partial<CaseIntakeFormValues>;
+    conflicts: (keyof CaseIntakeFormValues)[];
+  } | null>(null);
 
   // Hidrata o form quando intake chega
   useEffect(() => {
@@ -191,6 +208,59 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     toast.success("Área aplicada à ficha. Lembre-se de salvar.");
   }
 
+  function applyPrefillValues(values: Partial<CaseIntakeFormValues>, mode: "fill-empty" | "overwrite") {
+    const current = form.getValues();
+    let applied = 0;
+    (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
+      const incoming = values[k];
+      if (incoming === undefined || incoming === null || incoming === "") return;
+      const existing = current[k];
+      const isEmpty =
+        existing === undefined ||
+        existing === null ||
+        (typeof existing === "string" && existing.trim() === "");
+      if (mode === "fill-empty" && !isEmpty) return;
+      // setValue com cast genérico — campos compatíveis com Partial<CaseIntakeFormValues>
+      form.setValue(k, incoming as never, { shouldDirty: true });
+      applied += 1;
+    });
+    if (applied === 0) {
+      toast.message("Nenhum campo novo para preencher.");
+    } else {
+      toast.success(`Importação concluída: ${applied} campo(s) preenchido(s). Revise antes de salvar.`);
+    }
+  }
+
+  async function handleImportExisting() {
+    setIsPrefilling(true);
+    try {
+      const result = await buildIntakePrefill(caseData.id, caseData.client_id);
+      if (result.filledFields.length === 0) {
+        toast.message("Não encontramos ficha ou relato anterior para importar.");
+        return;
+      }
+      const current = form.getValues();
+      const conflicts = result.filledFields.filter((k) => {
+        const existing = current[k];
+        return (
+          existing !== undefined &&
+          existing !== null &&
+          !(typeof existing === "string" && existing.trim() === "")
+        );
+      });
+      if (conflicts.length === 0) {
+        applyPrefillValues(result.values, "fill-empty");
+      } else {
+        setPendingPrefill({ values: result.values, conflicts });
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "Falha ao importar dados existentes.");
+    } finally {
+      setIsPrefilling(false);
+    }
+  }
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
@@ -232,6 +302,19 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
           {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
           Salvar e analisar com IA
         </Button>
+        <Button
+          variant="outline"
+          onClick={handleImportExisting}
+          disabled={isPrefilling || isSaving}
+          title="Importa dados já existentes do caso (assunto, parte contrária, interações, análise anterior, documentos)"
+        >
+          {isPrefilling ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          Preencher com dados existentes
+        </Button>
         <Button variant="outline" onClick={handleSuggest} disabled={isSaving || isSuggesting}>
           {isSuggesting ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -241,6 +324,46 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
           Sugerir área e perguntas complementares
         </Button>
       </div>
+
+      {/* Diálogo de conflito ao importar */}
+      <AlertDialog
+        open={!!pendingPrefill}
+        onOpenChange={(open) => {
+          if (!open) setPendingPrefill(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir campos já preenchidos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encontramos dados existentes para campos que você já preencheu manualmente:
+              <strong className="ml-1">{pendingPrefill?.conflicts.join(", ")}</strong>.
+              <br />
+              Você pode preencher apenas os campos vazios (recomendado) ou substituir o conteúdo
+              atual pelos dados importados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "fill-empty");
+                setPendingPrefill(null);
+              }}
+            >
+              Preencher só os vazios
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "overwrite");
+                setPendingPrefill(null);
+              }}
+            >
+              Substituir tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Sugestões da IA (cache persistido) */}
       <CaseIntakeAISuggestions
