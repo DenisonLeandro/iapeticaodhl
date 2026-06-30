@@ -1,19 +1,24 @@
 // =============================================================================
-// CaseAnalysisPanel — PR-4.1A
-// Exibe a análise inicial estruturada. Sem termos técnicos para o advogado.
+// CaseAnalysisPanel — PR-4.1A.1
+// Refinamento visual: Conclusão estratégica no topo, ordem orientada à decisão,
+// checklist de documentos faltantes, fontes recolhidas e botão Copiar enriquecido.
 // =============================================================================
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardCopy,
+  Compass,
   FileSearch,
   FileText,
   Loader2,
   MessageSquare,
   RefreshCw,
   Sparkles,
+  Square,
   Target,
   TriangleAlert,
 } from "lucide-react";
@@ -31,12 +36,30 @@ interface Props {
   onRegenerate: () => void;
 }
 
-function confidenceBadge(level: string) {
+const FALLBACK = "Não identificado na análise.";
+
+function normalizeLevel(level: string): "alta" | "media" | "baixa" | "indef" {
   const l = (level || "").toLowerCase();
-  if (l.startsWith("alt")) return { label: "Confiança alta", cls: "bg-green-600 text-white" };
-  if (l.startsWith("méd") || l.startsWith("med"))
-    return { label: "Confiança média", cls: "bg-yellow-500 text-black" };
-  return { label: "Confiança baixa", cls: "bg-gray-500 text-white" };
+  if (l.startsWith("alt")) return "alta";
+  if (l.startsWith("méd") || l.startsWith("med")) return "media";
+  if (l.startsWith("baix") || l.startsWith("low")) return "baixa";
+  return "indef";
+}
+
+function confidenceBadge(level: string) {
+  const n = normalizeLevel(level);
+  if (n === "alta") return { label: "Confiança alta", cls: "bg-emerald-600 text-white" };
+  if (n === "media") return { label: "Confiança média", cls: "bg-amber-500 text-black" };
+  if (n === "baixa") return { label: "Confiança baixa", cls: "bg-muted text-muted-foreground" };
+  return { label: "Confiança não definida", cls: "bg-muted text-muted-foreground" };
+}
+
+function viabilityFromConfidence(level: string): { label: string; tone: "pos" | "warn" | "neg" | "neutral" } {
+  const n = normalizeLevel(level);
+  if (n === "alta") return { label: "Alta", tone: "pos" };
+  if (n === "media") return { label: "Média", tone: "warn" };
+  if (n === "baixa") return { label: "Baixa", tone: "neg" };
+  return { label: FALLBACK, tone: "neutral" };
 }
 
 function ListCard({
@@ -54,10 +77,12 @@ function ListCard({
 }) {
   const toneCls =
     tone === "positive"
-      ? "text-green-600"
+      ? "text-emerald-600"
       : tone === "warning"
         ? "text-amber-600"
         : "text-primary";
+  const dotCls =
+    tone === "positive" ? "bg-emerald-600" : tone === "warning" ? "bg-amber-600" : "bg-primary";
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="mb-3 flex items-center gap-2">
@@ -67,10 +92,10 @@ function ListCard({
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyText}</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {items.map((it, i) => (
             <li key={i} className="flex gap-2 text-sm leading-relaxed">
-              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${toneCls === "text-green-600" ? "bg-green-600" : toneCls === "text-amber-600" ? "bg-amber-600" : "bg-primary"}`} />
+              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotCls}`} />
               <span className="text-foreground/90">{it}</span>
             </li>
           ))}
@@ -80,41 +105,164 @@ function ListCard({
   );
 }
 
+function MissingDocsCard({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <h3 className="font-display text-sm font-semibold">Documentos faltantes</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Nenhum documento faltante essencial foi identificado nesta análise preliminar.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <h3 className="font-display text-sm font-semibold">Documentos faltantes</h3>
+      </div>
+      <ul className="space-y-2.5">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm leading-relaxed">
+            <Square className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span className="text-foreground/90">{it}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+interface SourceItem {
+  file_name?: string;
+  file_id?: string;
+  page_number?: number | string;
+  document_type?: string;
+  classification?: string;
+}
+
+function SourcesBlock({ sources }: { sources: SourceItem[] }) {
+  const [open, setOpen] = useState(false);
+  if (!sources || sources.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <FileText className="mr-2 h-3.5 w-3.5" />
+        {open ? `Ocultar fontes (${sources.length})` : `Ver fontes consideradas (${sources.length})`}
+        {open ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />}
+      </Button>
+      {open && (
+        <ul className="mt-3 space-y-1.5 text-xs">
+          {sources.map((s, i) => {
+            const name = s.file_name || s.file_id || `Fonte ${i + 1}`;
+            const tag = s.document_type || s.classification;
+            return (
+              <li key={i} className="flex flex-wrap items-center gap-2 rounded border border-border/60 bg-muted/30 px-2 py-1.5">
+                <FileText className="h-3 w-3 text-muted-foreground" />
+                <span className="font-medium text-foreground/90">{name}</span>
+                {s.page_number !== undefined && s.page_number !== null && (
+                  <Badge variant="outline" className="border-border text-[10px]">
+                    pág. {String(s.page_number)}
+                  </Badge>
+                )}
+                {tag && (
+                  <Badge variant="outline" className="border-border text-[10px]">
+                    {tag}
+                  </Badge>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function buildClipboard(a: CaseAnalysis): string {
   const c = a.content_json;
+  const v = viabilityFromConfidence(c.confidence_level);
   const sec = (title: string, body: string | string[]) => {
-    const text = Array.isArray(body) ? body.map((x) => `- ${x}`).join("\n") : body;
-    if (!text || (Array.isArray(body) && body.length === 0)) return "";
-    return `## ${title}\n${text}\n`;
+    if (Array.isArray(body)) {
+      if (body.length === 0) return "";
+      return `## ${title}\n${body.map((x) => `- ${x}`).join("\n")}\n`;
+    }
+    if (!body) return "";
+    return `## ${title}\n${body}\n`;
   };
+  const conclusao =
+    `## Conclusão estratégica\n` +
+    `- Viabilidade: ${v.label}\n` +
+    `- Próxima providência: ${c.next_action || FALLBACK}\n` +
+    `- Peça recomendada: ${c.recommended_piece || FALLBACK}\n` +
+    `- Nível de confiança: ${c.confidence_level || FALLBACK}\n`;
   return [
     "# Análise inicial do caso",
+    conclusao,
     sec("Resumo", c.summary),
-    sec("Tipo de demanda", c.case_type),
-    sec("Parte representada", c.represented_party),
-    sec("Fatos", c.facts),
+    sec("Próxima ação sugerida", c.next_action),
+    sec("Peça recomendada", c.recommended_piece),
     sec("Pontos fortes", c.strengths),
     sec("Riscos", c.risks),
+    sec("Fatos relevantes", c.facts),
+    sec("Teses jurídicas", c.legal_theories),
     sec("Documentos relevantes", c.relevant_documents),
     sec("Documentos faltantes", c.missing_documents),
-    sec("Teses jurídicas", c.legal_theories),
-    sec("Próxima ação", c.next_action),
-    sec("Peça recomendada", c.recommended_piece),
-    sec("Nível de confiança", c.confidence_level),
-    sec("Observações para revisão", c.human_review_notes),
+    sec("Observações para revisão humana", c.human_review_notes),
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function StrategyRow({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "pos" | "warn" | "neg" | "neutral";
+}) {
+  const toneCls =
+    tone === "pos"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : tone === "warn"
+        ? "text-amber-700 dark:text-amber-400"
+        : tone === "neg"
+          ? "text-red-700 dark:text-red-400"
+          : "text-foreground/90";
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className={`mt-1 text-sm leading-snug ${toneCls}`}>{value}</p>
+    </div>
+  );
 }
 
 export default function CaseAnalysisPanel({
   analysis,
   isLoading,
   isRunning,
-  onGenerate,
+  onGenerate: _onGenerate,
   onRegenerate,
 }: Props) {
   const [copying, setCopying] = useState(false);
+
+  const sources = useMemo<SourceItem[]>(() => {
+    const meta = (analysis?.metadata ?? {}) as { sources?: unknown };
+    return Array.isArray(meta.sources) ? (meta.sources as SourceItem[]) : [];
+  }, [analysis]);
 
   if (isLoading) {
     return (
@@ -182,13 +330,14 @@ export default function CaseAnalysisPanel({
 
   const c = analysis.content_json;
   const conf = confidenceBadge(c.confidence_level);
-  const meta = analysis.metadata as { limitation?: boolean; strategy?: string } | undefined;
+  const viab = viabilityFromConfidence(c.confidence_level);
+  const meta = analysis.metadata as { limitation?: boolean } | undefined;
 
   const copy = async () => {
     setCopying(true);
     try {
       await navigator.clipboard.writeText(buildClipboard(analysis));
-      toast.success("Análise copiada.");
+      toast.success("Análise copiada para a área de transferência.");
     } catch {
       toast.error("Não foi possível copiar.");
     } finally {
@@ -202,7 +351,9 @@ export default function CaseAnalysisPanel({
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-display text-lg font-semibold text-foreground">Análise inicial do caso</h2>
+            <h2 className="font-display text-lg font-semibold text-foreground">
+              Análise inicial do caso
+            </h2>
             <Badge className={`${conf.cls} border-transparent`}>{conf.label}</Badge>
             {c.case_type && (
               <Badge variant="outline" className="border-border">
@@ -227,9 +378,9 @@ export default function CaseAnalysisPanel({
             <ClipboardCopy className="mr-2 h-3.5 w-3.5" />
             Copiar
           </Button>
-          <Button size="sm" variant="ghost" disabled title="Em breve">
+          <Button size="sm" variant="ghost" disabled title="Disponível em próxima etapa.">
             <MessageSquare className="mr-2 h-3.5 w-3.5" />
-            Conversar sobre esta análise
+            Conversar sobre esta análise — em breve
           </Button>
         </div>
       </div>
@@ -237,10 +388,33 @@ export default function CaseAnalysisPanel({
       {meta?.limitation && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
-          Os documentos foram identificados, mas ainda não há texto extraído suficiente para uma
-          análise completa. Esta é uma análise preliminar.
+          Análise preliminar: ainda não há documentos/texto suficiente para conclusão completa.
         </div>
       )}
+
+      {/* Conclusão estratégica */}
+      <div className="rounded-xl border border-primary/40 bg-primary/5 p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Compass className="h-4 w-4 text-primary" />
+          <h3 className="font-display text-sm font-semibold">Conclusão estratégica</h3>
+        </div>
+        <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <StrategyRow label="Viabilidade" value={viab.label} tone={viab.tone} />
+          <StrategyRow
+            label="Próxima providência"
+            value={c.next_action || FALLBACK}
+            tone={c.next_action ? "neutral" : "neutral"}
+          />
+          <StrategyRow
+            label="Peça recomendada"
+            value={c.recommended_piece || FALLBACK}
+          />
+          <StrategyRow
+            label="Nível de confiança"
+            value={c.confidence_level || FALLBACK}
+          />
+        </div>
+      </div>
 
       {/* Resumo */}
       {c.summary && (
@@ -279,20 +453,8 @@ export default function CaseAnalysisPanel({
         </div>
       )}
 
-      {/* Listas */}
+      {/* Listas — ordem orientada à decisão */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <ListCard
-          title="Fatos relevantes"
-          icon={FileText}
-          items={c.facts}
-          emptyText="Sem fatos consolidados."
-        />
-        <ListCard
-          title="Teses jurídicas"
-          icon={Sparkles}
-          items={c.legal_theories}
-          emptyText="Sem teses sugeridas ainda."
-        />
         <ListCard
           title="Pontos fortes"
           icon={CheckCircle2}
@@ -308,18 +470,24 @@ export default function CaseAnalysisPanel({
           tone="warning"
         />
         <ListCard
+          title="Fatos relevantes"
+          icon={FileText}
+          items={c.facts}
+          emptyText="Sem fatos consolidados."
+        />
+        <ListCard
+          title="Teses jurídicas"
+          icon={Sparkles}
+          items={c.legal_theories}
+          emptyText="Sem teses sugeridas ainda."
+        />
+        <ListCard
           title="Documentos relevantes"
           icon={FileText}
           items={c.relevant_documents}
           emptyText="Sem documentos destacados."
         />
-        <ListCard
-          title="Documentos faltantes"
-          icon={AlertTriangle}
-          items={c.missing_documents}
-          emptyText="Sem lacunas identificadas."
-          tone="warning"
-        />
+        <MissingDocsCard items={c.missing_documents} />
       </div>
 
       {c.human_review_notes.length > 0 && (
@@ -327,13 +495,18 @@ export default function CaseAnalysisPanel({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Observações para revisão humana
           </p>
-          <ul className="space-y-1 text-sm text-foreground/80">
+          <ul className="space-y-1.5 text-sm text-foreground/80">
             {c.human_review_notes.map((n, i) => (
-              <li key={i}>• {n}</li>
+              <li key={i} className="flex gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                <span>{n}</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
+
+      <SourcesBlock sources={sources} />
     </div>
   );
 }
