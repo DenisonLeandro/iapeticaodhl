@@ -241,8 +241,8 @@ Deno.serve(async (req) => {
     if (createErr || !createdRow) throw new Error(`create_analysis: ${createErr?.message ?? "unknown"}`);
     analysisId = createdRow.id as string;
 
-    // 3. Cliente + interações + arquivos
-    const [clientResp, interactionsResp, filesResp] = await Promise.all([
+    // 3. Cliente + interações + arquivos + ficha inteligente
+    const [clientResp, interactionsResp, filesResp, intakeResp] = await Promise.all([
       caseRow.client_id
         ? supabase
             .from("clients")
@@ -264,7 +264,14 @@ Deno.serve(async (req) => {
           "id, file_name, classification, document_kind, pipeline_stage, extracted_text, page_count, parent_file_id",
         )
         .eq("case_id", caseRow.id),
+      supabase
+        .from("case_intake_forms")
+        .select("*")
+        .eq("case_id", caseRow.id)
+        .maybeSingle(),
     ]);
+    const intake = (intakeResp as { data: Record<string, unknown> | null }).data;
+
 
     const client = (clientResp as { data: Record<string, unknown> | null }).data;
     const interactions = ((interactionsResp as { data: unknown[] }).data ?? []) as Array<{
