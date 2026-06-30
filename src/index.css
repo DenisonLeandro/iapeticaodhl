@@ -115,6 +115,32 @@
 }
 
 /* =============================================================================
+ * Chat IA — scrollbar visível (escopo local)
+ * ============================================================================= */
+
+.chat-scroll [data-radix-scroll-area-viewport] {
+  scrollbar-gutter: stable;
+}
+.chat-scroll [data-radix-scroll-area-scrollbar] {
+  width: 10px;
+  padding: 2px;
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.chat-scroll [data-radix-scroll-area-scrollbar]:hover {
+  background: hsl(var(--muted) / 0.6);
+}
+.chat-scroll [data-radix-scroll-area-thumb] {
+  background: hsl(var(--primary) / 0.45);
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.chat-scroll [data-radix-scroll-area-thumb]:hover {
+  background: hsl(var(--primary) / 0.7);
+}
+
+/* =============================================================================
  * Legal Editor — TipTap styling (Story 2.3)
  * ============================================================================= */
 
