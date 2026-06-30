@@ -92,9 +92,13 @@ export default function CaseForm({
   const isSubmitting = isCreating || isUpdating;
 
 
+  const initialKind: "judicial" | "pre_processual" =
+    editCase && !editCase.case_number?.trim() ? "pre_processual" : "judicial";
+
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(caseFormSchema),
     defaultValues: {
+      case_kind: initialKind,
       case_number: editCase?.case_number ?? "",
       court: editCase?.court ?? "",
       branch: editCase?.branch ?? "",
@@ -107,6 +111,10 @@ export default function CaseForm({
         (editCase?.represented_party as CaseFormValues["represented_party"]) ?? "autor",
     },
   });
+
+  const caseKind = form.watch("case_kind");
+  const isPreProcessual = caseKind === "pre_processual";
+
 
   const onSubmit = async (values: CaseFormValues) => {
     try {
