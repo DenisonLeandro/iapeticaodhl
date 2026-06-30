@@ -241,8 +241,8 @@ Deno.serve(async (req) => {
     if (createErr || !createdRow) throw new Error(`create_analysis: ${createErr?.message ?? "unknown"}`);
     analysisId = createdRow.id as string;
 
-    // 3. Cliente + interações + arquivos
-    const [clientResp, interactionsResp, filesResp] = await Promise.all([
+    // 3. Cliente + interações + arquivos + ficha inteligente
+    const [clientResp, interactionsResp, filesResp, intakeResp] = await Promise.all([
       caseRow.client_id
         ? supabase
             .from("clients")
@@ -264,7 +264,14 @@ Deno.serve(async (req) => {
           "id, file_name, classification, document_kind, pipeline_stage, extracted_text, page_count, parent_file_id",
         )
         .eq("case_id", caseRow.id),
+      supabase
+        .from("case_intake_forms")
+        .select("*")
+        .eq("case_id", caseRow.id)
+        .maybeSingle(),
     ]);
+    const intake = (intakeResp as { data: Record<string, unknown> | null }).data;
+
 
     const client = (clientResp as { data: Record<string, unknown> | null }).data;
     const interactions = ((interactionsResp as { data: unknown[] }).data ?? []) as Array<{
@@ -415,6 +422,29 @@ Deno.serve(async (req) => {
         ? `TRECHOS DOS DOCUMENTOS:\n\n${contextBlocks.join("\n\n---\n\n")}`
         : "TRECHOS DOS DOCUMENTOS: (indisponíveis)";
 
+    // Bloco da Ficha Inteligente (somente se existir)
+    let fichaBlock = "";
+    if (intake) {
+      const f = intake as Record<string, unknown>;
+      const get = (k: string) => (typeof f[k] === "string" ? (f[k] as string) : null);
+      fichaBlock = [
+        "[FICHA DO CASO] (preenchida pelo advogado — observações internas são confidenciais)",
+        `- Área provável informada: ${get("legal_area") ?? "—"}${get("legal_area_other") ? ` / ${get("legal_area_other")}` : ""}`,
+        `- Parte representada: ${get("represented_party") ?? "—"}`,
+        `- Parte contrária: ${get("opposing_party") ?? "—"}`,
+        `- Resumo do problema: ${truncate(get("problem_summary"), 800) || "—"}`,
+        `- Relato do cliente: ${truncate(get("client_story"), 4000) || "—"}`,
+        `- Objetivo do cliente: ${get("client_goal") ?? "—"}${get("client_goal_other") ? ` (${get("client_goal_other")})` : ""}`,
+        `- Urgência: ${get("urgency") ?? "—"}; Prazo: ${get("deadline_date") ?? "—"}`,
+        `- Período dos fatos: ${get("facts_period") ?? "—"}; Local: ${get("facts_location") ?? "—"}; Valores: ${get("amount_involved") ?? "—"}`,
+        `- Documentos existentes (relato): ${truncate(get("existing_documents"), 600) || "—"}`,
+        `- Documentos faltantes percebidos: ${truncate(get("missing_documents"), 600) || "—"}`,
+        `- Testemunhas: ${truncate(get("witnesses"), 400) || "—"}`,
+        `- Outras provas: ${truncate(get("other_evidence"), 400) || "—"}`,
+        `- Observações INTERNAS do advogado (não citar literalmente na análise): ${truncate(get("internal_notes"), 600) || "—"}`,
+      ].join("\n");
+    }
+
     const userPrompt = [
       "Produza a análise inicial estruturada do caso a seguir.",
       "",
@@ -423,6 +453,8 @@ Deno.serve(async (req) => {
       "",
       clientBlock,
       "",
+      fichaBlock,
+      fichaBlock ? "" : null,
       "INTERAÇÕES COM O CLIENTE:",
       interactionsText,
       "",
@@ -435,8 +467,10 @@ Deno.serve(async (req) => {
       "",
       `Retorne APENAS o JSON no formato exigido. Estrutura: ${STRUCTURE}`,
     ]
-      .filter(Boolean)
+      .filter((x): x is string => typeof x === "string" && x.length > 0)
       .join("\n");
+
+
 
     // 5. Chama o modelo
     const llmStart = Date.now();

@@ -24,6 +24,9 @@ import ComingSoonDialog from "./ComingSoonDialog";
 
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
+import { useCaseIntake } from "@/hooks/useCaseIntake";
+import CaseIntakeStatus from "./CaseIntakeStatus";
+
 
 interface Props {
   caseData: CaseWithRelations;
@@ -70,6 +73,8 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
   const { data: files = [] } = useCaseFiles(caseData.id);
   const [placeholder, setPlaceholder] = useState<Placeholder>(null);
   const { analysis, isLoading: analysisLoading, isRunning, generate } = useCaseAnalysis(caseData.id);
+  const { intake } = useCaseIntake(caseData.id, caseData.client_id);
+
 
   const hasClient = !!caseData.client_id;
   const documentsReady = files.filter((f) => f.pipeline_stage === "done").length;
@@ -109,6 +114,25 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
         lastUpdate={lastUpdate}
         suggestion={suggestion}
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-medium">Ficha do caso:</span>
+          <CaseIntakeStatus values={intake} />
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            document.querySelector<HTMLElement>('[data-tab-trigger="intake"]')?.click()
+          }
+        >
+          Abrir ficha
+          <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <CaseActionCard

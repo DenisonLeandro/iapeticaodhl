@@ -27,6 +27,7 @@ import CaseForm from "@/components/cases/CaseForm";
 import CaseChatPanel from "@/components/cases/CaseChatPanel";
 import CaseCostsTab from "@/components/cases/CaseCostsTab";
 import CaseWorkbench from "@/components/cases/CaseWorkbench";
+import CaseIntakeForm from "@/components/cases/CaseIntakeForm";
 
 import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
 
@@ -45,6 +46,7 @@ function DetailSkeleton() {
 
 type TabValue =
   | "principal"
+  | "intake"
   | "documents"
   | "pieces"
   | "history"
@@ -163,6 +165,9 @@ export default function CaseDetailPage() {
           <TabsTrigger value="principal" data-tab-trigger="principal">
             Principal
           </TabsTrigger>
+          <TabsTrigger value="intake" data-tab-trigger="intake">
+            Ficha
+          </TabsTrigger>
           <TabsTrigger value="documents" data-tab-trigger="documents">
             Documentos
           </TabsTrigger>
@@ -182,6 +187,13 @@ export default function CaseDetailPage() {
           />
         </TabsContent>
 
+        <TabsContent value="intake" className="mt-6">
+          <CaseIntakeForm
+            caseData={caseData}
+            onAnalyzed={() => setActiveTab("principal")}
+          />
+        </TabsContent>
+
         <TabsContent value="documents" className="mt-6">
           <CaseFilesSection
             caseId={caseData.id}
@@ -189,6 +201,7 @@ export default function CaseDetailPage() {
             variant="simple"
           />
         </TabsContent>
+
 
         <TabsContent value="pieces" className="mt-6">
           <CaseDocuments documents={documents} isLoading={documentsLoading} />
