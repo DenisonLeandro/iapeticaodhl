@@ -216,7 +216,7 @@ export default function CasesPage() {
                     <TableCell className="text-muted-foreground">
                       {caseItem.client_name ?? "—"}
                     </TableCell>
-                    <TableCell>{caseItem.court}</TableCell>
+                    <TableCell>{caseItem.court ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {caseItem.branch ?? "—"}
                     </TableCell>
@@ -233,7 +233,9 @@ export default function CasesPage() {
                       {caseItem.lawyer_name ?? "—"}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
+
               </TableBody>
             </Table>
           </div>
