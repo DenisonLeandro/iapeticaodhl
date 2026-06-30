@@ -22,13 +22,16 @@ import CaseActionCard from "./CaseActionCard";
 import CaseStatusPanel from "./CaseStatusPanel";
 import ComingSoonDialog from "./ComingSoonDialog";
 
+import CaseAnalysisPanel from "./CaseAnalysisPanel";
+import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
+
 interface Props {
   caseData: CaseWithRelations;
   documents: CaseDocument[];
   onOpenChat: () => void;
 }
 
-type Placeholder = null | "analyze" | "review";
+type Placeholder = null | "review";
 
 const STAGE_LABEL: Record<string, string> = {
   done: "Pronto",
