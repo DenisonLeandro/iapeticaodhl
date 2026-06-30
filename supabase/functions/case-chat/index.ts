@@ -5,6 +5,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import {
+  hasProcessualFiles as hasProcessualFilesFn,
+  resolveIntent,
+  filterFileIds,
+  type LegalIntent,
+} from "./legal-intents.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,47 +25,12 @@ const EMBEDDING_VERSION = "gemini-embedding-001@v1";
 const EMBEDDING_DIMS = 1536;
 const TOP_K_FINAL = 6;
 const TOP_K_FETCH = 12; // busca mais para sobrar para a deduplicação
-const TOP_K_FINAL_PEDIDOS = 10; // modo pedidos da inicial: cobertura contígua
+// TOP_K por intent é definido em legal-intents.ts (topKFetch/topKFinal).
 const HISTORY_RECENT_LIMIT = 6;
 const HISTORY_PINNED_LIMIT = 6;
 const CHUNK_MAX_CHARS = 1500;
 
-const INITIAL_PETITION_CLASSIFICATIONS = new Set([
-  "peticao_inicial",
-  "reclamacao_trabalhista",
-  "inicial",
-]);
-
-const PEDIDOS_QUERIES_BASE = [
-  "pedidos formulados na petição inicial, requerimentos finais",
-  "diante do exposto, requer-se condenação da ré",
-  "verbas pleiteadas, justiça gratuita, honorários sucumbenciais",
-];
-
-function stripDiacritics(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-/** Detecta intenção "pedidos da petição inicial". Conservador para evitar falso positivo. */
-function detectPedidosIniciaisIntent(message: string): boolean {
-  const m = stripDiacritics((message || "").toLowerCase());
-  // Combinações explícitas e suficientes por si só:
-  const strong = [
-    /\bpedidos?\b.*\b(inicial|petic|autor|reclamante|formulad)/,
-    /\b(inicial|petic\w*)\b.*\bpedidos?\b/,
-    /\brol\s+de\s+pedidos\b/,
-    /\bo\s+que\s+(se\s+pede|foi\s+pedido|a\s+inicial\s+pede)\b/,
-    /\brequerimentos?\b.*\b(inicial|autor|reclamante|petic)/,
-    /\bpetic\w*\s+inicial\b.*\b(pede|pedidos?|requer)/,
-  ];
-  return strong.some((re) => re.test(m));
-}
-
-/** Heurística: a seção "Diante do exposto/Ante o exposto/Isso posto" + "pedid" está presente nos trechos? */
-function hasIntegralPedidosSection(chunks: Chunk[]): boolean {
-  const re = /(diante do (?:todo )?exposto|ante o exposto|isso posto)/i;
-  return chunks.some((c) => re.test(c.content) && /pedid/i.test(c.content));
-}
+// (Detectores e classificações de intents moveram-se para ./legal-intents.ts)
 
 
 
@@ -259,75 +230,38 @@ Deno.serve(async (req) => {
       })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    // 4. Embedding + busca semântica (com fetch extra para deduplicar)
-    const intentPedidos = detectPedidosIniciaisIntent(body.message);
-    const initialFileIds = new Set<string>(
-      (filesDone ?? [])
-        .filter((f) => INITIAL_PETITION_CLASSIFICATIONS.has((f.classification ?? "") as string))
-        .map((f) => f.id as string),
-    );
-    const useFocusedMode = intentPedidos && initialFileIds.size > 0;
+    // 4. Detecção de intenção jurídica + recuperação dirigida (PR-4.2A)
+    const filesMeta = filesDone.map((f) => ({
+      id: f.id as string,
+      classification: (f.classification ?? null) as string | null,
+    }));
+    const ctxHasProcessual = hasProcessualFilesFn(filesMeta);
+    const hasCaseNumber = !!(caseRow.case_number && String(caseRow.case_number).trim());
+    const detectedIntent: LegalIntent | null = resolveIntent(body.message, {
+      hasCaseNumber,
+      filesDone: filesMeta,
+      hasProcessualFiles: ctxHasProcessual,
+    });
 
     const embedStart = Date.now();
     let embedTokensApprox = 0;
     let queriesUsed: string[] = [];
     let chunksAll: Chunk[] = [];
     let chunksArr: Chunk[] = [];
-    let strategyUsed: "default" | "pedidos_iniciais" | "pedidos_iniciais_fallback" = "default";
+    let strategyUsed: string = "default";
+    let fallbackUsed = false;
+    let partialResponse = false;
+    let integralSectionPresent: boolean | undefined = undefined;
+    let targetFilesCount = 0;
+    let preProcessualContextStr: string | null = null;
 
-    if (useFocusedMode) {
-      strategyUsed = "pedidos_iniciais";
-      queriesUsed = [...PEDIDOS_QUERIES_BASE, body.message];
-      embedTokensApprox = queriesUsed.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
-
-      const vectors = await Promise.all(queriesUsed.map((q) => callEmbedding(q, key)));
-      const buckets = await Promise.all(
-        vectors.map((vec) =>
-          supabase.rpc("match_case_chunks", {
-            p_case_id: caseRow.id,
-            p_query_embedding: vec,
-            p_match_count: TOP_K_FETCH,
-            p_embedding_version: EMBEDDING_VERSION,
-          }),
-        ),
-      );
-
-      const seenIds = new Set<string>();
-      const merged: Chunk[] = [];
-      for (const b of buckets) {
-        if (b.error) throw new Error(`match_case_chunks: ${b.error.message}`);
-        for (const c of (b.data ?? []) as Chunk[]) {
-          if (!initialFileIds.has(c.file_id)) continue;
-          if (seenIds.has(c.id)) continue;
-          seenIds.add(c.id);
-          merged.push(c);
-        }
-      }
-
-      if (merged.length === 0) {
-        // Fallback seguro: cai para o fluxo padrão se o filtro zerar.
-        strategyUsed = "pedidos_iniciais_fallback";
-        const fallbackVec = vectors[vectors.length - 1]; // já é a query original
-        const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
-          p_case_id: caseRow.id,
-          p_query_embedding: fallbackVec,
-          p_match_count: TOP_K_FETCH,
-          p_embedding_version: EMBEDDING_VERSION,
-        });
-        if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
-        chunksAll = (chunksRaw ?? []) as Chunk[];
-        chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
-      } else {
-        merged.sort((a, b) => (a.page_from ?? 0) - (b.page_from ?? 0));
-        chunksAll = merged;
-        chunksArr = merged.slice(0, TOP_K_FINAL_PEDIDOS);
-      }
-    } else {
-      queriesUsed = [body.message];
+    async function runDefaultRetrieval(): Promise<void> {
+      const queries = [body.message];
+      queriesUsed = queries;
       embedTokensApprox = Math.ceil(body.message.length / 4);
-      const queryVec = await callEmbedding(body.message, key);
+      const queryVec = await callEmbedding(body.message, key!);
       const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
-        p_case_id: caseRow.id,
+        p_case_id: caseRow!.id,
         p_query_embedding: queryVec,
         p_match_count: TOP_K_FETCH,
         p_embedding_version: EMBEDDING_VERSION,
@@ -336,6 +270,118 @@ Deno.serve(async (req) => {
       chunksAll = (chunksRaw ?? []) as Chunk[];
       chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
     }
+
+    if (detectedIntent) {
+      strategyUsed = detectedIntent.id;
+      const targetIds = filterFileIds(filesMeta, detectedIntent.targetClassifications);
+      targetFilesCount = targetIds.size;
+
+      // Para intent processual: se não há arquivos compatíveis, fallback puro.
+      if (detectedIntent.mode === "processual" && targetFilesCount === 0) {
+        fallbackUsed = true;
+        partialResponse = true;
+        await runDefaultRetrieval();
+      } else {
+        const queries = [...detectedIntent.queries, body.message];
+        queriesUsed = queries;
+        embedTokensApprox = queries.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
+
+        const vectors = await Promise.all(queries.map((q) => callEmbedding(q, key!)));
+        const buckets = await Promise.all(
+          vectors.map((vec) =>
+            supabase.rpc("match_case_chunks", {
+              p_case_id: caseRow!.id,
+              p_query_embedding: vec,
+              p_match_count: detectedIntent.topKFetch,
+              p_embedding_version: EMBEDDING_VERSION,
+            }),
+          ),
+        );
+
+        const seenIds = new Set<string>();
+        const merged: Chunk[] = [];
+        const filterByTarget = detectedIntent.targetClassifications.length > 0;
+        for (const b of buckets) {
+          if (b.error) throw new Error(`match_case_chunks: ${b.error.message}`);
+          for (const c of (b.data ?? []) as Chunk[]) {
+            if (filterByTarget && !targetIds.has(c.file_id)) continue;
+            if (seenIds.has(c.id)) continue;
+            seenIds.add(c.id);
+            merged.push(c);
+          }
+        }
+
+        if (merged.length === 0) {
+          // Fallback seguro: cai para fluxo padrão e marca parcialidade.
+          fallbackUsed = true;
+          partialResponse = true;
+          const fallbackVec = vectors[vectors.length - 1];
+          const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
+            p_case_id: caseRow!.id,
+            p_query_embedding: fallbackVec,
+            p_match_count: TOP_K_FETCH,
+            p_embedding_version: EMBEDDING_VERSION,
+          });
+          if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
+          chunksAll = (chunksRaw ?? []) as Chunk[];
+          chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
+        } else {
+          merged.sort((a, b) => {
+            if (a.file_id !== b.file_id) return a.file_id.localeCompare(b.file_id);
+            return (a.page_from ?? 0) - (b.page_from ?? 0);
+          });
+          chunksAll = merged;
+          chunksArr = merged.slice(0, detectedIntent.topKFinal);
+        }
+
+        // Heurística de parcialidade (ex.: presença da seção "Diante do exposto").
+        if (detectedIntent.partialityCheck) {
+          integralSectionPresent = detectedIntent.partialityCheck(
+            chunksArr.map((c) => ({ content: c.content, page_from: c.page_from })),
+          );
+          if (!integralSectionPresent) partialResponse = true;
+        }
+      }
+
+      // Pré-processual: monta P3 (ficha/interações/lista) quando RAG é raso.
+      if (detectedIntent.mode === "pre_processual" && chunksArr.length < 3) {
+        try {
+          const lines: string[] = [];
+          if (caseRow.subject) lines.push(`Assunto declarado: ${caseRow.subject}`);
+          if (caseRow.opposing_party) lines.push(`Parte contrária declarada: ${caseRow.opposing_party}`);
+          if (caseRow.client_id) {
+            const { data: interactions } = await supabase
+              .from("client_interactions")
+              .select("kind, content, created_at")
+              .eq("client_id", caseRow.client_id)
+              .order("created_at", { ascending: false })
+              .limit(8);
+            if (interactions?.length) {
+              lines.push("");
+              lines.push("Interações recentes com o cliente:");
+              for (const it of interactions) {
+                const when = it.created_at ? new Date(it.created_at).toISOString().slice(0, 10) : "—";
+                lines.push(`- [${when}] (${it.kind ?? "interação"}) ${truncate(it.content ?? "", 400)}`);
+              }
+            }
+          }
+          if (filesMeta.length) {
+            lines.push("");
+            lines.push("Documentos enviados pelo cliente:");
+            for (const f of filesDone) {
+              lines.push(`- ${f.file_name}${f.classification ? ` (${f.classification})` : ""}`);
+            }
+          }
+          preProcessualContextStr = lines.join("\n").trim() || null;
+          if (preProcessualContextStr) partialResponse = chunksArr.length === 0 ? true : partialResponse;
+        } catch {
+          // P3 best-effort
+        }
+      }
+    } else {
+      await runDefaultRetrieval();
+    }
+
 
     const embedMs = Date.now() - embedStart;
 
@@ -390,36 +436,14 @@ Deno.serve(async (req) => {
       caseRow.status ? `Status: ${caseRow.status}` : "",
     ].filter(Boolean).join(" | ");
 
-    const pedidosBlock = strategyUsed === "pedidos_iniciais"
-      ? `
-
---- MODO: LISTAR PEDIDOS DA PETIÇÃO INICIAL ---
-Seção "Diante do exposto" presente nos trechos: ${hasIntegralPedidosSection(chunksArr) ? "sim" : "não"}
-
-Responda em LISTA NUMERADA, um item por pedido principal, subsidiário ou acessório identificado.
-
-Inclua, quando constarem nos trechos recuperados:
-- pedidos preliminares, como justiça gratuita;
-- pedidos de mérito;
-- verbas pleiteadas;
-- reflexos;
-- honorários;
-- juros e correção monetária;
-- requerimentos processuais, como citação, provas e ofícios.
-
-Cite a fonte em cada item, no formato:
-[Petição Inicial · arquivo · p. X]
-
-Não invente pedidos.
-
-Se a seção "DOS PEDIDOS", "Diante do exposto", "Ante o exposto" ou equivalente não estiver integralmente nos trechos recuperados, inicie a resposta com:
-
-"⚠️ Resposta parcial — não localizei a seção integral de pedidos nos trechos recuperados. Pedidos identificados até aqui:"
-
-Ao final, inclua:
-"### Possíveis lacunas"
-
-Não afirme completude quando houver dúvida sobre a integralidade da seção de pedidos.`
+    const intentBlock = detectedIntent
+      ? "\n\n" + detectedIntent.promptBlock({
+          partial: partialResponse,
+          fallback: fallbackUsed,
+          integralSectionPresent,
+          hasCaseNumber,
+          preProcessualContext: preProcessualContextStr,
+        })
       : "";
 
     const systemContext = `${SYSTEM_PROMPT}
@@ -433,7 +457,7 @@ ${fileSummary}
 --- TRECHOS RECUPERADOS PARA ESTA PERGUNTA ---
 ${contextBlock}
 
-Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tipo> · <arquivo> · pp. X–Y] sempre que afirmar algo factual.${pedidosBlock}`;
+Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tipo> · <arquivo> · pp. X–Y] sempre que afirmar algo factual.${intentBlock}`;
 
 
     const messages: UIMessage[] = [
@@ -582,17 +606,21 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           metadata: {
             embedding_model: EMBEDDING_MODEL,
             embedding_tokens_approx: embedTokensApprox,
-            top_k: strategyUsed === "pedidos_iniciais" ? TOP_K_FINAL_PEDIDOS : TOP_K_FINAL,
+            top_k: detectedIntent ? detectedIntent.topKFinal : TOP_K_FINAL,
             chunks_retrieved: chunksArr.length,
+            chunks_final: chunksArr.length,
             chunks_retrieved_raw: chunksAll.length,
             embedding_time_ms: embedMs,
-            intent: strategyUsed === "default" ? null : "pedidos_iniciais",
+            intent: detectedIntent ? detectedIntent.id : null,
             strategy: strategyUsed,
             queries_count: queriesUsed.length,
-            initial_files_count: initialFileIds.size,
-            integral_pedidos_section: strategyUsed === "pedidos_iniciais"
-              ? hasIntegralPedidosSection(chunksArr)
-              : null,
+            target_classifications: detectedIntent ? detectedIntent.targetClassifications : [],
+            target_files_count: targetFilesCount,
+            partial_response: partialResponse,
+            pre_processual: detectedIntent ? detectedIntent.mode === "pre_processual" : false,
+            has_case_number: hasCaseNumber,
+            fallback_used: fallbackUsed,
+            integral_section_present: integralSectionPresent ?? null,
           },
 
         });
