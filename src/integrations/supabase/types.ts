@@ -120,6 +120,89 @@ export type Database = {
           },
         ]
       }
+      case_analyses: {
+        Row: {
+          analysis_type: string
+          case_id: string
+          client_id: string | null
+          content_json: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json
+          model_task: string | null
+          model_used: string | null
+          organization_id: string
+          provider: string | null
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          analysis_type?: string
+          case_id: string
+          client_id?: string | null
+          content_json?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          model_task?: string | null
+          model_used?: string | null
+          organization_id: string
+          provider?: string | null
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          analysis_type?: string
+          case_id?: string
+          client_id?: string | null
+          content_json?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          model_task?: string | null
+          model_used?: string | null
+          organization_id?: string
+          provider?: string | null
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_analyses_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_analyses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_analyses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_analyses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_chat_feedback: {
         Row: {
           case_id: string

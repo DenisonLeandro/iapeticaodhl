@@ -17,7 +17,8 @@ export type AiOperation =
   | "extraction"
   | "dossier"
   | "petition"
-  | "generation";
+  | "generation"
+  | "case_analysis";
 
 export interface LogAiUsageParams {
   organization_id: string;
