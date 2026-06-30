@@ -230,71 +230,34 @@ Deno.serve(async (req) => {
       })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    // 4. Embedding + busca semântica (com fetch extra para deduplicar)
-    const intentPedidos = detectPedidosIniciaisIntent(body.message);
-    const initialFileIds = new Set<string>(
-      (filesDone ?? [])
-        .filter((f) => INITIAL_PETITION_CLASSIFICATIONS.has((f.classification ?? "") as string))
-        .map((f) => f.id as string),
-    );
-    const useFocusedMode = intentPedidos && initialFileIds.size > 0;
+    // 4. Detecção de intenção jurídica + recuperação dirigida (PR-4.2A)
+    const filesMeta = filesDone.map((f) => ({
+      id: f.id as string,
+      classification: (f.classification ?? null) as string | null,
+    }));
+    const ctxHasProcessual = hasProcessualFilesFn(filesMeta);
+    const hasCaseNumber = !!(caseRow.case_number && String(caseRow.case_number).trim());
+    const detectedIntent: LegalIntent | null = resolveIntent(body.message, {
+      hasCaseNumber,
+      filesDone: filesMeta,
+      hasProcessualFiles: ctxHasProcessual,
+    });
 
     const embedStart = Date.now();
     let embedTokensApprox = 0;
     let queriesUsed: string[] = [];
     let chunksAll: Chunk[] = [];
     let chunksArr: Chunk[] = [];
-    let strategyUsed: "default" | "pedidos_iniciais" | "pedidos_iniciais_fallback" = "default";
+    let strategyUsed: string = "default";
+    let fallbackUsed = false;
+    let partialResponse = false;
+    let integralSectionPresent: boolean | undefined = undefined;
+    let targetFilesCount = 0;
+    let preProcessualContextStr: string | null = null;
 
-    if (useFocusedMode) {
-      strategyUsed = "pedidos_iniciais";
-      queriesUsed = [...PEDIDOS_QUERIES_BASE, body.message];
-      embedTokensApprox = queriesUsed.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
-
-      const vectors = await Promise.all(queriesUsed.map((q) => callEmbedding(q, key)));
-      const buckets = await Promise.all(
-        vectors.map((vec) =>
-          supabase.rpc("match_case_chunks", {
-            p_case_id: caseRow.id,
-            p_query_embedding: vec,
-            p_match_count: TOP_K_FETCH,
-            p_embedding_version: EMBEDDING_VERSION,
-          }),
-        ),
-      );
-
-      const seenIds = new Set<string>();
-      const merged: Chunk[] = [];
-      for (const b of buckets) {
-        if (b.error) throw new Error(`match_case_chunks: ${b.error.message}`);
-        for (const c of (b.data ?? []) as Chunk[]) {
-          if (!initialFileIds.has(c.file_id)) continue;
-          if (seenIds.has(c.id)) continue;
-          seenIds.add(c.id);
-          merged.push(c);
-        }
-      }
-
-      if (merged.length === 0) {
-        // Fallback seguro: cai para o fluxo padrão se o filtro zerar.
-        strategyUsed = "pedidos_iniciais_fallback";
-        const fallbackVec = vectors[vectors.length - 1]; // já é a query original
-        const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
-          p_case_id: caseRow.id,
-          p_query_embedding: fallbackVec,
-          p_match_count: TOP_K_FETCH,
-          p_embedding_version: EMBEDDING_VERSION,
-        });
-        if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
-        chunksAll = (chunksRaw ?? []) as Chunk[];
-        chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
-      } else {
-        merged.sort((a, b) => (a.page_from ?? 0) - (b.page_from ?? 0));
-        chunksAll = merged;
-        chunksArr = merged.slice(0, TOP_K_FINAL_PEDIDOS);
-      }
-    } else {
-      queriesUsed = [body.message];
+    async function runDefaultRetrieval(): Promise<void> {
+      const queries = [body.message];
+      queriesUsed = queries;
       embedTokensApprox = Math.ceil(body.message.length / 4);
       const queryVec = await callEmbedding(body.message, key);
       const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
@@ -307,6 +270,118 @@ Deno.serve(async (req) => {
       chunksAll = (chunksRaw ?? []) as Chunk[];
       chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
     }
+
+    if (detectedIntent) {
+      strategyUsed = detectedIntent.id;
+      const targetIds = filterFileIds(filesMeta, detectedIntent.targetClassifications);
+      targetFilesCount = targetIds.size;
+
+      // Para intent processual: se não há arquivos compatíveis, fallback puro.
+      if (detectedIntent.mode === "processual" && targetFilesCount === 0) {
+        fallbackUsed = true;
+        partialResponse = true;
+        await runDefaultRetrieval();
+      } else {
+        const queries = [...detectedIntent.queries, body.message];
+        queriesUsed = queries;
+        embedTokensApprox = queries.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
+
+        const vectors = await Promise.all(queries.map((q) => callEmbedding(q, key)));
+        const buckets = await Promise.all(
+          vectors.map((vec) =>
+            supabase.rpc("match_case_chunks", {
+              p_case_id: caseRow.id,
+              p_query_embedding: vec,
+              p_match_count: detectedIntent.topKFetch,
+              p_embedding_version: EMBEDDING_VERSION,
+            }),
+          ),
+        );
+
+        const seenIds = new Set<string>();
+        const merged: Chunk[] = [];
+        const filterByTarget = detectedIntent.targetClassifications.length > 0;
+        for (const b of buckets) {
+          if (b.error) throw new Error(`match_case_chunks: ${b.error.message}`);
+          for (const c of (b.data ?? []) as Chunk[]) {
+            if (filterByTarget && !targetIds.has(c.file_id)) continue;
+            if (seenIds.has(c.id)) continue;
+            seenIds.add(c.id);
+            merged.push(c);
+          }
+        }
+
+        if (merged.length === 0) {
+          // Fallback seguro: cai para fluxo padrão e marca parcialidade.
+          fallbackUsed = true;
+          partialResponse = true;
+          const fallbackVec = vectors[vectors.length - 1];
+          const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
+            p_case_id: caseRow.id,
+            p_query_embedding: fallbackVec,
+            p_match_count: TOP_K_FETCH,
+            p_embedding_version: EMBEDDING_VERSION,
+          });
+          if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
+          chunksAll = (chunksRaw ?? []) as Chunk[];
+          chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
+        } else {
+          merged.sort((a, b) => {
+            if (a.file_id !== b.file_id) return a.file_id.localeCompare(b.file_id);
+            return (a.page_from ?? 0) - (b.page_from ?? 0);
+          });
+          chunksAll = merged;
+          chunksArr = merged.slice(0, detectedIntent.topKFinal);
+        }
+
+        // Heurística de parcialidade (ex.: presença da seção "Diante do exposto").
+        if (detectedIntent.partialityCheck) {
+          integralSectionPresent = detectedIntent.partialityCheck(
+            chunksArr.map((c) => ({ content: c.content, page_from: c.page_from })),
+          );
+          if (!integralSectionPresent) partialResponse = true;
+        }
+      }
+
+      // Pré-processual: monta P3 (ficha/interações/lista) quando RAG é raso.
+      if (detectedIntent.mode === "pre_processual" && chunksArr.length < 3) {
+        try {
+          const lines: string[] = [];
+          if (caseRow.subject) lines.push(`Assunto declarado: ${caseRow.subject}`);
+          if (caseRow.opposing_party) lines.push(`Parte contrária declarada: ${caseRow.opposing_party}`);
+          if (caseRow.client_id) {
+            const { data: interactions } = await supabase
+              .from("client_interactions")
+              .select("kind, content, created_at")
+              .eq("client_id", caseRow.client_id)
+              .order("created_at", { ascending: false })
+              .limit(8);
+            if (interactions?.length) {
+              lines.push("");
+              lines.push("Interações recentes com o cliente:");
+              for (const it of interactions) {
+                const when = it.created_at ? new Date(it.created_at).toISOString().slice(0, 10) : "—";
+                lines.push(`- [${when}] (${it.kind ?? "interação"}) ${truncate(it.content ?? "", 400)}`);
+              }
+            }
+          }
+          if (filesMeta.length) {
+            lines.push("");
+            lines.push("Documentos enviados pelo cliente:");
+            for (const f of filesDone) {
+              lines.push(`- ${f.file_name}${f.classification ? ` (${f.classification})` : ""}`);
+            }
+          }
+          preProcessualContextStr = lines.join("\n").trim() || null;
+          if (preProcessualContextStr) partialResponse = chunksArr.length === 0 ? true : partialResponse;
+        } catch {
+          // P3 best-effort
+        }
+      }
+    } else {
+      await runDefaultRetrieval();
+    }
+
 
     const embedMs = Date.now() - embedStart;
 
