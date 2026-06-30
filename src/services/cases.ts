@@ -96,18 +96,20 @@ export async function createCase(
   organizationId: string,
   values: CaseFormValues,
 ): Promise<void> {
+  const isJudicial = (values.case_kind ?? "judicial") === "judicial";
   const { error } = await supabase.from("cases").insert({
     organization_id: organizationId,
-    case_number: values.case_number,
-    court: values.court,
-    branch: values.branch || null,
-    subject: values.subject || null,
+    case_number: isJudicial ? (values.case_number?.trim() || null) : null,
+    court: isJudicial ? (values.court?.trim() || null) : null,
+    branch: isJudicial ? (values.branch?.trim() || null) : null,
+    subject: values.subject?.trim() || null,
     opposing_party: values.opposing_party || null,
     client_id: values.client_id || null,
     assigned_to: values.assigned_to || null,
     status: values.status,
     represented_party: values.represented_party ?? "autor",
   });
+
 
   if (error) {
     throw new Error(`Erro ao criar processo: ${error.message}`);
@@ -120,15 +122,23 @@ export async function updateCase(
 ): Promise<void> {
   const updateData: Record<string, unknown> = {} as any;
 
-  if (values.case_number !== undefined) updateData.case_number = values.case_number;
-  if (values.court !== undefined) updateData.court = values.court;
-  if (values.branch !== undefined) updateData.branch = values.branch || null;
-  if (values.subject !== undefined) updateData.subject = values.subject || null;
+  const kind = values.case_kind;
+  if (kind === "pre_processual") {
+    updateData.case_number = null;
+    updateData.court = null;
+    updateData.branch = null;
+  } else {
+    if (values.case_number !== undefined) updateData.case_number = values.case_number?.trim() || null;
+    if (values.court !== undefined) updateData.court = values.court?.trim() || null;
+    if (values.branch !== undefined) updateData.branch = values.branch?.trim() || null;
+  }
+  if (values.subject !== undefined) updateData.subject = values.subject?.trim() || null;
   if (values.opposing_party !== undefined) updateData.opposing_party = values.opposing_party || null;
   if (values.client_id !== undefined) updateData.client_id = values.client_id || null;
   if (values.assigned_to !== undefined) updateData.assigned_to = values.assigned_to || null;
   if (values.status !== undefined) updateData.status = values.status;
   if (values.represented_party !== undefined) updateData.represented_party = values.represented_party;
+
 
   const { error } = await supabase
     .from("cases")
