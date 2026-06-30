@@ -19,9 +19,49 @@ const EMBEDDING_VERSION = "gemini-embedding-001@v1";
 const EMBEDDING_DIMS = 1536;
 const TOP_K_FINAL = 6;
 const TOP_K_FETCH = 12; // busca mais para sobrar para a deduplicação
+const TOP_K_FINAL_PEDIDOS = 10; // modo pedidos da inicial: cobertura contígua
 const HISTORY_RECENT_LIMIT = 6;
 const HISTORY_PINNED_LIMIT = 6;
 const CHUNK_MAX_CHARS = 1500;
+
+const INITIAL_PETITION_CLASSIFICATIONS = new Set([
+  "peticao_inicial",
+  "reclamacao_trabalhista",
+  "inicial",
+]);
+
+const PEDIDOS_QUERIES_BASE = [
+  "pedidos formulados na petição inicial, requerimentos finais",
+  "diante do exposto, requer-se condenação da ré",
+  "verbas pleiteadas, justiça gratuita, honorários sucumbenciais",
+];
+
+function stripDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Detecta intenção "pedidos da petição inicial". Conservador para evitar falso positivo. */
+function detectPedidosIniciaisIntent(message: string): boolean {
+  const m = stripDiacritics((message || "").toLowerCase());
+  // Combinações explícitas e suficientes por si só:
+  const strong = [
+    /\bpedidos?\b.*\b(inicial|petic|autor|reclamante|formulad)/,
+    /\b(inicial|petic\w*)\b.*\bpedidos?\b/,
+    /\brol\s+de\s+pedidos\b/,
+    /\bo\s+que\s+(se\s+pede|foi\s+pedido|a\s+inicial\s+pede)\b/,
+    /\brequerimentos?\b.*\b(inicial|autor|reclamante|petic)/,
+    /\bpetic\w*\s+inicial\b.*\b(pede|pedidos?|requer)/,
+  ];
+  return strong.some((re) => re.test(m));
+}
+
+/** Heurística: a seção "Diante do exposto/Ante o exposto/Isso posto" + "pedid" está presente nos trechos? */
+function hasIntegralPedidosSection(chunks: Chunk[]): boolean {
+  const re = /(diante do (?:todo )?exposto|ante o exposto|isso posto)/i;
+  return chunks.some((c) => re.test(c.content) && /pedid/i.test(c.content));
+}
+
+
 
 // Preço estimado (USD por 1M tokens) — Gemini 2.5 Flash + Gemini embedding
 const PRICE_CHAT_INPUT_PER_M = 0.075;
