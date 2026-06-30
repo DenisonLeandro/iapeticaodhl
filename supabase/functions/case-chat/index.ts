@@ -436,36 +436,14 @@ Deno.serve(async (req) => {
       caseRow.status ? `Status: ${caseRow.status}` : "",
     ].filter(Boolean).join(" | ");
 
-    const pedidosBlock = strategyUsed === "pedidos_iniciais"
-      ? `
-
---- MODO: LISTAR PEDIDOS DA PETIÇÃO INICIAL ---
-Seção "Diante do exposto" presente nos trechos: ${hasIntegralPedidosSection(chunksArr) ? "sim" : "não"}
-
-Responda em LISTA NUMERADA, um item por pedido principal, subsidiário ou acessório identificado.
-
-Inclua, quando constarem nos trechos recuperados:
-- pedidos preliminares, como justiça gratuita;
-- pedidos de mérito;
-- verbas pleiteadas;
-- reflexos;
-- honorários;
-- juros e correção monetária;
-- requerimentos processuais, como citação, provas e ofícios.
-
-Cite a fonte em cada item, no formato:
-[Petição Inicial · arquivo · p. X]
-
-Não invente pedidos.
-
-Se a seção "DOS PEDIDOS", "Diante do exposto", "Ante o exposto" ou equivalente não estiver integralmente nos trechos recuperados, inicie a resposta com:
-
-"⚠️ Resposta parcial — não localizei a seção integral de pedidos nos trechos recuperados. Pedidos identificados até aqui:"
-
-Ao final, inclua:
-"### Possíveis lacunas"
-
-Não afirme completude quando houver dúvida sobre a integralidade da seção de pedidos.`
+    const intentBlock = detectedIntent
+      ? "\n\n" + detectedIntent.promptBlock({
+          partial: partialResponse,
+          fallback: fallbackUsed,
+          integralSectionPresent,
+          hasCaseNumber,
+          preProcessualContext: preProcessualContextStr,
+        })
       : "";
 
     const systemContext = `${SYSTEM_PROMPT}
@@ -479,7 +457,7 @@ ${fileSummary}
 --- TRECHOS RECUPERADOS PARA ESTA PERGUNTA ---
 ${contextBlock}
 
-Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tipo> · <arquivo> · pp. X–Y] sempre que afirmar algo factual.${pedidosBlock}`;
+Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tipo> · <arquivo> · pp. X–Y] sempre que afirmar algo factual.${intentBlock}`;
 
 
     const messages: UIMessage[] = [
