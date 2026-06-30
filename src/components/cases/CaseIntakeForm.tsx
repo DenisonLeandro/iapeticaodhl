@@ -302,6 +302,19 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
           {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
           Salvar e analisar com IA
         </Button>
+        <Button
+          variant="outline"
+          onClick={handleImportExisting}
+          disabled={isPrefilling || isSaving}
+          title="Importa dados já existentes do caso (assunto, parte contrária, interações, análise anterior, documentos)"
+        >
+          {isPrefilling ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          Preencher com dados existentes
+        </Button>
         <Button variant="outline" onClick={handleSuggest} disabled={isSaving || isSuggesting}>
           {isSuggesting ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -311,6 +324,46 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
           Sugerir área e perguntas complementares
         </Button>
       </div>
+
+      {/* Diálogo de conflito ao importar */}
+      <AlertDialog
+        open={!!pendingPrefill}
+        onOpenChange={(open) => {
+          if (!open) setPendingPrefill(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir campos já preenchidos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encontramos dados existentes para campos que você já preencheu manualmente:
+              <strong className="ml-1">{pendingPrefill?.conflicts.join(", ")}</strong>.
+              <br />
+              Você pode preencher apenas os campos vazios (recomendado) ou substituir o conteúdo
+              atual pelos dados importados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "fill-empty");
+                setPendingPrefill(null);
+              }}
+            >
+              Preencher só os vazios
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "overwrite");
+                setPendingPrefill(null);
+              }}
+            >
+              Substituir tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Sugestões da IA (cache persistido) */}
       <CaseIntakeAISuggestions
