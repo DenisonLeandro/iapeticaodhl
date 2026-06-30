@@ -587,9 +587,9 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {isSending && (
                   <div className="flex justify-start">
-                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
+                    <div className="max-w-[92%] space-y-3 rounded-lg border bg-card text-card-foreground px-4 py-4">
                       {streamingText ? (
-                        <div className={ASSISTANT_MD_CLASS}>
+                        <div className={ASSISTANT_MD_CLASS} style={{ hyphens: "auto" }}>
                           <ReactMarkdown>{streamingText}</ReactMarkdown>
                         </div>
                       ) : (
