@@ -69,6 +69,7 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
   const navigate = useNavigate();
   const { data: files = [] } = useCaseFiles(caseData.id);
   const [placeholder, setPlaceholder] = useState<Placeholder>(null);
+  const { analysis, isLoading: analysisLoading, isRunning, generate } = useCaseAnalysis(caseData.id);
 
   const hasClient = !!caseData.client_id;
   const documentsReady = files.filter((f) => f.pipeline_stage === "done").length;
@@ -112,11 +113,12 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <CaseActionCard
           icon={FileSearch}
-          title="Analisar Caso"
+          title={analysis ? "Reanalisar Caso" : "Analisar Caso"}
           description="Resumo, riscos e próximos passos do caso."
-          onClick={() => setPlaceholder("analyze")}
-          comingSoon
+          onClick={() => generate(!!analysis)}
+          disabled={isRunning}
         />
+
         <CaseActionCard
           icon={FileSignature}
           title="Gerar Peça"
@@ -167,12 +169,15 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
         />
       </div>
 
-      <ComingSoonDialog
-        open={placeholder === "analyze"}
-        onOpenChange={(v) => !v && setPlaceholder(null)}
-        title="Análise do caso"
-        description="A análise automática do caso será implementada no PR-4.1."
+      <CaseAnalysisPanel
+        analysis={analysis}
+        isLoading={analysisLoading}
+        isRunning={isRunning}
+        onGenerate={() => generate(false)}
+        onRegenerate={() => generate(true)}
       />
+
+
       <ComingSoonDialog
         open={placeholder === "review"}
         onOpenChange={(v) => !v && setPlaceholder(null)}
