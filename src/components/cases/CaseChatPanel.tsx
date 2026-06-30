@@ -607,11 +607,11 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {showFallback && assistantFallback && (
                   <div className="flex justify-start">
-                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <div className="max-w-[92%] space-y-3 rounded-lg border bg-card text-card-foreground px-4 py-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Resposta recebida
                       </p>
-                      <div className={ASSISTANT_MD_CLASS}>
+                      <div className={ASSISTANT_MD_CLASS} style={{ hyphens: "auto" }}>
                         <ReactMarkdown>{assistantFallback.content}</ReactMarkdown>
                       </div>
                       {assistantFallback.citations.length > 0 && (
