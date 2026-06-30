@@ -19,8 +19,8 @@ export interface Case {
   id: string;
   organization_id: string;
   client_id: string | null;
-  case_number: string;
-  court: string;
+  case_number: string | null;
+  court: string | null;
   branch: string | null;
   subject: string | null;
   status: CaseStatus;
@@ -30,6 +30,7 @@ export interface Case {
   created_at: string;
   updated_at: string;
 }
+
 
 /** Case row with joined client and lawyer names for list display */
 export interface CaseWithRelations extends Case {
@@ -149,23 +150,55 @@ export const MOVEMENT_DOT_COLORS: Record<MovementType, string> = {
 // Zod Schemas
 // =============================================================================
 
-export const caseFormSchema = z.object({
-  case_number: z
-    .string()
-    .min(1, "Número do processo é obrigatório"),
-  court: z
-    .string()
-    .min(1, "Tribunal é obrigatório"),
-  branch: z.string().optional(),
-  subject: z.string().optional(),
-  opposing_party: z.string().optional(),
-  client_id: z.string().optional(),
-  assigned_to: z.string().optional(),
-  status: z.enum(["active", "archived", "closed"]).default("active"),
-  represented_party: z
-    .enum(["autor", "reu", "recorrente", "recorrido", "exequente", "executado", "terceiro", "outro"])
-    .default("autor"),
-});
+export const caseFormSchema = z
+  .object({
+    case_kind: z.enum(["judicial", "pre_processual"]).default("judicial"),
+    case_number: z.string().optional(),
+    court: z.string().optional(),
+    branch: z.string().optional(),
+    subject: z.string().optional(),
+    opposing_party: z.string().optional(),
+    client_id: z.string().optional(),
+    assigned_to: z.string().optional(),
+    status: z.enum(["active", "archived", "closed"]).default("active"),
+    represented_party: z
+      .enum(["autor", "reu", "recorrente", "recorrido", "exequente", "executado", "terceiro", "outro"])
+      .default("autor"),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.client_id || !data.client_id.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["client_id"],
+        message: "Cliente é obrigatório",
+      });
+    }
+    if (data.case_kind === "judicial") {
+      if (!data.case_number || !data.case_number.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["case_number"],
+          message: "Número do processo é obrigatório",
+        });
+      }
+      if (!data.court || !data.court.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["court"],
+          message: "Tribunal é obrigatório",
+        });
+      }
+    } else {
+      if (!data.subject || !data.subject.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subject"],
+          message: "Título/Assunto do caso é obrigatório",
+        });
+      }
+    }
+  });
+
 
 export type CaseFormValues = z.infer<typeof caseFormSchema>;
 

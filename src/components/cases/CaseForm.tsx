@@ -92,9 +92,13 @@ export default function CaseForm({
   const isSubmitting = isCreating || isUpdating;
 
 
+  const initialKind: "judicial" | "pre_processual" =
+    editCase && !editCase.case_number?.trim() ? "pre_processual" : "judicial";
+
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(caseFormSchema),
     defaultValues: {
+      case_kind: initialKind,
       case_number: editCase?.case_number ?? "",
       court: editCase?.court ?? "",
       branch: editCase?.branch ?? "",
@@ -108,23 +112,30 @@ export default function CaseForm({
     },
   });
 
+  const caseKind = form.watch("case_kind");
+  const isPreProcessual = caseKind === "pre_processual";
+
+
   const onSubmit = async (values: CaseFormValues) => {
     try {
+      const isPre = values.case_kind === "pre_processual";
+      const noun = isPre ? "Caso" : "Processo";
       if (isEditing && editCase) {
         await updateCase({ caseId: editCase.id, values });
-        toast.success("Processo atualizado com sucesso");
+        toast.success(`${noun} atualizado com sucesso`);
       } else {
         await createCase(values);
-        toast.success("Processo cadastrado com sucesso");
+        toast.success(`${noun} cadastrado com sucesso`);
       }
       form.reset();
       setOpen(false);
       onSuccess?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Erro ao salvar processo";
+      const message = error instanceof Error ? error.message : "Erro ao salvar";
       toast.error(message);
     }
   };
+
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -153,85 +164,127 @@ export default function CaseForm({
       <DialogContent className="sm:max-w-[600px] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Processo" : "Novo Processo"}
+            {isEditing
+              ? isPreProcessual
+                ? "Editar Caso"
+                : "Editar Processo"
+              : "Novo Cadastro"}
           </DialogTitle>
           <DialogDescription>
-            {isEditing
-              ? "Atualize as informações do processo."
-              : "Cadastre um novo processo judicial."}
+            {isPreProcessual
+              ? "Caso em preparação — sem número de processo ainda."
+              : "Processo judicial já distribuído."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="case_number"
+              name="case_kind"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Número do Processo</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="0000000-00.0000.0.00.0000"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
+                <FormItem className="space-y-2">
+                  <FormLabel>Tipo de cadastro</FormLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={field.value === "judicial" ? "default" : "outline"}
+                      onClick={() => field.onChange("judicial")}
+                      className="justify-center"
+                    >
+                      Processo judicial
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={field.value === "pre_processual" ? "default" : "outline"}
+                      onClick={() => field.onChange("pre_processual")}
+                      className="justify-center"
+                    >
+                      Caso sem processo
+                    </Button>
+                  </div>
                 </FormItem>
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="court"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tribunal</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+            {!isPreProcessual && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="case_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número do Processo</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tribunal" />
-                        </SelectTrigger>
+                        <Input
+                          placeholder="0000000-00.0000.0.00.0000"
+                          {...field}
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {COURT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="branch"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Vara</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: 1ª Vara Cível" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="court"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tribunal</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tribunal" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {COURT_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="branch"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vara</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: 1ª Vara Cível" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
+            )}
 
             <FormField
               control={form.control}
               name="subject"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assunto</FormLabel>
+                  <FormLabel>
+                    {isPreProcessual ? "Título/Assunto do caso" : "Assunto"}
+                  </FormLabel>
                   <FormControl>
-                    <Input placeholder="Assunto do processo" {...field} />
+                    <Input
+                      placeholder={
+                        isPreProcessual
+                          ? "Ex: Caso novo sem processo — horas extras"
+                          : "Assunto do processo"
+                      }
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -245,12 +298,20 @@ export default function CaseForm({
                 <FormItem>
                   <FormLabel>Parte Contrária</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome da parte contrária" {...field} />
+                    <Input
+                      placeholder={
+                        isPreProcessual
+                          ? "Se houver (opcional)"
+                          : "Nome da parte contrária"
+                      }
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
 
             <FormField
               control={form.control}
@@ -433,7 +494,12 @@ export default function CaseForm({
                 {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
+                {isEditing
+                  ? "Salvar Alterações"
+                  : isPreProcessual
+                    ? "Cadastrar Caso"
+                    : "Cadastrar Processo"}
+
               </Button>
             </DialogFooter>
           </form>

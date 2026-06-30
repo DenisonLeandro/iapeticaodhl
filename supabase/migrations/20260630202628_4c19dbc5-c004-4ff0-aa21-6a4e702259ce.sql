@@ -1,0 +1,2 @@
+ALTER TABLE public.cases ALTER COLUMN case_number DROP NOT NULL;
+ALTER TABLE public.cases ALTER COLUMN court DROP NOT NULL;
