@@ -260,21 +260,85 @@ Deno.serve(async (req) => {
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     // 4. Embedding + busca semântica (com fetch extra para deduplicar)
+    const intentPedidos = detectPedidosIniciaisIntent(body.message);
+    const initialFileIds = new Set<string>(
+      (filesDone ?? [])
+        .filter((f) => INITIAL_PETITION_CLASSIFICATIONS.has((f.classification ?? "") as string))
+        .map((f) => f.id as string),
+    );
+    const useFocusedMode = intentPedidos && initialFileIds.size > 0;
+
     const embedStart = Date.now();
-    const queryVec = await callEmbedding(body.message, key);
+    let embedTokensApprox = 0;
+    let queriesUsed: string[] = [];
+    let chunksAll: Chunk[] = [];
+    let chunksArr: Chunk[] = [];
+    let strategyUsed: "default" | "pedidos_iniciais" | "pedidos_iniciais_fallback" = "default";
+
+    if (useFocusedMode) {
+      strategyUsed = "pedidos_iniciais";
+      queriesUsed = [...PEDIDOS_QUERIES_BASE, body.message];
+      embedTokensApprox = queriesUsed.reduce((s, q) => s + Math.ceil(q.length / 4), 0);
+
+      const vectors = await Promise.all(queriesUsed.map((q) => callEmbedding(q, key)));
+      const buckets = await Promise.all(
+        vectors.map((vec) =>
+          supabase.rpc("match_case_chunks", {
+            p_case_id: caseRow.id,
+            p_query_embedding: vec,
+            p_match_count: TOP_K_FETCH,
+            p_embedding_version: EMBEDDING_VERSION,
+          }),
+        ),
+      );
+
+      const seenIds = new Set<string>();
+      const merged: Chunk[] = [];
+      for (const b of buckets) {
+        if (b.error) throw new Error(`match_case_chunks: ${b.error.message}`);
+        for (const c of (b.data ?? []) as Chunk[]) {
+          if (!initialFileIds.has(c.file_id)) continue;
+          if (seenIds.has(c.id)) continue;
+          seenIds.add(c.id);
+          merged.push(c);
+        }
+      }
+
+      if (merged.length === 0) {
+        // Fallback seguro: cai para o fluxo padrão se o filtro zerar.
+        strategyUsed = "pedidos_iniciais_fallback";
+        const fallbackVec = vectors[vectors.length - 1]; // já é a query original
+        const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
+          p_case_id: caseRow.id,
+          p_query_embedding: fallbackVec,
+          p_match_count: TOP_K_FETCH,
+          p_embedding_version: EMBEDDING_VERSION,
+        });
+        if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
+        chunksAll = (chunksRaw ?? []) as Chunk[];
+        chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
+      } else {
+        merged.sort((a, b) => (a.page_from ?? 0) - (b.page_from ?? 0));
+        chunksAll = merged;
+        chunksArr = merged.slice(0, TOP_K_FINAL_PEDIDOS);
+      }
+    } else {
+      queriesUsed = [body.message];
+      embedTokensApprox = Math.ceil(body.message.length / 4);
+      const queryVec = await callEmbedding(body.message, key);
+      const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
+        p_case_id: caseRow.id,
+        p_query_embedding: queryVec,
+        p_match_count: TOP_K_FETCH,
+        p_embedding_version: EMBEDDING_VERSION,
+      });
+      if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
+      chunksAll = (chunksRaw ?? []) as Chunk[];
+      chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
+    }
+
     const embedMs = Date.now() - embedStart;
-    const embedTokensApprox = Math.ceil(body.message.length / 4);
 
-    const { data: chunksRaw, error: rpcErr } = await supabase.rpc("match_case_chunks", {
-      p_case_id: caseRow.id,
-      p_query_embedding: queryVec,
-      p_match_count: TOP_K_FETCH,
-      p_embedding_version: EMBEDDING_VERSION,
-    });
-    if (rpcErr) throw new Error(`match_case_chunks: ${rpcErr.message}`);
-
-    const chunksAll = (chunksRaw ?? []) as Chunk[];
-    const chunksArr = dedupChunks(chunksAll, TOP_K_FINAL);
 
     // 5. Citações enriquecidas
     const fileMetaById = new Map<string, { file_name: string; classification: string | null }>(
