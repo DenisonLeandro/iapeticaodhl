@@ -208,6 +208,59 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     toast.success("Área aplicada à ficha. Lembre-se de salvar.");
   }
 
+  function applyPrefillValues(values: Partial<CaseIntakeFormValues>, mode: "fill-empty" | "overwrite") {
+    const current = form.getValues();
+    let applied = 0;
+    (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
+      const incoming = values[k];
+      if (incoming === undefined || incoming === null || incoming === "") return;
+      const existing = current[k];
+      const isEmpty =
+        existing === undefined ||
+        existing === null ||
+        (typeof existing === "string" && existing.trim() === "");
+      if (mode === "fill-empty" && !isEmpty) return;
+      // setValue com cast genérico — campos compatíveis com Partial<CaseIntakeFormValues>
+      form.setValue(k, incoming as never, { shouldDirty: true });
+      applied += 1;
+    });
+    if (applied === 0) {
+      toast.message("Nenhum campo novo para preencher.");
+    } else {
+      toast.success(`Importação concluída: ${applied} campo(s) preenchido(s). Revise antes de salvar.`);
+    }
+  }
+
+  async function handleImportExisting() {
+    setIsPrefilling(true);
+    try {
+      const result = await buildIntakePrefill(caseData.id, caseData.client_id);
+      if (result.filledFields.length === 0) {
+        toast.message("Não encontramos ficha ou relato anterior para importar.");
+        return;
+      }
+      const current = form.getValues();
+      const conflicts = result.filledFields.filter((k) => {
+        const existing = current[k];
+        return (
+          existing !== undefined &&
+          existing !== null &&
+          !(typeof existing === "string" && existing.trim() === "")
+        );
+      });
+      if (conflicts.length === 0) {
+        applyPrefillValues(result.values, "fill-empty");
+      } else {
+        setPendingPrefill({ values: result.values, conflicts });
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "Falha ao importar dados existentes.");
+    } finally {
+      setIsPrefilling(false);
+    }
+  }
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
