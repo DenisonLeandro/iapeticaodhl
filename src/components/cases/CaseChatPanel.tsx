@@ -552,9 +552,9 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {isSending && (
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
                       {streamingText ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className={ASSISTANT_MD_CLASS}>
                           <ReactMarkdown>{streamingText}</ReactMarkdown>
                         </div>
                       ) : (
@@ -572,11 +572,11 @@ export default function CaseChatPanel({ caseId }: Props) {
 
                 {showFallback && assistantFallback && (
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg border bg-card text-card-foreground px-4 py-3">
+                    <div className="max-w-[92%] rounded-lg border bg-card text-card-foreground px-4 py-4">
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Resposta recebida
                       </p>
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <div className={ASSISTANT_MD_CLASS}>
                         <ReactMarkdown>{assistantFallback.content}</ReactMarkdown>
                       </div>
                       {assistantFallback.citations.length > 0 && (
