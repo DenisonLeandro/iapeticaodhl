@@ -25,7 +25,7 @@ const EMBEDDING_VERSION = "gemini-embedding-001@v1";
 const EMBEDDING_DIMS = 1536;
 const TOP_K_FINAL = 6;
 const TOP_K_FETCH = 12; // busca mais para sobrar para a deduplicação
-const TOP_K_FINAL_PEDIDOS = 10; // modo pedidos da inicial: cobertura contígua
+// TOP_K por intent é definido em legal-intents.ts (topKFetch/topKFinal).
 const HISTORY_RECENT_LIMIT = 6;
 const HISTORY_PINNED_LIMIT = 6;
 const CHUNK_MAX_CHARS = 1500;
