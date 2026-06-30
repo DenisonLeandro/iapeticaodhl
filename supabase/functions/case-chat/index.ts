@@ -606,17 +606,21 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           metadata: {
             embedding_model: EMBEDDING_MODEL,
             embedding_tokens_approx: embedTokensApprox,
-            top_k: strategyUsed === "pedidos_iniciais" ? TOP_K_FINAL_PEDIDOS : TOP_K_FINAL,
+            top_k: detectedIntent ? detectedIntent.topKFinal : TOP_K_FINAL,
             chunks_retrieved: chunksArr.length,
+            chunks_final: chunksArr.length,
             chunks_retrieved_raw: chunksAll.length,
             embedding_time_ms: embedMs,
-            intent: strategyUsed === "default" ? null : "pedidos_iniciais",
+            intent: detectedIntent ? detectedIntent.id : null,
             strategy: strategyUsed,
             queries_count: queriesUsed.length,
-            initial_files_count: initialFileIds.size,
-            integral_pedidos_section: strategyUsed === "pedidos_iniciais"
-              ? hasIntegralPedidosSection(chunksArr)
-              : null,
+            target_classifications: detectedIntent ? detectedIntent.targetClassifications : [],
+            target_files_count: targetFilesCount,
+            partial_response: partialResponse,
+            pre_processual: detectedIntent ? detectedIntent.mode === "pre_processual" : false,
+            has_case_number: hasCaseNumber,
+            fallback_used: fallbackUsed,
+            integral_section_present: integralSectionPresent ?? null,
           },
 
         });
