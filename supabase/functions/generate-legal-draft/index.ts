@@ -138,12 +138,24 @@ Deno.serve(async (req) => {
   // Caso + org check
   const { data: caseRow, error: caseErr } = await admin
     .from("cases")
-    .select("*, clients(id,name,document_number)")
+    .select("*")
     .eq("id", caseId)
     .maybeSingle();
-  if (caseErr || !caseRow) return json({ error: "case_not_found" }, 404);
+  if (caseErr) {
+    console.error("[generate-legal-draft] case lookup error:", caseErr);
+    return json({ error: "case_lookup_failed", detail: caseErr.message }, 500);
+  }
+  if (!caseRow) return json({ error: "case_not_found" }, 404);
   if (caseRow.organization_id !== profile.organization_id) {
     return json({ error: "forbidden" }, 403);
+  }
+  if (caseRow.client_id) {
+    const { data: clientRow } = await admin
+      .from("clients")
+      .select("id,name,document_number")
+      .eq("id", caseRow.client_id)
+      .maybeSingle();
+    if (clientRow) (caseRow as Record<string, unknown>).clients = clientRow;
   }
 
   // Fontes
