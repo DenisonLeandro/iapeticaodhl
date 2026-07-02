@@ -31,6 +31,8 @@ export default function TemplateDetailPage() {
   const setStatus = useSetLegalTemplateStatus();
   const upload = useUploadLegalTemplateFile();
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   if (isLoading || !template) {
     return <p className="text-muted-foreground">Carregando…</p>;
