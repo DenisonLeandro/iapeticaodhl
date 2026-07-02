@@ -26,6 +26,8 @@ import NewDocument from "./pages/ai/NewDocument.tsx";
 import DocumentsPage from "./pages/ai/DocumentsPage.tsx";
 import DocumentEditPage from "./pages/ai/DocumentEditPage.tsx";
 import PublicationsPage from "./pages/publications/PublicationsPage.tsx";
+import TemplatesPage from "./pages/templates/TemplatesPage.tsx";
+import TemplateDetailPage from "./pages/templates/TemplateDetailPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 
@@ -66,6 +68,8 @@ const App = () => (
                 <Route path="/cases/:id" element={<CaseDetailPage />} />
                 <Route path="/publications" element={<PublicationsPage />} />
                 <Route path="/cases/publications" element={<Navigate to="/publications" replace />} />
+                <Route path="/templates" element={<TemplatesPage />} />
+                <Route path="/templates/:id" element={<TemplateDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/profile" element={<Navigate to="/settings?tab=profile" replace />} />
                 <Route path="/settings/users" element={<Navigate to="/settings?tab=users" replace />} />

@@ -10,6 +10,7 @@ import {
   FileText,
   Bell,
   HelpCircle,
+  Library,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,7 @@ export const navigationItems: NavigationItem[] = [
   },
   { label: "Processos", path: "/cases", icon: Scale },
   { label: "Publicações", path: "/publications", icon: Bell, showUnreadBadge: true },
+  { label: "Modelos do Escritório", path: "/templates", icon: Library },
   { label: "Configurações", path: "/settings", icon: Settings },
   { label: "Ajuda", path: "/help", icon: HelpCircle },
 ];
@@ -52,6 +54,7 @@ export const routeLabels: Record<string, string> = {
   ai: "IA Jurídica",
   clients: "Clientes",
   cases: "Processos",
+  templates: "Modelos do Escritório",
   settings: "Configurações",
   users: "Usuários",
   profile: "Meu Perfil",
