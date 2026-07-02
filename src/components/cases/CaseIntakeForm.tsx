@@ -111,7 +111,10 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     values: Partial<CaseIntakeFormValues>;
     conflicts: (keyof CaseIntakeFormValues)[];
     heuristicFields: (keyof CaseIntakeFormValues)[];
+    documentSourcedFields: (keyof CaseIntakeFormValues)[];
+    sourcesUsed: string[];
   } | null>(null);
+
 
   // Hidrata o form quando intake chega
   useEffect(() => {
