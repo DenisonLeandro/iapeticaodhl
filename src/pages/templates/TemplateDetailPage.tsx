@@ -116,8 +116,18 @@ export default function TemplateDetailPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {template.file_path && (
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" /> Baixar arquivo
+            <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading}>
+              <Download className="h-4 w-4 mr-2" />
+              {downloading ? "Baixando…" : "Baixar arquivo"}
+            </Button>
+          )}
+          {fallbackUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.open(fallbackUrl, "_blank", "noopener")}
+            >
+              Abrir link temporário
             </Button>
           )}
           <Button
