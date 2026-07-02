@@ -28,6 +28,8 @@ import DocumentEditPage from "./pages/ai/DocumentEditPage.tsx";
 import PublicationsPage from "./pages/publications/PublicationsPage.tsx";
 import TemplatesPage from "./pages/templates/TemplatesPage.tsx";
 import TemplateDetailPage from "./pages/templates/TemplateDetailPage.tsx";
+import DraftGeneratorPage from "./pages/cases/drafts/DraftGeneratorPage.tsx";
+import DraftDetailPage from "./pages/cases/drafts/DraftDetailPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 
@@ -66,6 +68,8 @@ const App = () => (
                 <Route path="/cases" element={<CasesPage />} />
                 
                 <Route path="/cases/:id" element={<CaseDetailPage />} />
+                <Route path="/cases/:id/drafts/new" element={<DraftGeneratorPage />} />
+                <Route path="/cases/:id/drafts/:draftId" element={<DraftDetailPage />} />
                 <Route path="/publications" element={<PublicationsPage />} />
                 <Route path="/cases/publications" element={<Navigate to="/publications" replace />} />
                 <Route path="/templates" element={<TemplatesPage />} />

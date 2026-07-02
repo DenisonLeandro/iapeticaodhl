@@ -30,6 +30,7 @@ import CaseWorkbench from "@/components/cases/CaseWorkbench";
 import CaseIntakeForm from "@/components/cases/CaseIntakeForm";
 
 import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
+import { useCaseDrafts } from "@/hooks/useCaseDrafts";
 
 function DetailSkeleton() {
   return (
@@ -65,6 +66,7 @@ export default function CaseDetailPage() {
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
   const { documents, isLoading: documentsLoading } = useCaseDocuments(id);
+  const { data: drafts = [] } = useCaseDrafts(id);
 
   if (caseLoading) {
     return <DetailSkeleton />;
@@ -172,7 +174,7 @@ export default function CaseDetailPage() {
             Documentos
           </TabsTrigger>
           <TabsTrigger value="pieces" data-tab-trigger="pieces">
-            Peças ({documents.length})
+            Peças ({drafts.filter((d) => d.status !== "archived").length + documents.length})
           </TabsTrigger>
           <TabsTrigger value="history" data-tab-trigger="history">
             Histórico ({movements.length})
