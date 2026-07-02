@@ -1301,6 +1301,114 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_templates: {
+        Row: {
+          analysis_error: string | null
+          analysis_model: string | null
+          analysis_status: string
+          analyzed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          extracted_text: string | null
+          file_mime_type: string | null
+          file_name: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          id: string
+          internal_notes: string | null
+          legal_area: string | null
+          main_topic: string | null
+          name: string
+          organization_id: string
+          piece_type: string | null
+          procedural_stage: string | null
+          represented_party: string | null
+          request_patterns: Json | null
+          risk_notes: Json | null
+          standard_sections: Json | null
+          status: string
+          structure_summary: string | null
+          style_summary: string | null
+          subtopic: string | null
+          topic_structure: Json | null
+          updated_at: string
+          updated_by: string | null
+          usage_guidelines: string | null
+          writing_patterns: Json | null
+        }
+        Insert: {
+          analysis_error?: string | null
+          analysis_model?: string | null
+          analysis_status?: string
+          analyzed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          extracted_text?: string | null
+          file_mime_type?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          internal_notes?: string | null
+          legal_area?: string | null
+          main_topic?: string | null
+          name: string
+          organization_id: string
+          piece_type?: string | null
+          procedural_stage?: string | null
+          represented_party?: string | null
+          request_patterns?: Json | null
+          risk_notes?: Json | null
+          standard_sections?: Json | null
+          status?: string
+          structure_summary?: string | null
+          style_summary?: string | null
+          subtopic?: string | null
+          topic_structure?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          usage_guidelines?: string | null
+          writing_patterns?: Json | null
+        }
+        Update: {
+          analysis_error?: string | null
+          analysis_model?: string | null
+          analysis_status?: string
+          analyzed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          extracted_text?: string | null
+          file_mime_type?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          internal_notes?: string | null
+          legal_area?: string | null
+          main_topic?: string | null
+          name?: string
+          organization_id?: string
+          piece_type?: string | null
+          procedural_stage?: string | null
+          represented_party?: string | null
+          request_patterns?: Json | null
+          risk_notes?: Json | null
+          standard_sections?: Json | null
+          status?: string
+          structure_summary?: string | null
+          style_summary?: string | null
+          subtopic?: string | null
+          topic_structure?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          usage_guidelines?: string | null
+          writing_patterns?: Json | null
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           created_at: string
