@@ -110,6 +110,7 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
   const [pendingPrefill, setPendingPrefill] = useState<{
     values: Partial<CaseIntakeFormValues>;
     conflicts: (keyof CaseIntakeFormValues)[];
+    heuristicFields: (keyof CaseIntakeFormValues)[];
   } | null>(null);
 
   // Hidrata o form quando intake chega
