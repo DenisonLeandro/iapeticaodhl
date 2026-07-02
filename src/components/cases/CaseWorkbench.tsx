@@ -97,10 +97,7 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
       toast.error("Vincule um cliente antes de gerar uma peça.");
       return;
     }
-    const url = `/ai/new?caseId=${caseData.id}&clientId=${caseData.client_id ?? ""}&court=${encodeURIComponent(
-      caseData.court,
-    )}&caseNumber=${encodeURIComponent(caseData.case_number)}`;
-    navigate(url);
+    navigate(`/cases/${caseData.id}/drafts/new`);
   };
 
   return (
