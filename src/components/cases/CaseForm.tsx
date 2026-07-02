@@ -521,6 +521,16 @@ export default function CaseForm({
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Não encontrou o advogado?{" "}
+                      <Link
+                        to="/settings?tab=users"
+                        className="underline hover:text-foreground"
+                        onClick={() => setOpen(false)}
+                      >
+                        Gerenciar equipe →
+                      </Link>
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
