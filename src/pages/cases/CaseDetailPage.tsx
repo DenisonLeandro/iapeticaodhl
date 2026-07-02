@@ -66,6 +66,7 @@ export default function CaseDetailPage() {
   const { caseData, isLoading: caseLoading, error: caseError } = useCaseDetail(id);
   const { movements, isLoading: movementsLoading } = useCaseMovements(id);
   const { documents, isLoading: documentsLoading } = useCaseDocuments(id);
+  const { data: drafts = [] } = useCaseDrafts(id);
 
   if (caseLoading) {
     return <DetailSkeleton />;
