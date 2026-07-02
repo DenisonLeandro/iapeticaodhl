@@ -10,6 +10,7 @@ import {
   FileText,
   Bell,
   HelpCircle,
+  Library,
   type LucideIcon,
 } from "lucide-react";
 
