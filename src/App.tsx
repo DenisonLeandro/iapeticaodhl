@@ -68,6 +68,8 @@ const App = () => (
                 <Route path="/cases/:id" element={<CaseDetailPage />} />
                 <Route path="/publications" element={<PublicationsPage />} />
                 <Route path="/cases/publications" element={<Navigate to="/publications" replace />} />
+                <Route path="/templates" element={<TemplatesPage />} />
+                <Route path="/templates/:id" element={<TemplateDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/profile" element={<Navigate to="/settings?tab=profile" replace />} />
                 <Route path="/settings/users" element={<Navigate to="/settings?tab=users" replace />} />
