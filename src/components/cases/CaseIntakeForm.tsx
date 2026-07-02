@@ -406,6 +406,8 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
                     pendingPrefill.values,
                     "fill-empty",
                     pendingPrefill.heuristicFields,
+                    pendingPrefill.documentSourcedFields,
+                    pendingPrefill.sourcesUsed,
                   );
                 setPendingPrefill(null);
               }}
@@ -419,12 +421,15 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
                     pendingPrefill.values,
                     "overwrite",
                     pendingPrefill.heuristicFields,
+                    pendingPrefill.documentSourcedFields,
+                    pendingPrefill.sourcesUsed,
                   );
                 setPendingPrefill(null);
               }}
             >
               Substituir tudo
             </AlertDialogAction>
+
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
