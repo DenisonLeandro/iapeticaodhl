@@ -13,7 +13,10 @@ import {
   useSetLegalTemplateStatus,
   useUploadLegalTemplateFile,
 } from "@/hooks/useLegalTemplates";
-import { getLegalTemplateDownloadUrl } from "@/services/legalTemplates";
+import {
+  downloadLegalTemplateBlob,
+  getLegalTemplateDownloadUrl,
+} from "@/services/legalTemplates";
 import { TemplateAnalysisPanel } from "@/components/templates/TemplateAnalysisPanel";
 import {
   AnalysisBadge,
