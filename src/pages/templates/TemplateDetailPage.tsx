@@ -49,11 +49,25 @@ export default function TemplateDetailPage() {
 
   const handleDownload = async () => {
     if (!template.file_path) return;
+    setDownloading(true);
+    setFallbackUrl(null);
     try {
-      const url = await getLegalTemplateDownloadUrl(template.file_path);
-      window.open(url, "_blank");
+      await downloadLegalTemplateBlob(template.file_path, template.file_name ?? "modelo");
+      toast({ title: "Download iniciado." });
     } catch (e) {
-      toast({ title: "Erro", description: (e as Error).message, variant: "destructive" });
+      toast({
+        title: "Não foi possível baixar o arquivo",
+        description: "Tente novamente ou verifique bloqueios do navegador.",
+        variant: "destructive",
+      });
+      try {
+        const url = await getLegalTemplateDownloadUrl(template.file_path);
+        setFallbackUrl(url);
+      } catch {
+        // silencioso: fallback opcional
+      }
+    } finally {
+      setDownloading(false);
     }
   };
 
