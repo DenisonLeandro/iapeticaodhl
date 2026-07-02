@@ -116,6 +116,38 @@ export default function CaseForm({
 
   const caseKind = form.watch("case_kind");
   const isPreProcessual = caseKind === "pre_processual";
+  const watchedClientId = form.watch("client_id");
+
+  const [opposingSuggestions, setOpposingSuggestions] = useState<string[]>([]);
+  const [opposingAutoFilled, setOpposingAutoFilled] = useState(false);
+
+  // Sugere Parte Contrária a partir de casos/fichas anteriores do cliente selecionado.
+  // Nunca sobrescreve valor digitado manualmente.
+  useEffect(() => {
+    if (!watchedClientId || isEditing) {
+      setOpposingSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const suggestions = await fetchOpposingPartySuggestions(watchedClientId);
+        if (cancelled) return;
+        setOpposingSuggestions(suggestions);
+        const current = (form.getValues("opposing_party") ?? "").trim();
+        if (!current && suggestions.length === 1) {
+          form.setValue("opposing_party", suggestions[0], { shouldDirty: false });
+          setOpposingAutoFilled(true);
+        }
+      } catch (err) {
+        console.warn("opposing_party_suggestions_failed", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedClientId, isEditing]);
 
 
   const onSubmit = async (values: CaseFormValues) => {
