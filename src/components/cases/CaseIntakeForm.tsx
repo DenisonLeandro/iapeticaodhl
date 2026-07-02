@@ -365,7 +365,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "fill-empty");
+                if (pendingPrefill)
+                  applyPrefillValues(
+                    pendingPrefill.values,
+                    "fill-empty",
+                    pendingPrefill.heuristicFields,
+                  );
                 setPendingPrefill(null);
               }}
             >
@@ -373,7 +378,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             </AlertDialogAction>
             <AlertDialogAction
               onClick={() => {
-                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "overwrite");
+                if (pendingPrefill)
+                  applyPrefillValues(
+                    pendingPrefill.values,
+                    "overwrite",
+                    pendingPrefill.heuristicFields,
+                  );
                 setPendingPrefill(null);
               }}
             >
