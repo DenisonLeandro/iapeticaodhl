@@ -35,7 +35,8 @@ export type AITaskType =
   | "analyze_meeting_transcript_future"
   | "hearing_analysis_future"
   | "video_understanding_future"
-  | "legal_template_analysis";
+  | "legal_template_analysis"
+  | "legal_draft_generation";
 
 export interface AIModelChoice {
   provider: "lovable-ai";
