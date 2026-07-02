@@ -34,7 +34,8 @@ export type AITaskType =
   | "speaker_diarization_future"
   | "analyze_meeting_transcript_future"
   | "hearing_analysis_future"
-  | "video_understanding_future";
+  | "video_understanding_future"
+  | "legal_template_analysis";
 
 export interface AIModelChoice {
   provider: "lovable-ai";
@@ -43,6 +44,7 @@ export interface AIModelChoice {
 }
 
 const STABLE_TEXT_MODEL = "google/gemini-2.5-flash";
+const STRONG_TEXT_MODEL = "google/gemini-2.5-pro";
 
 const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   analyze_case: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
@@ -58,6 +60,7 @@ const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   analyze_meeting_transcript_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   hearing_analysis_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   video_understanding_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  legal_template_analysis: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
 };
 
 export function selectAIModelForTask(task: AITaskType): AIModelChoice {
