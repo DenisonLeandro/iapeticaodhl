@@ -216,10 +216,13 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     values: Partial<CaseIntakeFormValues>,
     mode: "fill-empty" | "overwrite",
     heuristicFields: (keyof CaseIntakeFormValues)[] = [],
+    documentSourcedFields: (keyof CaseIntakeFormValues)[] = [],
+    sourcesUsed: string[] = [],
   ) {
     const current = form.getValues();
     let applied = 0;
     const appliedHeuristic: string[] = [];
+    const appliedDocSourced: string[] = [];
     (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
       const incoming = values[k];
       if (incoming === undefined || incoming === null || incoming === "") return;
@@ -232,19 +235,30 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
       form.setValue(k, incoming as never, { shouldDirty: true });
       applied += 1;
       if (heuristicFields.includes(k)) appliedHeuristic.push(k);
+      if (documentSourcedFields.includes(k)) appliedDocSourced.push(k);
     });
     if (applied === 0) {
       toast.message("Nenhum campo novo para preencher.");
-    } else {
-      toast.success(
-        `Importação concluída: ${applied} campo(s) preenchido(s). Revise antes de salvar.`,
+      return;
+    }
+    const sourcesTxt = sourcesUsed.length ? ` Fontes: ${sourcesUsed.join(", ")}.` : "";
+    toast.success(
+      `Importação concluída: ${applied} campo(s) preenchido(s).${sourcesTxt} Revise antes de salvar.`,
+    );
+    if (
+      appliedDocSourced.includes("client_story") ||
+      appliedDocSourced.includes("problem_summary")
+    ) {
+      toast.warning(
+        "Relato/Resumo importado de documentos processados — revise antes de salvar.",
+        { duration: 8000 },
       );
-      if (appliedHeuristic.length > 0) {
-        toast.warning(
-          `Atenção: ${appliedHeuristic.join(", ")} extraído(s) de documentos por heurística — revise antes de salvar.`,
-          { duration: 8000 },
-        );
-      }
+    }
+    if (appliedHeuristic.length > 0) {
+      toast.warning(
+        `Atenção: ${appliedHeuristic.join(", ")} extraído(s) de documentos por heurística — revise antes de salvar.`,
+        { duration: 8000 },
+      );
     }
   }
 
@@ -252,6 +266,16 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     setIsPrefilling(true);
     try {
       const result = await buildIntakePrefill(caseData.id, caseData.client_id);
+      // Diagnóstico apenas com metadados (sem texto sensível)
+      console.info("[intake-prefill]", result.diagnostics);
+
+      if (result.insufficientText) {
+        toast.warning(
+          "Não foi encontrado texto processado suficiente para preencher o relato detalhado. Verifique se a ficha/documento foi enviada e processada.",
+          { duration: 9000 },
+        );
+      }
+
       if (result.filledFields.length === 0) {
         toast.message("Não encontramos ficha ou relato anterior para importar.");
         return;
@@ -266,12 +290,20 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
         );
       });
       if (conflicts.length === 0) {
-        applyPrefillValues(result.values, "fill-empty", result.heuristicFields);
+        applyPrefillValues(
+          result.values,
+          "fill-empty",
+          result.heuristicFields,
+          result.documentSourcedFields,
+          result.sourcesUsed,
+        );
       } else {
         setPendingPrefill({
           values: result.values,
           conflicts,
           heuristicFields: result.heuristicFields,
+          documentSourcedFields: result.documentSourcedFields,
+          sourcesUsed: result.sourcesUsed,
         });
       }
     } catch (e) {
@@ -280,6 +312,7 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
       setIsPrefilling(false);
     }
   }
+
 
 
   if (isLoading) {
