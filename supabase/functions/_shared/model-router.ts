@@ -62,6 +62,7 @@ const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   hearing_analysis_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   video_understanding_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   legal_template_analysis: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  legal_draft_generation: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
 };
 
 export function selectAIModelForTask(task: AITaskType): AIModelChoice {
