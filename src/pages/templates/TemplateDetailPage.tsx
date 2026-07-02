@@ -13,7 +13,10 @@ import {
   useSetLegalTemplateStatus,
   useUploadLegalTemplateFile,
 } from "@/hooks/useLegalTemplates";
-import { getLegalTemplateDownloadUrl } from "@/services/legalTemplates";
+import {
+  downloadLegalTemplateBlob,
+  getLegalTemplateDownloadUrl,
+} from "@/services/legalTemplates";
 import { TemplateAnalysisPanel } from "@/components/templates/TemplateAnalysisPanel";
 import {
   AnalysisBadge,
@@ -28,6 +31,8 @@ export default function TemplateDetailPage() {
   const setStatus = useSetLegalTemplateStatus();
   const upload = useUploadLegalTemplateFile();
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   if (isLoading || !template) {
     return <p className="text-muted-foreground">Carregando…</p>;
@@ -44,11 +49,25 @@ export default function TemplateDetailPage() {
 
   const handleDownload = async () => {
     if (!template.file_path) return;
+    setDownloading(true);
+    setFallbackUrl(null);
     try {
-      const url = await getLegalTemplateDownloadUrl(template.file_path);
-      window.open(url, "_blank");
+      await downloadLegalTemplateBlob(template.file_path, template.file_name ?? "modelo");
+      toast({ title: "Download iniciado." });
     } catch (e) {
-      toast({ title: "Erro", description: (e as Error).message, variant: "destructive" });
+      toast({
+        title: "Não foi possível baixar o arquivo",
+        description: "Tente novamente ou verifique bloqueios do navegador.",
+        variant: "destructive",
+      });
+      try {
+        const url = await getLegalTemplateDownloadUrl(template.file_path);
+        setFallbackUrl(url);
+      } catch {
+        // silencioso: fallback opcional
+      }
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -97,8 +116,18 @@ export default function TemplateDetailPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {template.file_path && (
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" /> Baixar arquivo
+            <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading}>
+              <Download className="h-4 w-4 mr-2" />
+              {downloading ? "Baixando…" : "Baixar arquivo"}
+            </Button>
+          )}
+          {fallbackUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.open(fallbackUrl, "_blank", "noopener")}
+            >
+              Abrir link temporário
             </Button>
           )}
           <Button
