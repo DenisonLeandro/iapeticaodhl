@@ -315,6 +315,103 @@ export type Database = {
           },
         ]
       }
+      case_drafts: {
+        Row: {
+          additional_instructions: string | null
+          case_id: string
+          content: string
+          cost_estimate: number | null
+          created_at: string
+          created_by: string | null
+          draft_type: string
+          id: string
+          missing_information: Json | null
+          model_used: string | null
+          objective: string | null
+          organization_id: string
+          sources_used: Json | null
+          status: string
+          template_id: string | null
+          title: string | null
+          tokens_input: number | null
+          tokens_output: number | null
+          tone: string | null
+          updated_at: string
+          updated_by: string | null
+          warnings: Json | null
+        }
+        Insert: {
+          additional_instructions?: string | null
+          case_id: string
+          content?: string
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          draft_type: string
+          id?: string
+          missing_information?: Json | null
+          model_used?: string | null
+          objective?: string | null
+          organization_id: string
+          sources_used?: Json | null
+          status?: string
+          template_id?: string | null
+          title?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          tone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          warnings?: Json | null
+        }
+        Update: {
+          additional_instructions?: string | null
+          case_id?: string
+          content?: string
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          draft_type?: string
+          id?: string
+          missing_information?: Json | null
+          model_used?: string | null
+          objective?: string | null
+          organization_id?: string
+          sources_used?: Json | null
+          status?: string
+          template_id?: string | null
+          title?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          tone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_drafts_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_drafts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "legal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_intake_forms: {
         Row: {
           ai_complementary_questions: Json | null
