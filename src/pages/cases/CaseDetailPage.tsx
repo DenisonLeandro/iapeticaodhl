@@ -30,6 +30,7 @@ import CaseWorkbench from "@/components/cases/CaseWorkbench";
 import CaseIntakeForm from "@/components/cases/CaseIntakeForm";
 
 import CaseMoreMenu from "@/components/cases/CaseMoreMenu";
+import { useCaseDrafts } from "@/hooks/useCaseDrafts";
 
 function DetailSkeleton() {
   return (
