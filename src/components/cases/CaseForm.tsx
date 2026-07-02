@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { fetchOpposingPartySuggestions } from "@/services/opposingPartySuggestions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, ChevronsUpDown, Loader2, Plus } from "lucide-react";
@@ -114,6 +116,38 @@ export default function CaseForm({
 
   const caseKind = form.watch("case_kind");
   const isPreProcessual = caseKind === "pre_processual";
+  const watchedClientId = form.watch("client_id");
+
+  const [opposingSuggestions, setOpposingSuggestions] = useState<string[]>([]);
+  const [opposingAutoFilled, setOpposingAutoFilled] = useState(false);
+
+  // Sugere Parte Contrária a partir de casos/fichas anteriores do cliente selecionado.
+  // Nunca sobrescreve valor digitado manualmente.
+  useEffect(() => {
+    if (!watchedClientId || isEditing) {
+      setOpposingSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const suggestions = await fetchOpposingPartySuggestions(watchedClientId);
+        if (cancelled) return;
+        setOpposingSuggestions(suggestions);
+        const current = (form.getValues("opposing_party") ?? "").trim();
+        if (!current && suggestions.length === 1) {
+          form.setValue("opposing_party", suggestions[0], { shouldDirty: false });
+          setOpposingAutoFilled(true);
+        }
+      } catch (err) {
+        console.warn("opposing_party_suggestions_failed", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedClientId, isEditing]);
 
 
   const onSubmit = async (values: CaseFormValues) => {
@@ -305,12 +339,51 @@ export default function CaseForm({
                           : "Nome da parte contrária"
                       }
                       {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        setOpposingAutoFilled(false);
+                      }}
                     />
                   </FormControl>
+                  {opposingAutoFilled && field.value && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Sugerido a partir de caso anterior deste cliente — edite se necessário.{" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          field.onChange("");
+                          setOpposingAutoFilled(false);
+                        }}
+                      >
+                        limpar
+                      </button>
+                    </p>
+                  )}
+                  {!opposingAutoFilled && opposingSuggestions.length > 1 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                      <span>Sugestões:</span>
+                      {opposingSuggestions.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className="rounded border border-border px-2 py-0.5 hover:bg-muted"
+                          onClick={() => {
+                            field.onChange(s);
+                            setOpposingAutoFilled(true);
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+
 
 
             <FormField
@@ -448,6 +521,16 @@ export default function CaseForm({
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Não encontrou o advogado?{" "}
+                      <Link
+                        to="/settings?tab=users"
+                        className="underline hover:text-foreground"
+                        onClick={() => setOpen(false)}
+                      >
+                        Gerenciar equipe →
+                      </Link>
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

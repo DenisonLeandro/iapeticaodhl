@@ -110,6 +110,7 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
   const [pendingPrefill, setPendingPrefill] = useState<{
     values: Partial<CaseIntakeFormValues>;
     conflicts: (keyof CaseIntakeFormValues)[];
+    heuristicFields: (keyof CaseIntakeFormValues)[];
   } | null>(null);
 
   // Hidrata o form quando intake chega
@@ -208,9 +209,14 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     toast.success("Área aplicada à ficha. Lembre-se de salvar.");
   }
 
-  function applyPrefillValues(values: Partial<CaseIntakeFormValues>, mode: "fill-empty" | "overwrite") {
+  function applyPrefillValues(
+    values: Partial<CaseIntakeFormValues>,
+    mode: "fill-empty" | "overwrite",
+    heuristicFields: (keyof CaseIntakeFormValues)[] = [],
+  ) {
     const current = form.getValues();
     let applied = 0;
+    const appliedHeuristic: string[] = [];
     (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
       const incoming = values[k];
       if (incoming === undefined || incoming === null || incoming === "") return;
@@ -220,14 +226,22 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
         existing === null ||
         (typeof existing === "string" && existing.trim() === "");
       if (mode === "fill-empty" && !isEmpty) return;
-      // setValue com cast genérico — campos compatíveis com Partial<CaseIntakeFormValues>
       form.setValue(k, incoming as never, { shouldDirty: true });
       applied += 1;
+      if (heuristicFields.includes(k)) appliedHeuristic.push(k);
     });
     if (applied === 0) {
       toast.message("Nenhum campo novo para preencher.");
     } else {
-      toast.success(`Importação concluída: ${applied} campo(s) preenchido(s). Revise antes de salvar.`);
+      toast.success(
+        `Importação concluída: ${applied} campo(s) preenchido(s). Revise antes de salvar.`,
+      );
+      if (appliedHeuristic.length > 0) {
+        toast.warning(
+          `Atenção: ${appliedHeuristic.join(", ")} extraído(s) de documentos por heurística — revise antes de salvar.`,
+          { duration: 8000 },
+        );
+      }
     }
   }
 
@@ -249,9 +263,13 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
         );
       });
       if (conflicts.length === 0) {
-        applyPrefillValues(result.values, "fill-empty");
+        applyPrefillValues(result.values, "fill-empty", result.heuristicFields);
       } else {
-        setPendingPrefill({ values: result.values, conflicts });
+        setPendingPrefill({
+          values: result.values,
+          conflicts,
+          heuristicFields: result.heuristicFields,
+        });
       }
     } catch (e) {
       toast.error((e as Error).message || "Falha ao importar dados existentes.");
@@ -347,7 +365,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "fill-empty");
+                if (pendingPrefill)
+                  applyPrefillValues(
+                    pendingPrefill.values,
+                    "fill-empty",
+                    pendingPrefill.heuristicFields,
+                  );
                 setPendingPrefill(null);
               }}
             >
@@ -355,7 +378,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             </AlertDialogAction>
             <AlertDialogAction
               onClick={() => {
-                if (pendingPrefill) applyPrefillValues(pendingPrefill.values, "overwrite");
+                if (pendingPrefill)
+                  applyPrefillValues(
+                    pendingPrefill.values,
+                    "overwrite",
+                    pendingPrefill.heuristicFields,
+                  );
                 setPendingPrefill(null);
               }}
             >
