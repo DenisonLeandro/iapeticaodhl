@@ -54,6 +54,7 @@ export const routeLabels: Record<string, string> = {
   ai: "IA Jurídica",
   clients: "Clientes",
   cases: "Processos",
+  templates: "Modelos do Escritório",
   settings: "Configurações",
   users: "Usuários",
   profile: "Meu Perfil",
