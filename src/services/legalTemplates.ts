@@ -190,6 +190,30 @@ export async function getLegalTemplateDownloadUrl(
   return data.signedUrl;
 }
 
+/**
+ * Baixa o arquivo do modelo via fetch da signed URL, evitando navegar para o
+ * host do Storage (que pode ser bloqueado por extensões — ERR_BLOCKED_BY_CLIENT).
+ * Mantém o bucket privado e a URL assinada; apenas o transporte muda para Blob local.
+ */
+export async function downloadLegalTemplateBlob(
+  path: string,
+  fileName: string,
+): Promise<void> {
+  const signedUrl = await getLegalTemplateDownloadUrl(path);
+  const res = await fetch(signedUrl);
+  if (!res.ok) throw new Error(`Falha ao baixar arquivo (${res.status}).`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = fileName || "modelo";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 export async function analyzeLegalTemplate(templateId: string): Promise<void> {
   const { error } = await supabase.functions.invoke("analyze-legal-template", {
     body: { template_id: templateId },
