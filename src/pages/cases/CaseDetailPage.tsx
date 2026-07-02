@@ -174,7 +174,7 @@ export default function CaseDetailPage() {
             Documentos
           </TabsTrigger>
           <TabsTrigger value="pieces" data-tab-trigger="pieces">
-            Peças ({documents.length})
+            Peças ({drafts.filter((d) => d.status !== "archived").length + documents.length})
           </TabsTrigger>
           <TabsTrigger value="history" data-tab-trigger="history">
             Histórico ({movements.length})
