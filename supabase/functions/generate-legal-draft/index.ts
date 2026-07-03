@@ -370,9 +370,11 @@ Deno.serve(async (req) => {
   // -------------------------------------------------------------------------
   const { data: caseRow, error: caseErr } = await admin
     .from("cases").select("*").eq("id", caseId).maybeSingle();
-  if (caseErr) return json({ error: "case_lookup_failed", detail: caseErr.message }, 500);
-  if (!caseRow) return json({ error: "case_not_found" }, 404);
-  if (caseRow.organization_id !== profile.organization_id) return json({ error: "forbidden" }, 403);
+  if (caseErr) return err("case_fetch", "Não foi possível carregar o caso.", "case_lookup_failed", 500);
+  if (!caseRow) return err("case_fetch", "Caso não encontrado.", "case_not_found", 404, "case_not_found");
+  if (caseRow.organization_id !== profile.organization_id) {
+    return err("case_fetch", "Acesso negado ao caso.", "org_mismatch", 403, "forbidden");
+  }
 
   if (caseRow.client_id) {
     const { data: clientRow } = await admin
