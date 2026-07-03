@@ -640,11 +640,9 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       has_additional_instructions: !!body.additional_instructions,
       generation_depth: "professional_full",
       claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
-      quality_needs_rewrite: !!(qualityReport as { needs_rewrite?: boolean }).needs_rewrite,
-      quality_rewrite_applied: !!(qualityReport as { rewrite_applied?: boolean }).rewrite_applied,
-      quality_missing_topics: missingList.length,
-      quality_weak_topics: weakList.length,
+      quality_status: "pending",
       content_chars: content.length,
+
     },
   });
 
