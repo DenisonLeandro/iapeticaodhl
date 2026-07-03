@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Info } from "lucide-react";
+
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -92,6 +93,25 @@ export default function DraftGeneratorPage() {
 
   const generate = useGenerateDraft();
 
+  // Feedback visual de progresso: alterna rótulos enquanto a edge processa
+  // (edge função síncrona; ciclo baseado em tempo estimado por etapa)
+  const PROGRESS_STEPS = [
+    "Construindo mapa de pedidos…",
+    "Redigindo minuta profissional…",
+    "Revisando qualidade…",
+    "Ajustando pontos fracos…",
+  ];
+  const [progressIdx, setProgressIdx] = useState(0);
+  useEffect(() => {
+    if (!generate.isPending) { setProgressIdx(0); return; }
+    setProgressIdx(0);
+    const step = setInterval(() => {
+      setProgressIdx((i) => (i < PROGRESS_STEPS.length - 1 ? i + 1 : i));
+    }, 12000);
+    return () => clearInterval(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generate.isPending]);
+
   const handleGenerate = async () => {
     if (!caseId) return;
     try {
@@ -114,6 +134,7 @@ export default function DraftGeneratorPage() {
       toast.error((e as Error).message || "Falha ao gerar minuta.");
     }
   };
+
 
   if (caseLoading || !caseData) {
     return <Skeleton className="h-96 w-full" />;
