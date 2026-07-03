@@ -247,3 +247,71 @@ export default function DraftDetailPage() {
     </div>
   );
 }
+
+function ReviewStatusBanner({
+  status,
+  timedOut,
+  onRetry,
+  retrying,
+}: {
+  status: string | null;
+  timedOut: boolean;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  if (!status || status === "not_requested") return null;
+
+  if (status === "pending" || status === "running") {
+    const label =
+      status === "pending"
+        ? "Revisão automática na fila…"
+        : "Revisando qualidade da peça…";
+    return (
+      <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-primary">
+          <Loader2 className="h-4 w-4 animate-spin" /> {label}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Evite editar a minuta até a revisão concluir — edições feitas agora
+          impedem que a reescrita automática seja aplicada.
+          {timedOut && " A revisão está demorando mais que o usual; você pode tentar novamente."}
+        </p>
+        {timedOut && (
+          <div className="mt-2">
+            <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+              <RefreshCw className="mr-1 h-3 w-3" /> Tentar revisar novamente
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (status === "done") {
+    return (
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300">
+          <ShieldCheck className="h-4 w-4" /> Revisão automática concluída
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-300">
+          <ShieldAlert className="h-4 w-4" /> Não foi possível concluir a revisão automática. A minuta original foi preservada.
+        </div>
+        <div className="mt-2">
+          <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+            <RefreshCw className="mr-1 h-3 w-3" /> Tentar revisar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
