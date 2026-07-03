@@ -1,14 +1,13 @@
 // =============================================================================
-// PR-4.4B — generate-legal-draft
-// Gera minuta de peça jurídica combinando Ficha + Análise + Documentos + Modelo.
+// PR-4.4B.1 — generate-legal-draft (Profissional completo)
+// Pipeline: contexto → claim_map → template_blueprint → draft → quality_gate → rewrite?
 //
-// Regras críticas:
+// Regras críticas mantidas do PR-4.4B:
 //   - Modelo do escritório é APENAS referência de estrutura/estilo/pedidos.
 //   - Nunca copiar fatos/nomes/CPFs/valores/datas do modelo.
 //   - Fatos vêm SOMENTE de ficha/análise/documentos do caso atual.
-//   - Marcar lacunas com [CONFIRMAR ...] quando faltar informação.
 //   - Multi-tenant estrito via organization_id.
-//   - Nunca gravar conteúdo da minuta em telemetria.
+//   - Nunca gravar conteúdo (minuta, relato, docs, modelo, claim_map) em telemetria.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/cors.ts";
@@ -23,6 +22,7 @@ const MAX_CHUNK_SNIPPET_CHARS = 900;
 const MAX_CHUNKS = 8;
 const MAX_INTAKE_STORY_CHARS = 6000;
 const MAX_ANALYSIS_CHARS = 6000;
+const MIN_ACCEPTABLE_CONTENT_CHARS = 3500; // guarda contra minuta curta demais
 
 const DRAFT_TYPE_LABELS: Record<string, string> = {
   initial_petition: "Petição inicial",
@@ -32,30 +32,107 @@ const DRAFT_TYPE_LABELS: Record<string, string> = {
   other: "Peça jurídica",
 };
 
-const SYSTEM_PROMPT = `Você é assistente jurídico redator de peças no Brasil.
-Sua tarefa é gerar MINUTA REVISÁVEL, não peça final protocolável.
+// ---------------------------------------------------------------------------
+// PROMPTS
+// ---------------------------------------------------------------------------
+
+const CLAIM_MAP_SYSTEM = `Você é um advogado sênior brasileiro. Sua tarefa é montar um MAPA DE TESES E PEDIDOS aplicáveis EXCLUSIVAMENTE ao caso apresentado, ANTES da redação da peça.
+Regras:
+- Baseie-se apenas nas fontes do caso atual (ficha, análise, documentos, instruções).
+- O MODELO DO ESCRITÓRIO serve APENAS de inspiração de quais teses costumam aparecer nesse tipo de peça — NÃO copie fatos, nomes, datas, valores ou pedidos incompatíveis com o caso atual.
+- Marque include=false quando a tese não tiver base fática mínima.
+- Marque status="include_with_confirmation" quando faltar dado essencial.
+- Liste base legal com artigos/leis/súmulas relevantes.
+- Reflexos completos quando cabível (DSR, férias+1/3, 13º, FGTS+40%, aviso-prévio…).
+Retorne APENAS JSON válido no schema:
+{ "topics": [ { "topic": string, "include": bool, "factual_basis": string, "documentary_basis": string, "legal_basis": string[], "main_request": string, "alternative_request": string, "reflexes": string[], "evidence_needed": string[], "risk": string, "status": "include" | "include_with_confirmation" | "exclude" } ] }`;
+
+const DRAFT_SYSTEM = `Você é assistente jurídico redator de um escritório com mais de 25 anos de atuação.
+Sua tarefa é gerar uma MINUTA PROFISSIONAL COMPLETA e revisável, em nível NO MÍNIMO equivalente ao modelo do escritório selecionado.
 
 REGRAS OBRIGATÓRIAS:
-- Você produz uma MINUTA de trabalho para o advogado revisar antes do protocolo.
+- Você produz uma MINUTA de trabalho para o advogado revisar antes do protocolo — mas ela deve ser COMPLETA, não um esqueleto.
 - Nunca prometa êxito nem garanta resultado.
 - Nunca invente fatos, datas, valores, nomes de partes ou documentos.
-- Se o MODELO DO ESCRITÓRIO for fornecido, use-o APENAS como referência de estrutura, estilo, ordem dos tópicos, forma de narrar, padrão de pedidos e forma de fechamento. NUNCA copie fatos, nomes, CPFs/CNPJs, endereços, valores, datas ou fundamentos específicos do modelo — esses dados pertencem a outro caso.
+- O MODELO DO ESCRITÓRIO é RÉGUA MÍNIMA de estrutura, profundidade, organização, estilo, forma de narrar, padrão de pedidos, reflexos e pedido final. Nunca copie fatos, nomes, CPFs/CNPJs, endereços, valores, datas ou fundamentos específicos do modelo — esses dados pertencem a outro caso.
 - Os FATOS da peça devem vir SOMENTE da Ficha Inteligente, Análise Inicial, Documentos do caso atual e Instruções do advogado.
 - Diferencie: fatos relatados pelo cliente, fatos documentados, inferências da análise, pontos a confirmar.
 - Se um documento foi apenas mencionado (não anexado), use "[ANEXAR DOCUMENTO]" em vez de afirmar que existe.
-- Marque lacunas usando exatamente estes marcadores quando faltar informação:
-  [CONFIRMAR COM O CLIENTE], [INFORMAR DATA], [INFORMAR VALOR], [ANEXAR DOCUMENTO], [REVISAR FUNDAMENTO]
-- Inclua pedidos SOMENTE quando houver base fática mínima nas fontes. Sem base: "[CONFIRMAR COM O CLIENTE A BASE FÁTICA DESTE PEDIDO]".
-- Ao final, inclua a seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas identificadas.
+- Use o CLAIM_MAP fornecido como guia obrigatório: cada topic com include=true (ou include_with_confirmation) DEVE ter seu próprio tópico na peça, com fatos + fundamento jurídico + aplicação ao caso + pedido correspondente.
+- Marcadores de lacuna (use exatamente estes):
+  [CONFIRMAR COM O CLIENTE], [INFORMAR DATA], [INFORMAR VALOR], [CALCULAR VALOR], [ANEXAR DOCUMENTO], [REVISAR FUNDAMENTO], [REVISAR JURISPRUDÊNCIA ATUALIZADA]
+- Alertas específicos quando aplicáveis:
+  * Súmula 450/TST (férias pagas em atraso) → sempre marcar [REVISAR ADPF 501/STF E ENTENDIMENTO ATUAL].
+  * Sucumbência do beneficiário da justiça gratuita → sempre marcar [REVISAR ENTENDIMENTO ATUAL SOBRE ADI 5.766/STF].
+
+FUNDAMENTAÇÃO JURÍDICA MÍNIMA (áreas trabalhistas — usar quando aplicáveis):
+- Justiça gratuita: art. 5º, LXXIV, CF; art. 98 CPC; art. 790, §§3º e 4º, CLT.
+- Ônus da prova: art. 818 CLT; art. 373 CPC; aptidão para a prova; art. 400 CPC para exibição.
+- Motorista profissional / jornada: Lei 13.103/2015; obrigação de controle (diário de bordo, papeleta, tacógrafo, MDF-e, CTe, rastreador); afastamento do art. 62, I, CLT quando houver meios de controle; inversão do ônus da prova.
+- Horas extras: art. 7º, XIII e XVI, CF; arts. 58 e 59 CLT; reflexos em DSR, férias+1/3, 13º, FGTS+40%, aviso-prévio.
+- Intervalo intrajornada: art. 71 e §4º CLT; Súmula 437/TST quando aplicável; [REVISAR APLICAÇÃO TEMPORAL / REFORMA TRABALHISTA] se pertinente.
+- Intervalo interjornada: art. 66 CLT; art. 67 CLT (DSR); horas suprimidas como extras.
+- Domingos e feriados: Lei 605/49; Súmula 146/TST; adicional 100% sem compensação.
+- Pagamento por fora / comissões: art. 457 CLT; habitualidade; natureza salarial; integração em férias+1/3, 13º, FGTS, aviso, HE, verbas; exibição de documentos.
+- FGTS: Lei 8.036/90; Súmula 461/TST (ônus dos depósitos); multa 40%.
+- Verbas rescisórias: arts. 477 e §8º CLT; art. 467 CLT; aviso, 13º, férias+1/3, saldo, FGTS+40%, guias, baixa CTPS, seguro-desemprego.
+- Férias: arts. 134, 137, 145 CLT; se citar Súmula 450/TST incluir [REVISAR ADPF 501/STF E ENTENDIMENTO ATUAL].
+- Insalubridade/periculosidade: arts. 189-192 CLT; NR-15/16; perícia; reflexos.
+- Adicional noturno: art. 73 CLT; hora reduzida; prorrogação; reflexos.
+- Honorários: art. 791-A CLT; cuidado com justiça gratuita.
+
+PEDIDO FINAL (obrigatório e robusto):
+- Numerado, discriminado, com remissão ao tópico correspondente.
+- Reflexos discriminados.
+- Pedido principal e sucessivo quando cabível.
+- Valor por pedido quando disponível, senão [CALCULAR VALOR].
+- Pedido de exibição de documentos (art. 400 CPC).
+- Pedido de inversão/redistribuição do ônus da prova quando aplicável.
+- Ofícios quando cabível.
+- Abatimento de parcelas pagas sob mesmo título.
+- Correção monetária e juros.
+- Honorários.
+- Produção de provas (protesto por todos os meios).
+- Notificação/citação da reclamada.
+- Valor da causa.
 
 FORMATO DA RESPOSTA:
-Retorne EXCLUSIVAMENTE um JSON válido com este schema:
+Retorne EXCLUSIVAMENTE um JSON válido:
 {
   "title": "Título curto da minuta",
-  "content": "Conteúdo da minuta em texto corrido, com quebras de linha e cabeçalhos de seção em MAIÚSCULAS. Sem markdown de código.",
-  "warnings": ["alerta 1", "alerta 2"],
-  "missing_information": ["item pendente 1", "item pendente 2"]
+  "content": "Conteúdo completo em texto corrido com seções em MAIÚSCULAS. Sem markdown de código.",
+  "warnings": ["alerta 1"],
+  "missing_information": ["item pendente 1"]
 }`;
+
+const QUALITY_GATE_SYSTEM = `Você é um revisor sênior. Avalie a MINUTA fornecida contra o CLAIM_MAP e o TEMPLATE_BLUEPRINT.
+Regras:
+- Não reescreva; apenas avalie.
+- Considere "weak_topic" um tópico presente mas raso (menos de ~4 parágrafos ou sem fundamento legal específico ou sem pedido correspondente).
+- Considere "missing_topic" um topic com include=true no claim_map que não está desenvolvido na minuta.
+- needs_rewrite=true quando: is_too_short=true, OU matches_template_depth=false, OU há missing_topics/weak_topics relevantes, OU pedido final é raso, OU faltam reflexos/sucessivos aplicáveis.
+Retorne APENAS JSON:
+{
+  "is_too_short": bool,
+  "matches_template_depth": bool,
+  "has_preliminaries": bool,
+  "has_factual_section": bool,
+  "has_legal_basis_per_topic": bool,
+  "has_detailed_requests": bool,
+  "has_reflexes": bool,
+  "has_successive_requests_when_applicable": bool,
+  "has_burden_of_proof_when_applicable": bool,
+  "has_points_to_confirm": bool,
+  "avoids_copying_template_facts": bool,
+  "missing_topics": string[],
+  "weak_topics": string[],
+  "quality_alerts": string[],
+  "needs_rewrite": bool
+}`;
+
+// ---------------------------------------------------------------------------
+// TIPOS
+// ---------------------------------------------------------------------------
 
 interface Payload {
   case_id?: string;
@@ -71,18 +148,25 @@ interface Payload {
   additional_instructions?: string;
 }
 
+interface LlmResult {
+  raw: string;
+  parsed: Record<string, unknown> | null;
+  input_tokens: number;
+  output_tokens: number;
+  ms: number;
+  http_status: number;
+}
+
+// ---------------------------------------------------------------------------
+// HELPERS
+// ---------------------------------------------------------------------------
+
 function extractJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch { /* try fenced */ }
+  try { return JSON.parse(raw); } catch { /* fenced fallback */ }
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return null;
-  try {
-    return JSON.parse(m[0]);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(m[0]); } catch { return null; }
 }
 
 function truncate(text: string | null | undefined, max: number): string {
@@ -97,10 +181,105 @@ function stringifyList(v: unknown): string {
   try { return JSON.stringify(v); } catch { return ""; }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+async function callLlm(
+  apiKey: string,
+  model: string,
+  system: string,
+  userPrompt: string,
+): Promise<LlmResult> {
+  const start = Date.now();
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+    }),
+  });
+  const ms = Date.now() - start;
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error("callLlm:error", res.status, detail.slice(0, 200));
+    return { raw: "", parsed: null, input_tokens: 0, output_tokens: 0, ms, http_status: res.status };
   }
+  const data = await res.json();
+  const raw: string = data?.choices?.[0]?.message?.content ?? "";
+  const input_tokens = data?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
+  const output_tokens = data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4);
+  return { raw, parsed: extractJson(raw), input_tokens, output_tokens, ms, http_status: res.status };
+}
+
+// ---------------------------------------------------------------------------
+// TEMPLATE BLUEPRINT (derivado dos campos estruturados do template)
+// ---------------------------------------------------------------------------
+
+function buildTemplateBlueprint(template: Record<string, unknown> | null) {
+  if (!template) {
+    return {
+      has_template: false,
+      minimum_depth: "complete_professional_petition",
+      expected_section_count: 10,
+      request_style: "pedidos discriminados, numerados e com reflexos",
+      has_preliminaries: true,
+      has_burden_of_proof: true,
+      has_successive_requests: true,
+      has_detailed_final_requests: true,
+      has_values_per_request: true,
+      style_rules: [
+        "tópicos numerados",
+        "fundamentação específica por pedido",
+        "pedido final reiterando os tópicos",
+        "reflexos discriminados",
+        "pedidos sucessivos quando cabíveis",
+        "valores ou marcadores de cálculo",
+        "protesto por provas",
+        "requerimentos finais completos",
+      ],
+    };
+  }
+  const sections = Array.isArray(template.standard_sections) ? template.standard_sections as unknown[] : [];
+  const topics = Array.isArray(template.topic_structure) ? template.topic_structure as unknown[] : [];
+  const reqs = Array.isArray(template.request_patterns) ? template.request_patterns as unknown[] : [];
+  const expectedSections = Math.max(sections.length, topics.length, 10);
+  return {
+    has_template: true,
+    minimum_depth: "complete_professional_petition",
+    expected_section_count: expectedSections,
+    request_style: reqs.length > 0
+      ? "seguir padrões de pedidos do modelo (numerados, discriminados, com reflexos)"
+      : "pedidos discriminados, numerados e com reflexos",
+    has_preliminaries: true,
+    has_burden_of_proof: true,
+    has_successive_requests: true,
+    has_detailed_final_requests: true,
+    has_values_per_request: true,
+    style_rules: [
+      "tópicos numerados",
+      "fundamentação específica por pedido",
+      "pedido final reiterando os tópicos",
+      "reflexos discriminados",
+      "pedidos sucessivos quando cabíveis",
+      "valores ou marcadores de cálculo",
+      "protesto por provas",
+      "requerimentos finais completos",
+      "profundidade e organização no mínimo equivalentes ao modelo",
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HANDLER
+// ---------------------------------------------------------------------------
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
   const startedAt = Date.now();
@@ -119,94 +298,55 @@ Deno.serve(async (req) => {
   if (userErr || !user) return json({ error: "unauthorized" }, 401);
 
   const { data: profile } = await admin
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", user.id)
-    .maybeSingle();
+    .from("profiles").select("organization_id").eq("id", user.id).maybeSingle();
   if (!profile?.organization_id) return json({ error: "no_organization" }, 403);
 
   let body: Payload;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "invalid_body" }, 400);
-  }
+  try { body = await req.json(); } catch { return json({ error: "invalid_body" }, 400); }
   const caseId = body.case_id;
   const draftType = body.draft_type ?? "other";
   if (!caseId) return json({ error: "case_id_required" }, 400);
 
-  // Caso + org check
+  // -------------------------------------------------------------------------
+  // ETAPA 1 — Contexto do caso
+  // -------------------------------------------------------------------------
   const { data: caseRow, error: caseErr } = await admin
-    .from("cases")
-    .select("*")
-    .eq("id", caseId)
-    .maybeSingle();
-  if (caseErr) {
-    console.error("[generate-legal-draft] case lookup error:", caseErr);
-    return json({ error: "case_lookup_failed", detail: caseErr.message }, 500);
-  }
+    .from("cases").select("*").eq("id", caseId).maybeSingle();
+  if (caseErr) return json({ error: "case_lookup_failed", detail: caseErr.message }, 500);
   if (!caseRow) return json({ error: "case_not_found" }, 404);
-  if (caseRow.organization_id !== profile.organization_id) {
-    return json({ error: "forbidden" }, 403);
-  }
+  if (caseRow.organization_id !== profile.organization_id) return json({ error: "forbidden" }, 403);
+
   if (caseRow.client_id) {
     const { data: clientRow } = await admin
-      .from("clients")
-      .select("id,name,document_number")
-      .eq("id", caseRow.client_id)
-      .maybeSingle();
+      .from("clients").select("id,name,document_number").eq("id", caseRow.client_id).maybeSingle();
     if (clientRow) (caseRow as Record<string, unknown>).clients = clientRow;
   }
 
-  // Fontes
   const sourcesUsed: Record<string, boolean> = {
-    intake: false,
-    analysis: false,
-    documents: false,
-    template: false,
-    chat_history: false,
+    intake: false, analysis: false, documents: false, template: false, chat_history: false,
   };
 
-  // Ficha
   let intake: Record<string, unknown> | null = null;
   if (body.use_intake !== false) {
     const { data } = await admin
-      .from("case_intake_forms")
-      .select("*")
-      .eq("case_id", caseId)
-      .maybeSingle();
-    if (data) {
-      intake = data;
-      sourcesUsed.intake = true;
-    }
+      .from("case_intake_forms").select("*").eq("case_id", caseId).maybeSingle();
+    if (data) { intake = data; sourcesUsed.intake = true; }
   }
 
-  // Análise
   let analysis: Record<string, unknown> | null = null;
   if (body.use_analysis !== false) {
     const { data } = await admin
-      .from("case_analyses")
-      .select("*")
-      .eq("case_id", caseId)
-      .eq("status", "done")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      analysis = data;
-      sourcesUsed.analysis = true;
-    }
+      .from("case_analyses").select("*").eq("case_id", caseId).eq("status", "done")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (data) { analysis = data; sourcesUsed.analysis = true; }
   }
 
-  // Documentos
   let docsSummary = "";
   if (body.use_documents !== false) {
     const { data: files } = await admin
       .from("client_files")
       .select("id,file_name,classification,analysis_summary,processing_status")
-      .eq("case_id", caseId)
-      .order("created_at", { ascending: false })
-      .limit(20);
+      .eq("case_id", caseId).order("created_at", { ascending: false }).limit(20);
     if (files && files.length > 0) {
       sourcesUsed.documents = true;
       const lines: string[] = [];
@@ -218,14 +358,11 @@ Deno.serve(async (req) => {
         );
       }
       docsSummary = lines.join("\n");
-
-      // Snippets de chunks (contexto textual leve)
       const fileIds = files.map((f) => f.id);
       const { data: chunks } = await admin
         .from("document_chunks")
         .select("file_id,content,page_from,page_to")
-        .in("file_id", fileIds)
-        .limit(MAX_CHUNKS);
+        .in("file_id", fileIds).limit(MAX_CHUNKS);
       if (chunks && chunks.length > 0) {
         docsSummary += "\n\nTRECHOS DOS DOCUMENTOS:\n";
         for (const c of chunks) {
@@ -235,61 +372,37 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Modelo
   let template: Record<string, unknown> | null = null;
   if (body.use_template !== false && body.template_id) {
     const { data } = await admin
       .from("legal_templates")
-      .select(
-        "id,name,legal_area,piece_type,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines",
-      )
-      .eq("id", body.template_id)
-      .maybeSingle();
-    if (data && data.organization_id !== undefined) {
-      // check org (fetch again for safety)
-    }
-    if (data) {
-      // Re-check org
-      const { data: tOrg } = await admin
-        .from("legal_templates")
-        .select("organization_id")
-        .eq("id", body.template_id)
-        .maybeSingle();
-      if (tOrg?.organization_id === profile.organization_id) {
-        template = data;
-        sourcesUsed.template = true;
-      }
+      .select("id,organization_id,name,legal_area,piece_type,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines")
+      .eq("id", body.template_id).maybeSingle();
+    if (data && (data as Record<string, unknown>).organization_id === profile.organization_id) {
+      template = data;
+      sourcesUsed.template = true;
     }
   }
 
-  // Histórico do chat (opcional, curto)
   let chatContext = "";
   if (body.use_chat_history === true) {
     const { data: msgs } = await admin
       .from("case_chat_messages")
       .select("role,content,created_at")
-      .eq("case_id", caseId)
-      .order("created_at", { ascending: false })
-      .limit(10);
+      .eq("case_id", caseId).order("created_at", { ascending: false }).limit(10);
     if (msgs && msgs.length > 0) {
       sourcesUsed.chat_history = true;
-      chatContext = msgs
-        .reverse()
-        .map((m) => `${m.role}: ${truncate(m.content, 500)}`)
-        .join("\n");
+      chatContext = msgs.reverse().map((m) => `${m.role}: ${truncate(m.content, 500)}`).join("\n");
     }
   }
 
-  // Monta prompt
+  // Contexto reutilizável entre etapas
   const draftLabel = DRAFT_TYPE_LABELS[draftType] ?? "Peça jurídica";
   const client = (caseRow as { clients?: { name?: string } }).clients;
-  const parts: string[] = [];
 
-  parts.push(`# TAREFA
-Gerar minuta de "${draftLabel}" para o caso abaixo. Objetivo: ${body.objective || "(não informado)"}
-Tom desejado: ${body.tone || "template_default"}`);
-
-  parts.push(`# CASO
+  const buildCaseContextBlock = (): string => {
+    const parts: string[] = [];
+    parts.push(`# CASO
 - ID interno: ${caseRow.id}
 - Cliente: ${client?.name ?? "[CONFIRMAR COM O CLIENTE]"}
 - Parte contrária: ${caseRow.opposing_party ?? "[CONFIRMAR COM O CLIENTE]"}
@@ -299,8 +412,8 @@ Tom desejado: ${body.tone || "template_default"}`);
 - Vara/Comarca: ${caseRow.branch || "[INFORMAR VARA/COMARCA]"}
 - Parte representada: ${caseRow.represented_party ?? "(não informado)"}`);
 
-  if (intake) {
-    parts.push(`# [FICHA INTELIGENTE — fatos e contexto do cliente]
+    if (intake) {
+      parts.push(`# [FICHA INTELIGENTE — fatos e contexto do cliente]
 Área jurídica: ${intake.legal_area ?? ""} ${intake.legal_area_other ?? ""}
 Parte representada: ${intake.represented_party ?? ""}
 Parte contrária: ${intake.opposing_party ?? ""}
@@ -322,11 +435,11 @@ Perguntas complementares: ${stringifyList(intake.ai_complementary_questions)}
 Documentos recomendados: ${stringifyList(intake.ai_recommended_documents)}
 Riscos iniciais: ${stringifyList(intake.ai_initial_risks)}
 Próximos passos: ${stringifyList(intake.ai_next_steps)}`);
-  }
+    }
 
-  if (analysis) {
-    const c = (analysis as { content_json?: Record<string, unknown> }).content_json ?? {};
-    parts.push(`# [ANÁLISE INICIAL DO CASO]
+    if (analysis) {
+      const c = (analysis as { content_json?: Record<string, unknown> }).content_json ?? {};
+      parts.push(`# [ANÁLISE INICIAL DO CASO]
 Resumo: ${truncate(c.summary as string, 2000)}
 Tipo de caso: ${c.case_type ?? ""}
 Parte representada: ${c.represented_party ?? ""}
@@ -339,15 +452,12 @@ Teses jurídicas: ${stringifyList(c.legal_theories)}
 Próxima providência: ${c.next_action ?? ""}
 Peça recomendada: ${c.recommended_piece ?? ""}
 Nível de confiança: ${c.confidence_level ?? ""}`.slice(0, MAX_ANALYSIS_CHARS));
-  }
+    }
 
-  if (docsSummary) {
-    parts.push(`# [DOCUMENTOS DO CASO]
-${docsSummary}`);
-  }
+    if (docsSummary) parts.push(`# [DOCUMENTOS DO CASO]\n${docsSummary}`);
 
-  if (template) {
-    parts.push(`# [MODELO DO ESCRITÓRIO — usar APENAS como referência estrutural e estilística]
+    if (template) {
+      parts.push(`# [MODELO DO ESCRITÓRIO — RÉGUA MÍNIMA de estrutura, profundidade, organização e completude]
 Nome interno (não citar na minuta): ${template.name}
 Área: ${template.legal_area ?? ""} | Tipo: ${template.piece_type ?? ""}
 Resumo de estrutura: ${template.structure_summary ?? ""}
@@ -359,93 +469,184 @@ Padrões de pedidos: ${stringifyList(template.request_patterns)}
 Cuidados: ${stringifyList(template.risk_notes)}
 Diretrizes de uso: ${template.usage_guidelines ?? ""}
 
-LEMBRE: use este modelo apenas como referência de estrutura, ordem de tópicos, estilo e forma de escrever pedidos. NÃO copie fatos, partes, valores, datas ou fundamentos do modelo — esses dados pertencem a outro caso.`);
-  } else {
-    parts.push(`# [MODELO DO ESCRITÓRIO]
-Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasileira para "${draftLabel}".`);
-  }
+REGRA: este modelo é RÉGUA MÍNIMA de qualidade/profundidade. NÃO copie fatos, partes, valores, datas ou fundamentos dele — esses dados pertencem a outro caso.`);
+    } else {
+      parts.push(`# [MODELO DO ESCRITÓRIO]
+Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasileira ROBUSTA para "${draftLabel}" — não gere peça curta.`);
+    }
 
-  if (chatContext) {
-    parts.push(`# [HISTÓRICO DO CHAT — contexto opcional; não usar como fonte de fatos definitiva]
-${chatContext}`);
-  }
+    if (chatContext) parts.push(`# [HISTÓRICO DO CHAT — contexto opcional]\n${chatContext}`);
+    if (body.additional_instructions) parts.push(`# [INSTRUÇÕES ADICIONAIS DO ADVOGADO]\n${body.additional_instructions}`);
+    return parts.join("\n\n");
+  };
 
-  if (body.additional_instructions) {
-    parts.push(`# [INSTRUÇÕES ADICIONAIS DO ADVOGADO]
-${body.additional_instructions}`);
-  }
-
-  parts.push(`# INSTRUÇÕES FINAIS
-- Gere a MINUTA no campo "content" já com quebras de linha e seções em MAIÚSCULAS.
-- Se for "${draftLabel}" e área trabalhista, use estrutura próxima a: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DO CONTRATO/RELAÇÃO; III—FUNÇÃO; IV—JORNADA/HORAS EXTRAS (se aplicável); V—VERBAS RESCISÓRIAS (se aplicável); VI—PAGAMENTOS POR FORA (se aplicável); VII—FGTS (se aplicável); VIII—OUTROS DIREITOS; IX—DOCUMENTOS E PROVAS; X—DOS PEDIDOS; XI—DO VALOR DA CAUSA; XII—REQUERIMENTOS FINAIS.
-- Termine com "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
-- Preencha "warnings" e "missing_information" com itens curtos e acionáveis.
-- Responda APENAS o JSON solicitado, sem cercas de código.`);
-
-  const userPrompt = parts.join("\n\n");
+  const caseContext = buildCaseContextBlock();
+  const templateBlueprint = buildTemplateBlueprint(template);
 
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) return json({ error: "missing_api_key" }, 500);
 
-  const llmStart = Date.now();
-  const llmRes = await fetch(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: taskChoice.model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    },
-  );
+  const totalTokens = { input: 0, output: 0 };
+  const warnings: string[] = [];
 
-  if (llmRes.status === 429) {
+  // -------------------------------------------------------------------------
+  // ETAPA 2 — CLAIM_MAP
+  // -------------------------------------------------------------------------
+  const claimMapPrompt = `${caseContext}
+
+# TAREFA CLAIM_MAP
+Monte o mapa de teses/pedidos para uma "${draftLabel}" neste caso. Objetivo do advogado: ${body.objective || "(não informado)"}.
+Considere o modelo do escritório APENAS como inspiração de quais teses costumam existir; NÃO copie pedidos incompatíveis com o caso atual.`;
+
+  const claimMapRes = await callLlm(apiKey, taskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt);
+  totalTokens.input += claimMapRes.input_tokens;
+  totalTokens.output += claimMapRes.output_tokens;
+
+  let claimMap: Record<string, unknown> | null = claimMapRes.parsed;
+  if (!claimMap || !Array.isArray((claimMap as { topics?: unknown[] }).topics)) {
+    warnings.push("Não foi possível montar o mapa de pedidos automaticamente. Revisar manualmente a cobertura de teses.");
+    claimMap = { topics: [] };
+  }
+
+  const claimMapForPrompt = JSON.stringify(claimMap).slice(0, 8000);
+
+  // -------------------------------------------------------------------------
+  // ETAPA 4 — DRAFT PRINCIPAL
+  // -------------------------------------------------------------------------
+  const draftPrompt = `${caseContext}
+
+# CLAIM_MAP (guia obrigatório — cada topic include=true DEVE virar um tópico completo da peça)
+${claimMapForPrompt}
+
+# TEMPLATE_BLUEPRINT (régua mínima estrutural)
+${JSON.stringify(templateBlueprint)}
+
+# TAREFA
+Gerar minuta PROFISSIONAL COMPLETA de "${draftLabel}". Objetivo: ${body.objective || "(não informado)"}. Tom: ${body.tone || "template_default"}.
+Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, completa e no mínimo equivalente ao modelo.
+
+# INSTRUÇÕES FINAIS
+- Gere o texto no campo "content" com quebras de linha e seções em MAIÚSCULAS.
+- Cada topic include=true do CLAIM_MAP deve virar um tópico numerado com: fatos → fundamento legal específico (artigos/leis/súmulas) → aplicação ao caso → pedido correspondente.
+- Estrutura sugerida para "${draftLabel}" trabalhista: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DA RELAÇÃO DE EMPREGO/CONTRATO; III—DA FUNÇÃO EXERCIDA; IV—DA JORNADA E HORAS EXTRAS; V—DOS INTERVALOS (INTRA E INTERJORNADA); VI—DE DOMINGOS E FERIADOS; VII—DO ADICIONAL NOTURNO (se aplicável); VIII—DAS VERBAS RESCISÓRIAS; IX—DO FGTS; X—DE PAGAMENTOS POR FORA/COMISSÕES (se aplicável); XI—DA INSALUBRIDADE/PERICULOSIDADE (se aplicável); XII—DO ÔNUS DA PROVA E DA EXIBIÇÃO DE DOCUMENTOS; XIII—DA JUSTIÇA GRATUITA; XIV—DOS PEDIDOS (numerados, discriminados, com reflexos, sucessivos quando cabíveis, valores ou [CALCULAR VALOR]); XV—DO VALOR DA CAUSA; XVI—DOS REQUERIMENTOS FINAIS. Adapte para outras áreas mantendo a mesma profundidade.
+- Termine com seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
+- Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.
+- Responda APENAS o JSON solicitado, sem cercas de código.`;
+
+  const draftRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, draftPrompt);
+  totalTokens.input += draftRes.input_tokens;
+  totalTokens.output += draftRes.output_tokens;
+
+  if (draftRes.http_status === 429) {
     return json({ error: "rate_limit", message: "Limite de requisições atingido. Tente novamente em instantes." }, 429);
   }
-  if (llmRes.status === 402) {
+  if (draftRes.http_status === 402) {
     return json({ error: "payment_required", message: "Créditos de IA esgotados. Adicione créditos no workspace." }, 402);
   }
-  if (!llmRes.ok) {
-    const detail = await llmRes.text();
-    console.error("generate-legal-draft:llm_error", llmRes.status, detail);
-    return json({ error: `llm_${llmRes.status}` }, 500);
-  }
-
-  const llmData = await llmRes.json();
-  const llmMs = Date.now() - llmStart;
-  const rawText: string = llmData?.choices?.[0]?.message?.content ?? "";
-  const inputTokens = llmData?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
-  const outputTokens = llmData?.usage?.completion_tokens ?? Math.ceil(rawText.length / 4);
-
-  const parsed = extractJson(rawText);
-  if (!parsed) {
-    console.error("generate-legal-draft:invalid_json", rawText.slice(0, 300));
+  if (!draftRes.parsed) {
+    console.error("generate-legal-draft:invalid_json (draft)");
     return json({ error: "invalid_llm_json" }, 500);
   }
 
-  const title = String(parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
-  const content = String(parsed.content ?? "").trim();
-  const warnings = Array.isArray(parsed.warnings)
-    ? parsed.warnings.map(String).slice(0, 30)
-    : [];
-  const missing = Array.isArray(parsed.missing_information)
-    ? parsed.missing_information.map(String).slice(0, 30)
-    : [];
+  let title = String(draftRes.parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
+  let content = String(draftRes.parsed.content ?? "").trim();
+  let draftWarnings = Array.isArray(draftRes.parsed.warnings)
+    ? (draftRes.parsed.warnings as unknown[]).map(String).slice(0, 30) : [];
+  let missing = Array.isArray(draftRes.parsed.missing_information)
+    ? (draftRes.parsed.missing_information as unknown[]).map(String).slice(0, 30) : [];
 
-  if (!content || content.length < 100) {
-    return json({ error: "empty_draft" }, 500);
+  if (!content || content.length < 100) return json({ error: "empty_draft" }, 500);
+
+  // -------------------------------------------------------------------------
+  // ETAPA 5 — QUALITY_GATE
+  // -------------------------------------------------------------------------
+  const qgPrompt = `# CLAIM_MAP\n${claimMapForPrompt}\n\n# TEMPLATE_BLUEPRINT\n${JSON.stringify(templateBlueprint)}\n\n# MINUTA GERADA\n${content.slice(0, 24000)}`;
+  const qgRes = await callLlm(apiKey, taskChoice.model, QUALITY_GATE_SYSTEM, qgPrompt);
+  totalTokens.input += qgRes.input_tokens;
+  totalTokens.output += qgRes.output_tokens;
+
+  let qualityReport: Record<string, unknown> | null = qgRes.parsed;
+  if (!qualityReport) {
+    warnings.push("Não foi possível revisar automaticamente a qualidade da minuta. Recomenda-se revisão manual completa.");
+    qualityReport = {
+      is_too_short: content.length < MIN_ACCEPTABLE_CONTENT_CHARS,
+      matches_template_depth: false,
+      needs_rewrite: false,
+      missing_topics: [],
+      weak_topics: [],
+      quality_alerts: ["Revisão automática de qualidade indisponível — revisar manualmente."],
+    };
   }
 
-  // Persiste
+  // Guarda contra minuta curta demais mesmo se o LLM disser que está OK
+  if (content.length < MIN_ACCEPTABLE_CONTENT_CHARS) {
+    (qualityReport as Record<string, unknown>).is_too_short = true;
+    (qualityReport as Record<string, unknown>).needs_rewrite = true;
+  }
+
+  // -------------------------------------------------------------------------
+  // ETAPA 6 — REWRITE (obrigatório se needs_rewrite=true, limite 1x)
+  // -------------------------------------------------------------------------
+  if ((qualityReport as { needs_rewrite?: boolean }).needs_rewrite === true) {
+    const missingTopics = (qualityReport as { missing_topics?: unknown[] }).missing_topics ?? [];
+    const weakTopics = (qualityReport as { weak_topics?: unknown[] }).weak_topics ?? [];
+    const qualityAlerts = (qualityReport as { quality_alerts?: unknown[] }).quality_alerts ?? [];
+
+    const rewritePrompt = `${caseContext}
+
+# CLAIM_MAP
+${claimMapForPrompt}
+
+# TEMPLATE_BLUEPRINT
+${JSON.stringify(templateBlueprint)}
+
+# MINUTA ANTERIOR (rascunho a ser aprofundado — NÃO reduzir, apenas expandir/corrigir)
+${content}
+
+# QUALITY_REPORT (pontos a corrigir OBRIGATORIAMENTE)
+Tópicos ausentes: ${JSON.stringify(missingTopics)}
+Tópicos fracos: ${JSON.stringify(weakTopics)}
+Alertas de qualidade: ${JSON.stringify(qualityAlerts)}
+
+# TAREFA
+Reescreva a minuta corrigindo os pontos acima. NÃO reduza a peça — expanda, aprofunde, adicione tópicos ausentes e reforce tópicos fracos, mantendo/aumentando fundamentação legal, reflexos, pedidos sucessivos e pedido final completo. Continue proibida a cópia de fatos do modelo. Responda no MESMO formato JSON { title, content, warnings, missing_information }.`;
+
+    const rewriteRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, rewritePrompt);
+    totalTokens.input += rewriteRes.input_tokens;
+    totalTokens.output += rewriteRes.output_tokens;
+
+    if (rewriteRes.parsed && typeof rewriteRes.parsed.content === "string" && (rewriteRes.parsed.content as string).length >= content.length * 0.9) {
+      title = String(rewriteRes.parsed.title ?? title).slice(0, 200);
+      content = String(rewriteRes.parsed.content).trim();
+      if (Array.isArray(rewriteRes.parsed.warnings)) {
+        draftWarnings = (rewriteRes.parsed.warnings as unknown[]).map(String).slice(0, 30);
+      }
+      if (Array.isArray(rewriteRes.parsed.missing_information)) {
+        missing = (rewriteRes.parsed.missing_information as unknown[]).map(String).slice(0, 30);
+      }
+      (qualityReport as Record<string, unknown>).rewrite_applied = true;
+    } else {
+      warnings.push("A reescrita automática não produziu uma versão mais completa. Foi mantida a primeira versão — revisar manualmente os pontos fracos apontados.");
+      (qualityReport as Record<string, unknown>).rewrite_applied = false;
+    }
+  }
+
+  // Consolida warnings finais (sem duplicar)
+  const mergedWarningsSet = new Set<string>();
+  for (const w of warnings) mergedWarningsSet.add(w);
+  for (const w of draftWarnings) mergedWarningsSet.add(w);
+  const weakList = ((qualityReport as { weak_topics?: unknown[] }).weak_topics ?? []).map(String);
+  const missingList = ((qualityReport as { missing_topics?: unknown[] }).missing_topics ?? []).map(String);
+  const qaAlerts = ((qualityReport as { quality_alerts?: unknown[] }).quality_alerts ?? []).map(String);
+  for (const t of weakList) mergedWarningsSet.add(`Tópico frouxo: ${t}`);
+  for (const t of missingList) mergedWarningsSet.add(`Tópico ausente/insuficiente: ${t}`);
+  for (const a of qaAlerts) mergedWarningsSet.add(a);
+  const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
+
+  // -------------------------------------------------------------------------
+  // Persistência
+  // -------------------------------------------------------------------------
   const { data: inserted, error: insErr } = await admin
     .from("case_drafts")
     .insert({
@@ -463,10 +664,13 @@ ${body.additional_instructions}`);
       template_id: sourcesUsed.template ? body.template_id : null,
       sources_used: sourcesUsed,
       missing_information: missing,
-      warnings,
+      warnings: finalWarnings,
       model_used: taskChoice.model,
-      tokens_input: inputTokens,
-      tokens_output: outputTokens,
+      tokens_input: totalTokens.input,
+      tokens_output: totalTokens.output,
+      claim_map: claimMap,
+      quality_report: qualityReport,
+      generation_depth: "professional_full",
     })
     .select("id,title,draft_type,created_at")
     .single();
@@ -476,15 +680,17 @@ ${body.additional_instructions}`);
     return json({ error: "persist_failed" }, 500);
   }
 
-  // Telemetria (sem conteúdo)
+  // -------------------------------------------------------------------------
+  // Telemetria (metadados apenas — sem conteúdo, sem claim_map, sem relato)
+  // -------------------------------------------------------------------------
   await logAiUsage(admin, {
     organization_id: profile.organization_id,
     profile_id: user.id,
     operation: "legal_draft_generation",
     provider: taskChoice.provider,
     model: taskChoice.model,
-    tokens_input: inputTokens,
-    tokens_output: outputTokens,
+    tokens_input: totalTokens.input,
+    tokens_output: totalTokens.output,
     cost_estimated: 0,
     processing_time_ms: Date.now() - startedAt,
     case_id: caseId,
@@ -499,7 +705,13 @@ ${body.additional_instructions}`);
       use_template: sourcesUsed.template,
       use_chat_history: sourcesUsed.chat_history,
       has_additional_instructions: !!body.additional_instructions,
-      llm_ms: llmMs,
+      generation_depth: "professional_full",
+      claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
+      quality_needs_rewrite: !!(qualityReport as { needs_rewrite?: boolean }).needs_rewrite,
+      quality_rewrite_applied: !!(qualityReport as { rewrite_applied?: boolean }).rewrite_applied,
+      quality_missing_topics: missingList.length,
+      quality_weak_topics: weakList.length,
+      content_chars: content.length,
     },
   });
 
@@ -508,9 +720,11 @@ ${body.additional_instructions}`);
     title: inserted.title,
     draft_type: inserted.draft_type,
     content,
-    warnings,
+    warnings: finalWarnings,
     missing_information: missing,
     sources_used: sourcesUsed,
+    quality_report: qualityReport,
+    generation_depth: "professional_full",
     created_at: inserted.created_at,
   });
 });

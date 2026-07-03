@@ -319,16 +319,19 @@ export type Database = {
         Row: {
           additional_instructions: string | null
           case_id: string
+          claim_map: Json | null
           content: string
           cost_estimate: number | null
           created_at: string
           created_by: string | null
           draft_type: string
+          generation_depth: string
           id: string
           missing_information: Json | null
           model_used: string | null
           objective: string | null
           organization_id: string
+          quality_report: Json | null
           sources_used: Json | null
           status: string
           template_id: string | null
@@ -343,16 +346,19 @@ export type Database = {
         Insert: {
           additional_instructions?: string | null
           case_id: string
+          claim_map?: Json | null
           content?: string
           cost_estimate?: number | null
           created_at?: string
           created_by?: string | null
           draft_type: string
+          generation_depth?: string
           id?: string
           missing_information?: Json | null
           model_used?: string | null
           objective?: string | null
           organization_id: string
+          quality_report?: Json | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null
@@ -367,16 +373,19 @@ export type Database = {
         Update: {
           additional_instructions?: string | null
           case_id?: string
+          claim_map?: Json | null
           content?: string
           cost_estimate?: number | null
           created_at?: string
           created_by?: string | null
           draft_type?: string
+          generation_depth?: string
           id?: string
           missing_information?: Json | null
           model_used?: string | null
           objective?: string | null
           organization_id?: string
+          quality_report?: Json | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null

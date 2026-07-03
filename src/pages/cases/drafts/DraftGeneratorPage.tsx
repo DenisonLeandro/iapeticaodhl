@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Info } from "lucide-react";
+
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -92,6 +93,25 @@ export default function DraftGeneratorPage() {
 
   const generate = useGenerateDraft();
 
+  // Feedback visual de progresso: alterna rótulos enquanto a edge processa
+  // (edge função síncrona; ciclo baseado em tempo estimado por etapa)
+  const PROGRESS_STEPS = [
+    "Construindo mapa de pedidos…",
+    "Redigindo minuta profissional…",
+    "Revisando qualidade…",
+    "Ajustando pontos fracos…",
+  ];
+  const [progressIdx, setProgressIdx] = useState(0);
+  useEffect(() => {
+    if (!generate.isPending) { setProgressIdx(0); return; }
+    setProgressIdx(0);
+    const step = setInterval(() => {
+      setProgressIdx((i) => (i < PROGRESS_STEPS.length - 1 ? i + 1 : i));
+    }, 12000);
+    return () => clearInterval(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generate.isPending]);
+
   const handleGenerate = async () => {
     if (!caseId) return;
     try {
@@ -114,6 +134,7 @@ export default function DraftGeneratorPage() {
       toast.error((e as Error).message || "Falha ao gerar minuta.");
     }
   };
+
 
   if (caseLoading || !caseData) {
     return <Skeleton className="h-96 w-full" />;
@@ -154,6 +175,17 @@ export default function DraftGeneratorPage() {
       </div>
 
       <Card className="space-y-5 p-6">
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          <div className="flex items-center gap-2 font-medium">
+            <Info className="h-4 w-4 text-primary" />
+            Nível de profundidade: <span className="text-primary">Profissional completo</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A peça será gerada com profundidade mínima equivalente ao modelo selecionado.
+            O advogado deverá revisar fundamentos, jurisprudência e valores antes do protocolo.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Tipo de peça</Label>
@@ -246,22 +278,35 @@ export default function DraftGeneratorPage() {
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t pt-4">
-          <Button variant="ghost" onClick={() => navigate(`/cases/${caseId}`)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleGenerate} disabled={generate.isPending}>
+        <div className="flex items-center justify-between gap-2 border-t pt-4">
+          <div className="text-xs text-muted-foreground">
             {generate.isPending ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {PROGRESS_STEPS[progressIdx]}
+              </span>
             ) : (
-              <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+              <span>A geração pode levar 30–90 segundos.</span>
             )}
-          </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => navigate(`/cases/${caseId}`)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerate} disabled={generate.isPending}>
+              {generate.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+              ) : (
+                <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+              )}
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
   );
 }
+
 
 function CheckboxRow({
   checked,
