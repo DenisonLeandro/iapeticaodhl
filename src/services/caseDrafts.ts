@@ -72,14 +72,57 @@ export async function triggerDraftReview(draftId: string): Promise<void> {
 export async function generateCaseDraft(
   payload: GenerateDraftPayload,
 ): Promise<GenerateDraftResponse> {
+  const FRIENDLY = "Não foi possível gerar a minuta. Verifique os dados do caso/modelo ou tente novamente.";
   const { data, error } = await supabase.functions.invoke(
     "generate-legal-draft",
     { body: payload },
   );
-  if (error) throw new Error(error.message || "Falha ao gerar minuta.");
+
+  // Erro de rede/HTTP não-2xx: supabase-js retorna FunctionsHttpError com response no context.
+  if (error) {
+    let status: number | undefined;
+    let code: string | undefined;
+    let stage: string | undefined;
+    let message: string | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp: Response | undefined = (error as any)?.context?.response;
+      if (resp) {
+        status = resp.status;
+        const parsed = await resp.clone().json().catch(() => null);
+        if (parsed && typeof parsed === "object") {
+          code = parsed.code;
+          stage = parsed.stage;
+          message = parsed.message;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    console.error("generateCaseDraft:error", {
+      fn: "generate-legal-draft",
+      status,
+      code,
+      stage,
+      message: message ?? error.message,
+    });
+    throw new Error(FRIENDLY);
+  }
+
+  // Edge respondeu 2xx mas com success:false (não deve ocorrer, mas por segurança)
+  if (data && data.success === false) {
+    console.error("generateCaseDraft:soft_error", {
+      fn: "generate-legal-draft",
+      code: data.code,
+      stage: data.stage,
+      message: data.message,
+    });
+    throw new Error(FRIENDLY);
+  }
+
   if (!data?.draft_id) {
-    throw new Error(data?.error || "Resposta inválida do servidor.");
+    console.error("generateCaseDraft:invalid_response", { fn: "generate-legal-draft" });
+    throw new Error(FRIENDLY);
   }
   return data as GenerateDraftResponse;
 }
+
 
