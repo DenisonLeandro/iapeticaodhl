@@ -42,11 +42,14 @@ export default function DraftDetailPage() {
   const { data: draft, isLoading } = useCaseDraft(draftId);
   const update = useUpdateDraft();
   const archive = useArchiveDraft();
+  const review = useReviewDraft();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
+  const [reviewTimedOut, setReviewTimedOut] = useState(false);
 
   useEffect(() => {
     if (draft) {
@@ -55,6 +58,24 @@ export default function DraftDetailPage() {
       setDirty(false);
     }
   }, [draft?.id]);
+
+  // Timeout de polling: 3 minutos
+  useEffect(() => {
+    const st = draft?.quality_status;
+    if (st === "pending" || st === "running") {
+      if (reviewStartedAt === null) setReviewStartedAt(Date.now());
+      const timer = setTimeout(() => {
+        if (reviewStartedAt && Date.now() - reviewStartedAt >= 180_000) {
+          setReviewTimedOut(true);
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setReviewStartedAt(null);
+      setReviewTimedOut(false);
+    }
+  }, [draft?.quality_status, reviewStartedAt]);
+
 
   if (isLoading || !draft) {
     return <Skeleton className="h-96 w-full" />;
