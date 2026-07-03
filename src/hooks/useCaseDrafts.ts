@@ -39,11 +39,24 @@ export function useGenerateDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: GenerateDraftPayload) => generateCaseDraft(payload),
-    onSuccess: (_, vars) => {
+    onSuccess: (res, vars) => {
       qc.invalidateQueries({ queryKey: [KEY, "list", vars.case_id] });
+      // Dispara revisão automática em segundo plano (fire-and-forget).
+      if (res?.draft_id) void triggerDraftReview(res.draft_id);
     },
   });
 }
+
+export function useReviewDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (draftId: string) => triggerDraftReview(draftId),
+    onSuccess: (_, draftId) => {
+      qc.invalidateQueries({ queryKey: [KEY, "one", draftId] });
+    },
+  });
+}
+
 
 export function useUpdateDraft() {
   const qc = useQueryClient();
