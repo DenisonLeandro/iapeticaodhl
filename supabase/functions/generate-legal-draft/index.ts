@@ -544,35 +544,40 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const templateBlueprint = buildTemplateBlueprint(template);
 
   const taskChoice = selectAIModelForTask("legal_draft_generation");
+  const claimTaskChoice = selectAIModelForTask("legal_intent_classification");
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) return json({ error: "missing_api_key" }, 500);
+  if (!apiKey) return err("unknown", "IA indisponível no momento.", "missing_api_key", 500);
 
   const totalTokens = { input: 0, output: 0 };
   const warnings: string[] = [];
 
   // -------------------------------------------------------------------------
-  // ETAPA 2 — CLAIM_MAP
+  // ETAPA 2 — CLAIM_MAP (modelo rápido; 60s; falha vira warning)
   // -------------------------------------------------------------------------
   const claimMapPrompt = `${caseContext}
 
-# TAREFA CLAIM_MAP
-Monte o mapa de teses/pedidos para uma "${draftLabel}" neste caso. Objetivo do advogado: ${body.objective || "(não informado)"}.
-Considere o modelo do escritório APENAS como inspiração de quais teses costumam existir; NÃO copie pedidos incompatíveis com o caso atual.`;
+# TAREFA CLAIM_MAP (curto e estruturado)
+Monte o mapa de teses/pedidos para uma "${draftLabel}". Objetivo do advogado: ${body.objective || "(não informado)"}.
+Seja objetivo — apenas mapear temas, pedidos, riscos, documentos e reflexos aplicáveis. Não redija fundamentos longos.`;
 
-  const claimMapRes = await callLlm(apiKey, taskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt);
-  totalTokens.input += claimMapRes.input_tokens;
-  totalTokens.output += claimMapRes.output_tokens;
-
-  let claimMap: Record<string, unknown> | null = claimMapRes.parsed;
-  if (!claimMap || !Array.isArray((claimMap as { topics?: unknown[] }).topics)) {
-    warnings.push("Não foi possível montar o mapa de pedidos automaticamente. Revisar manualmente a cobertura de teses.");
-    claimMap = { topics: [] };
+  let claimMap: Record<string, unknown> = { topics: [] };
+  try {
+    const claimMapRes = await callLlm(apiKey, claimTaskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt, 60_000);
+    totalTokens.input += claimMapRes.input_tokens;
+    totalTokens.output += claimMapRes.output_tokens;
+    if (claimMapRes.parsed && Array.isArray((claimMapRes.parsed as { topics?: unknown[] }).topics)) {
+      claimMap = claimMapRes.parsed as Record<string, unknown>;
+    } else {
+      warnings.push("Não foi possível gerar o mapa completo de pedidos. A minuta foi gerada com base no contexto disponível.");
+    }
+  } catch (_e) {
+    warnings.push("Não foi possível gerar o mapa completo de pedidos. A minuta foi gerada com base no contexto disponível.");
   }
 
   const claimMapForPrompt = JSON.stringify(claimMap).slice(0, 8000);
 
   // -------------------------------------------------------------------------
-  // ETAPA 4 — DRAFT PRINCIPAL
+  // ETAPA 3 — DRAFT PRINCIPAL (modelo forte; 120s)
   // -------------------------------------------------------------------------
   const draftPrompt = `${caseContext}
 
@@ -594,46 +599,43 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 - Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.
 - Responda APENAS o JSON solicitado, sem cercas de código.`;
 
-  const draftRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, draftPrompt);
+  const draftRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, draftPrompt, 120_000);
   totalTokens.input += draftRes.input_tokens;
   totalTokens.output += draftRes.output_tokens;
 
   if (draftRes.http_status === 429) {
-    return json({ error: "rate_limit", message: "Limite de requisições atingido. Tente novamente em instantes." }, 429);
+    return err("draft", "Limite de requisições atingido. Tente novamente em instantes.", "rate_limit", 429, "rate_limit");
   }
   if (draftRes.http_status === 402) {
-    return json({ error: "payment_required", message: "Créditos de IA esgotados. Adicione créditos no workspace." }, 402);
+    return err("draft", "Créditos de IA esgotados. Adicione créditos no workspace.", "payment_required", 402, "payment_required");
+  }
+  if (draftRes.http_status === 599) {
+    return err("draft", "A geração da minuta demorou demais. Tente novamente em instantes.", "draft_timeout", 504, "draft_timeout");
   }
   if (!draftRes.parsed) {
-    console.error("generate-legal-draft:invalid_json (draft)");
-    return json({ error: "invalid_llm_json" }, 500);
+    return err("draft", "Resposta inválida da IA ao gerar a minuta.", "invalid_llm_json", 500, "invalid_llm_json");
   }
 
-  let title = String(draftRes.parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
-  let content = String(draftRes.parsed.content ?? "").trim();
-  let draftWarnings = Array.isArray(draftRes.parsed.warnings)
+  const title = String(draftRes.parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
+  const content = String(draftRes.parsed.content ?? "").trim();
+  const draftWarnings = Array.isArray(draftRes.parsed.warnings)
     ? (draftRes.parsed.warnings as unknown[]).map(String).slice(0, 30) : [];
-  let missing = Array.isArray(draftRes.parsed.missing_information)
+  const missing = Array.isArray(draftRes.parsed.missing_information)
     ? (draftRes.parsed.missing_information as unknown[]).map(String).slice(0, 30) : [];
 
-  if (!content || content.length < 100) return json({ error: "empty_draft" }, 500);
+  if (!content || content.length < 100) {
+    return err("draft", "A IA retornou uma minuta vazia. Tente novamente.", "empty_draft", 500, "empty_draft");
+  }
 
-  // -------------------------------------------------------------------------
-  // ETAPA 5/6 — Quality gate + rewrite: movidos para review-legal-draft
-  // (execução assíncrona para evitar timeout de 150s da Edge Function).
-  // -------------------------------------------------------------------------
+  // Quality gate + rewrite ocorrem no review-legal-draft (assíncrono).
   warnings.push("A revisão automática de qualidade ainda não foi executada.");
 
   const qualityReport: Record<string, unknown> | null = null;
-  const missingList: string[] = [];
-  const weakList: string[] = [];
 
-  // Consolida warnings finais (sem duplicar)
   const mergedWarningsSet = new Set<string>();
   for (const w of warnings) mergedWarningsSet.add(w);
   for (const w of draftWarnings) mergedWarningsSet.add(w);
   const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
-
 
   // -------------------------------------------------------------------------
   // Persistência
@@ -664,50 +666,52 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       quality_status: "pending",
       generation_depth: "professional_full",
     })
-
     .select("id,title,draft_type,created_at")
     .single();
 
   if (insErr || !inserted) {
-    console.error("generate-legal-draft:persist_error", insErr?.message);
-    return json({ error: "persist_failed" }, 500);
+    return err("insert", "Não foi possível salvar a minuta gerada.", insErr?.code ?? "persist_failed", 500, "persist_failed");
   }
 
   // -------------------------------------------------------------------------
   // Telemetria (metadados apenas — sem conteúdo, sem claim_map, sem relato)
   // -------------------------------------------------------------------------
-  await logAiUsage(admin, {
-    organization_id: profile.organization_id,
-    profile_id: user.id,
-    operation: "legal_draft_generation",
-    provider: taskChoice.provider,
-    model: taskChoice.model,
-    tokens_input: totalTokens.input,
-    tokens_output: totalTokens.output,
-    cost_estimated: 0,
-    processing_time_ms: Date.now() - startedAt,
-    case_id: caseId,
-    prompt_summary: `draft:${inserted.id.slice(0, 8)}`,
-    metadata: {
-      draft_type: draftType,
-      template_id: sourcesUsed.template ? body.template_id : null,
-      legal_area: (intake?.legal_area as string) ?? null,
-      use_intake: sourcesUsed.intake,
-      use_analysis: sourcesUsed.analysis,
-      use_documents: sourcesUsed.documents,
-      use_template: sourcesUsed.template,
-      use_chat_history: sourcesUsed.chat_history,
-      has_additional_instructions: !!body.additional_instructions,
-      generation_depth: "professional_full",
-      claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
-      quality_status: "pending",
-      content_chars: content.length,
+  try {
+    await logAiUsage(admin, {
+      organization_id: profile.organization_id,
+      profile_id: user.id,
+      operation: "legal_draft_generation",
+      provider: taskChoice.provider,
+      model: taskChoice.model,
+      tokens_input: totalTokens.input,
+      tokens_output: totalTokens.output,
+      cost_estimated: 0,
+      processing_time_ms: Date.now() - startedAt,
+      case_id: caseId,
+      prompt_summary: `draft:${inserted.id.slice(0, 8)}`,
+      metadata: {
+        draft_type: draftType,
+        template_id: sourcesUsed.template ? body.template_id : null,
+        legal_area: (intake?.legal_area as string) ?? null,
+        use_intake: sourcesUsed.intake,
+        use_analysis: sourcesUsed.analysis,
+        use_documents: sourcesUsed.documents,
+        use_template: sourcesUsed.template,
+        use_chat_history: sourcesUsed.chat_history,
+        has_additional_instructions: !!body.additional_instructions,
+        generation_depth: "professional_full",
+        claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
+        quality_status: "pending",
+        content_chars: content.length,
+      },
+    });
+  } catch (_e) {
+    console.error("generate-legal-draft:telemetry_failed");
+  }
 
-    },
-  });
-
-  return json({
+  return ok({
     draft_id: inserted.id,
+    draft: content,
     title: inserted.title,
     draft_type: inserted.draft_type,
     content,
@@ -720,4 +724,9 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
     created_at: inserted.created_at,
   });
 
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "unknown_error";
+    return err("unknown", "Não foi possível gerar a minuta. Tente novamente em instantes.", msg, 500);
+  }
 });
+
