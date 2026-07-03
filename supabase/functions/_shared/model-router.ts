@@ -36,7 +36,8 @@ export type AITaskType =
   | "hearing_analysis_future"
   | "video_understanding_future"
   | "legal_template_analysis"
-  | "legal_draft_generation";
+  | "legal_draft_generation"
+  | "legal_intent_classification";
 
 export interface AIModelChoice {
   provider: "lovable-ai";
@@ -63,6 +64,7 @@ const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   video_understanding_future: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   legal_template_analysis: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
   legal_draft_generation: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  legal_intent_classification: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
 };
 
 export function selectAIModelForTask(task: AITaskType): AIModelChoice {
