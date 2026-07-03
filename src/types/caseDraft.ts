@@ -142,7 +142,9 @@ export interface GenerateDraftResponse {
   missing_information: string[];
   sources_used: CaseDraftSourcesUsed;
   quality_report?: CaseDraftQualityReport;
+  quality_status?: "not_requested" | "pending" | "running" | "done" | "failed" | string;
   generation_depth?: CaseDraftGenerationDepth | string;
   created_at: string;
 }
+
 
