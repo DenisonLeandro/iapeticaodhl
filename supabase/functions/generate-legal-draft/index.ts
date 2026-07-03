@@ -161,6 +161,41 @@ interface LlmResult {
 // HELPERS
 // ---------------------------------------------------------------------------
 
+type Stage =
+  | "auth"
+  | "case_fetch"
+  | "client_fetch"
+  | "template_fetch"
+  | "template_blueprint"
+  | "claim_map"
+  | "draft"
+  | "insert"
+  | "telemetry"
+  | "unknown";
+
+function ok(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify({ success: true, ...body }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function err(
+  stage: Stage,
+  message: string,
+  details = "",
+  status = 500,
+  code = "draft_generation_failed",
+) {
+  // Nunca vazar conteúdo sensível: details deve ser curto/técnico.
+  const safeDetails = String(details || "").slice(0, 240);
+  console.error(`generate-legal-draft:${stage}`, { code, status, msg: message, details: safeDetails });
+  return new Response(
+    JSON.stringify({ success: false, code, stage, message, details: safeDetails }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 function extractJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { /* fenced fallback */ }
@@ -186,35 +221,49 @@ async function callLlm(
   model: string,
   system: string,
   userPrompt: string,
+  timeoutMs = 120000,
 ): Promise<LlmResult> {
   const start = Date.now();
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-  const ms = Date.now() - start;
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("callLlm:error", res.status, detail.slice(0, 200));
-    return { raw: "", parsed: null, input_tokens: 0, output_tokens: 0, ms, http_status: res.status };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+      signal: ctrl.signal,
+    });
+    const ms = Date.now() - start;
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error("callLlm:error", res.status, detail.slice(0, 200));
+      return { raw: "", parsed: null, input_tokens: 0, output_tokens: 0, ms, http_status: res.status };
+    }
+    const data = await res.json();
+    const raw: string = data?.choices?.[0]?.message?.content ?? "";
+    const input_tokens = data?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
+    const output_tokens = data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4);
+    return { raw, parsed: extractJson(raw), input_tokens, output_tokens, ms, http_status: res.status };
+  } catch (e) {
+    const ms = Date.now() - start;
+    const aborted = (e as Error).name === "AbortError";
+    console.error("callLlm:exception", aborted ? "timeout" : (e as Error).message?.slice(0, 120));
+    return { raw: "", parsed: null, input_tokens: 0, output_tokens: 0, ms, http_status: aborted ? 599 : 0 };
+  } finally {
+    clearTimeout(timer);
   }
-  const data = await res.json();
-  const raw: string = data?.choices?.[0]?.message?.content ?? "";
-  const input_tokens = data?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
-  const output_tokens = data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4);
-  return { raw, parsed: extractJson(raw), input_tokens, output_tokens, ms, http_status: res.status };
 }
+
 
 // ---------------------------------------------------------------------------
 // TEMPLATE BLUEPRINT (derivado dos campos estruturados do template)
