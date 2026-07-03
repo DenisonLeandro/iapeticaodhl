@@ -559,90 +559,21 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   if (!content || content.length < 100) return json({ error: "empty_draft" }, 500);
 
   // -------------------------------------------------------------------------
-  // ETAPA 5 — QUALITY_GATE
+  // ETAPA 5/6 — Quality gate + rewrite: movidos para review-legal-draft
+  // (execução assíncrona para evitar timeout de 150s da Edge Function).
   // -------------------------------------------------------------------------
-  const qgPrompt = `# CLAIM_MAP\n${claimMapForPrompt}\n\n# TEMPLATE_BLUEPRINT\n${JSON.stringify(templateBlueprint)}\n\n# MINUTA GERADA\n${content.slice(0, 24000)}`;
-  const qgRes = await callLlm(apiKey, taskChoice.model, QUALITY_GATE_SYSTEM, qgPrompt);
-  totalTokens.input += qgRes.input_tokens;
-  totalTokens.output += qgRes.output_tokens;
+  warnings.push("A revisão automática de qualidade ainda não foi executada.");
 
-  let qualityReport: Record<string, unknown> | null = qgRes.parsed;
-  if (!qualityReport) {
-    warnings.push("Não foi possível revisar automaticamente a qualidade da minuta. Recomenda-se revisão manual completa.");
-    qualityReport = {
-      is_too_short: content.length < MIN_ACCEPTABLE_CONTENT_CHARS,
-      matches_template_depth: false,
-      needs_rewrite: false,
-      missing_topics: [],
-      weak_topics: [],
-      quality_alerts: ["Revisão automática de qualidade indisponível — revisar manualmente."],
-    };
-  }
-
-  // Guarda contra minuta curta demais mesmo se o LLM disser que está OK
-  if (content.length < MIN_ACCEPTABLE_CONTENT_CHARS) {
-    (qualityReport as Record<string, unknown>).is_too_short = true;
-    (qualityReport as Record<string, unknown>).needs_rewrite = true;
-  }
-
-  // -------------------------------------------------------------------------
-  // ETAPA 6 — REWRITE (obrigatório se needs_rewrite=true, limite 1x)
-  // -------------------------------------------------------------------------
-  if ((qualityReport as { needs_rewrite?: boolean }).needs_rewrite === true) {
-    const missingTopics = (qualityReport as { missing_topics?: unknown[] }).missing_topics ?? [];
-    const weakTopics = (qualityReport as { weak_topics?: unknown[] }).weak_topics ?? [];
-    const qualityAlerts = (qualityReport as { quality_alerts?: unknown[] }).quality_alerts ?? [];
-
-    const rewritePrompt = `${caseContext}
-
-# CLAIM_MAP
-${claimMapForPrompt}
-
-# TEMPLATE_BLUEPRINT
-${JSON.stringify(templateBlueprint)}
-
-# MINUTA ANTERIOR (rascunho a ser aprofundado — NÃO reduzir, apenas expandir/corrigir)
-${content}
-
-# QUALITY_REPORT (pontos a corrigir OBRIGATORIAMENTE)
-Tópicos ausentes: ${JSON.stringify(missingTopics)}
-Tópicos fracos: ${JSON.stringify(weakTopics)}
-Alertas de qualidade: ${JSON.stringify(qualityAlerts)}
-
-# TAREFA
-Reescreva a minuta corrigindo os pontos acima. NÃO reduza a peça — expanda, aprofunde, adicione tópicos ausentes e reforce tópicos fracos, mantendo/aumentando fundamentação legal, reflexos, pedidos sucessivos e pedido final completo. Continue proibida a cópia de fatos do modelo. Responda no MESMO formato JSON { title, content, warnings, missing_information }.`;
-
-    const rewriteRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, rewritePrompt);
-    totalTokens.input += rewriteRes.input_tokens;
-    totalTokens.output += rewriteRes.output_tokens;
-
-    if (rewriteRes.parsed && typeof rewriteRes.parsed.content === "string" && (rewriteRes.parsed.content as string).length >= content.length * 0.9) {
-      title = String(rewriteRes.parsed.title ?? title).slice(0, 200);
-      content = String(rewriteRes.parsed.content).trim();
-      if (Array.isArray(rewriteRes.parsed.warnings)) {
-        draftWarnings = (rewriteRes.parsed.warnings as unknown[]).map(String).slice(0, 30);
-      }
-      if (Array.isArray(rewriteRes.parsed.missing_information)) {
-        missing = (rewriteRes.parsed.missing_information as unknown[]).map(String).slice(0, 30);
-      }
-      (qualityReport as Record<string, unknown>).rewrite_applied = true;
-    } else {
-      warnings.push("A reescrita automática não produziu uma versão mais completa. Foi mantida a primeira versão — revisar manualmente os pontos fracos apontados.");
-      (qualityReport as Record<string, unknown>).rewrite_applied = false;
-    }
-  }
+  const qualityReport: Record<string, unknown> | null = null;
+  const missingList: string[] = [];
+  const weakList: string[] = [];
 
   // Consolida warnings finais (sem duplicar)
   const mergedWarningsSet = new Set<string>();
   for (const w of warnings) mergedWarningsSet.add(w);
   for (const w of draftWarnings) mergedWarningsSet.add(w);
-  const weakList = ((qualityReport as { weak_topics?: unknown[] }).weak_topics ?? []).map(String);
-  const missingList = ((qualityReport as { missing_topics?: unknown[] }).missing_topics ?? []).map(String);
-  const qaAlerts = ((qualityReport as { quality_alerts?: unknown[] }).quality_alerts ?? []).map(String);
-  for (const t of weakList) mergedWarningsSet.add(`Tópico frouxo: ${t}`);
-  for (const t of missingList) mergedWarningsSet.add(`Tópico ausente/insuficiente: ${t}`);
-  for (const a of qaAlerts) mergedWarningsSet.add(a);
   const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
+
 
   // -------------------------------------------------------------------------
   // Persistência
