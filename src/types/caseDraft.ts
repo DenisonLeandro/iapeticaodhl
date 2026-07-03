@@ -113,6 +113,8 @@ export interface CaseDraft {
   claim_map: CaseDraftClaimMap | null;
   quality_report: CaseDraftQualityReport | null;
   generation_depth: CaseDraftGenerationDepth | string | null;
+  quality_status?: "not_requested" | "pending" | "running" | "done" | "failed" | string | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -140,7 +142,9 @@ export interface GenerateDraftResponse {
   missing_information: string[];
   sources_used: CaseDraftSourcesUsed;
   quality_report?: CaseDraftQualityReport;
+  quality_status?: "not_requested" | "pending" | "running" | "done" | "failed" | string;
   generation_depth?: CaseDraftGenerationDepth | string;
   created_at: string;
 }
+
 

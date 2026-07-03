@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Archive, Copy, Loader2, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Loader2, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,11 +28,13 @@ import {
 import {
   useArchiveDraft,
   useCaseDraft,
+  useReviewDraft,
   useUpdateDraft,
 } from "@/hooks/useCaseDrafts";
 import DraftSourcesBadges from "@/components/cases/drafts/DraftSourcesBadges";
 import DraftWarningsList from "@/components/cases/drafts/DraftWarningsList";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
+
 
 export default function DraftDetailPage() {
   const { id: caseId, draftId } = useParams<{ id: string; draftId: string }>();
@@ -40,11 +42,14 @@ export default function DraftDetailPage() {
   const { data: draft, isLoading } = useCaseDraft(draftId);
   const update = useUpdateDraft();
   const archive = useArchiveDraft();
+  const review = useReviewDraft();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
+  const [reviewTimedOut, setReviewTimedOut] = useState(false);
 
   useEffect(() => {
     if (draft) {
@@ -53,6 +58,24 @@ export default function DraftDetailPage() {
       setDirty(false);
     }
   }, [draft?.id]);
+
+  // Timeout de polling: 3 minutos
+  useEffect(() => {
+    const st = draft?.quality_status;
+    if (st === "pending" || st === "running") {
+      if (reviewStartedAt === null) setReviewStartedAt(Date.now());
+      const timer = setTimeout(() => {
+        if (reviewStartedAt && Date.now() - reviewStartedAt >= 180_000) {
+          setReviewTimedOut(true);
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setReviewStartedAt(null);
+      setReviewTimedOut(false);
+    }
+  }, [draft?.quality_status, reviewStartedAt]);
+
 
   if (isLoading || !draft) {
     return <Skeleton className="h-96 w-full" />;
@@ -156,7 +179,15 @@ export default function DraftDetailPage() {
         </div>
       </div>
 
+      <ReviewStatusBanner
+        status={draft.quality_status ?? null}
+        timedOut={reviewTimedOut}
+        onRetry={() => review.mutate(draft.id)}
+        retrying={review.isPending}
+      />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+
         <Card className="p-4">
           <Textarea
             value={content}
@@ -216,3 +247,71 @@ export default function DraftDetailPage() {
     </div>
   );
 }
+
+function ReviewStatusBanner({
+  status,
+  timedOut,
+  onRetry,
+  retrying,
+}: {
+  status: string | null;
+  timedOut: boolean;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  if (!status || status === "not_requested") return null;
+
+  if (status === "pending" || status === "running") {
+    const label =
+      status === "pending"
+        ? "Revisão automática na fila…"
+        : "Revisando qualidade da peça…";
+    return (
+      <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-primary">
+          <Loader2 className="h-4 w-4 animate-spin" /> {label}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Evite editar a minuta até a revisão concluir — edições feitas agora
+          impedem que a reescrita automática seja aplicada.
+          {timedOut && " A revisão está demorando mais que o usual; você pode tentar novamente."}
+        </p>
+        {timedOut && (
+          <div className="mt-2">
+            <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+              <RefreshCw className="mr-1 h-3 w-3" /> Tentar revisar novamente
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (status === "done") {
+    return (
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300">
+          <ShieldCheck className="h-4 w-4" /> Revisão automática concluída
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
+        <div className="flex items-center gap-2 font-medium text-red-700 dark:text-red-300">
+          <ShieldAlert className="h-4 w-4" /> Não foi possível concluir a revisão automática. A minuta original foi preservada.
+        </div>
+        <div className="mt-2">
+          <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+            <RefreshCw className="mr-1 h-3 w-3" /> Tentar revisar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+

@@ -4,11 +4,13 @@ import {
   generateCaseDraft,
   getCaseDraft,
   listCaseDrafts,
+  triggerDraftReview,
   updateCaseDraft,
 } from "@/services/caseDrafts";
 import type { CaseDraft, GenerateDraftPayload } from "@/types/caseDraft";
 
 const KEY = "case_drafts";
+
 
 export function useCaseDrafts(caseId: string | undefined) {
   return useQuery({
@@ -18,23 +20,43 @@ export function useCaseDrafts(caseId: string | undefined) {
   });
 }
 
+
 export function useCaseDraft(id: string | undefined) {
   return useQuery({
     queryKey: [KEY, "one", id],
     queryFn: () => getCaseDraft(id!),
     enabled: !!id,
+    // Polling leve enquanto a revisão automática estiver em andamento
+    refetchInterval: (query) => {
+      const status = (query.state.data as CaseDraft | undefined)?.quality_status;
+      return status === "pending" || status === "running" ? 5000 : false;
+    },
   });
 }
+
 
 export function useGenerateDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: GenerateDraftPayload) => generateCaseDraft(payload),
-    onSuccess: (_, vars) => {
+    onSuccess: (res, vars) => {
       qc.invalidateQueries({ queryKey: [KEY, "list", vars.case_id] });
+      // Dispara revisão automática em segundo plano (fire-and-forget).
+      if (res?.draft_id) void triggerDraftReview(res.draft_id);
     },
   });
 }
+
+export function useReviewDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (draftId: string) => triggerDraftReview(draftId),
+    onSuccess: (_, draftId) => {
+      qc.invalidateQueries({ queryKey: [KEY, "one", draftId] });
+    },
+  });
+}
+
 
 export function useUpdateDraft() {
   const qc = useQueryClient();
