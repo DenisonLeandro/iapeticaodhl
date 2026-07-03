@@ -332,6 +332,7 @@ export type Database = {
           objective: string | null
           organization_id: string
           quality_report: Json | null
+          quality_status: string
           sources_used: Json | null
           status: string
           template_id: string | null
@@ -359,6 +360,7 @@ export type Database = {
           objective?: string | null
           organization_id: string
           quality_report?: Json | null
+          quality_status?: string
           sources_used?: Json | null
           status?: string
           template_id?: string | null
@@ -386,6 +388,7 @@ export type Database = {
           objective?: string | null
           organization_id?: string
           quality_report?: Json | null
+          quality_status?: string
           sources_used?: Json | null
           status?: string
           template_id?: string | null
