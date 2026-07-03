@@ -46,6 +46,49 @@ export interface CaseDraftSourcesUsed {
   chat_history?: boolean;
 }
 
+export interface CaseDraftClaimTopic {
+  topic: string;
+  include: boolean;
+  factual_basis?: string;
+  documentary_basis?: string;
+  legal_basis?: string[];
+  main_request?: string;
+  alternative_request?: string;
+  reflexes?: string[];
+  evidence_needed?: string[];
+  risk?: string;
+  status?: "include" | "include_with_confirmation" | "exclude" | string;
+}
+
+export interface CaseDraftClaimMap {
+  topics: CaseDraftClaimTopic[];
+}
+
+export interface CaseDraftQualityReport {
+  is_too_short?: boolean;
+  matches_template_depth?: boolean;
+  has_preliminaries?: boolean;
+  has_factual_section?: boolean;
+  has_legal_basis_per_topic?: boolean;
+  has_detailed_requests?: boolean;
+  has_reflexes?: boolean;
+  has_successive_requests_when_applicable?: boolean;
+  has_burden_of_proof_when_applicable?: boolean;
+  has_points_to_confirm?: boolean;
+  avoids_copying_template_facts?: boolean;
+  missing_topics?: string[];
+  weak_topics?: string[];
+  quality_alerts?: string[];
+  needs_rewrite?: boolean;
+  rewrite_applied?: boolean;
+}
+
+export type CaseDraftGenerationDepth =
+  | "quick_draft"
+  | "standard"
+  | "professional_full"
+  | "protocol_ready_after_review";
+
 export interface CaseDraft {
   id: string;
   organization_id: string;
@@ -67,6 +110,9 @@ export interface CaseDraft {
   tokens_input: number | null;
   tokens_output: number | null;
   cost_estimate: number | null;
+  claim_map: CaseDraftClaimMap | null;
+  quality_report: CaseDraftQualityReport | null;
+  generation_depth: CaseDraftGenerationDepth | string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,5 +139,8 @@ export interface GenerateDraftResponse {
   warnings: string[];
   missing_information: string[];
   sources_used: CaseDraftSourcesUsed;
+  quality_report?: CaseDraftQualityReport;
+  generation_depth?: CaseDraftGenerationDepth | string;
   created_at: string;
 }
+
