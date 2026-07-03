@@ -179,7 +179,15 @@ export default function DraftDetailPage() {
         </div>
       </div>
 
+      <ReviewStatusBanner
+        status={draft.quality_status ?? null}
+        timedOut={reviewTimedOut}
+        onRetry={() => review.mutate(draft.id)}
+        retrying={review.isPending}
+      />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+
         <Card className="p-4">
           <Textarea
             value={content}
