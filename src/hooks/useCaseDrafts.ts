@@ -20,13 +20,27 @@ export function useCaseDrafts(caseId: string | undefined) {
   });
 }
 
+export function useCaseDrafts(caseId: string | undefined) {
+  return useQuery({
+    queryKey: [KEY, "list", caseId],
+    queryFn: () => listCaseDrafts(caseId!),
+    enabled: !!caseId,
+  });
+}
+
 export function useCaseDraft(id: string | undefined) {
   return useQuery({
     queryKey: [KEY, "one", id],
     queryFn: () => getCaseDraft(id!),
     enabled: !!id,
+    // Polling leve enquanto a revisão automática estiver em andamento
+    refetchInterval: (query) => {
+      const status = (query.state.data as CaseDraft | undefined)?.quality_status;
+      return status === "pending" || status === "running" ? 5000 : false;
+    },
   });
 }
+
 
 export function useGenerateDraft() {
   const qc = useQueryClient();
