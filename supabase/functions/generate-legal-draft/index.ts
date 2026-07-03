@@ -601,8 +601,10 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       tokens_output: totalTokens.output,
       claim_map: claimMap,
       quality_report: qualityReport,
+      quality_status: "pending",
       generation_depth: "professional_full",
     })
+
     .select("id,title,draft_type,created_at")
     .single();
 
