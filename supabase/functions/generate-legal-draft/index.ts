@@ -655,7 +655,9 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
     missing_information: missing,
     sources_used: sourcesUsed,
     quality_report: qualityReport,
+    quality_status: "pending",
     generation_depth: "professional_full",
     created_at: inserted.created_at,
   });
+
 });
