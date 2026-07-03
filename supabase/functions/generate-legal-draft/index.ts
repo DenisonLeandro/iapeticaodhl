@@ -327,11 +327,17 @@ function buildTemplateBlueprint(template: Record<string, unknown> | null) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (req.method !== "POST") {
+    return err("unknown", "Método não suportado.", "method_not_allowed", 405);
+  }
 
   const startedAt = Date.now();
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
+
+  try {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return err("auth", "Sessão expirada. Faça login novamente.", "missing_bearer", 401, "unauthorized");
+    }
 
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -342,17 +348,22 @@ Deno.serve(async (req) => {
   });
 
   const { data: { user }, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !user) return json({ error: "unauthorized" }, 401);
+  if (userErr || !user) {
+    return err("auth", "Sessão expirada. Faça login novamente.", "invalid_user", 401, "unauthorized");
+  }
 
   const { data: profile } = await admin
     .from("profiles").select("organization_id").eq("id", user.id).maybeSingle();
-  if (!profile?.organization_id) return json({ error: "no_organization" }, 403);
+  if (!profile?.organization_id) {
+    return err("auth", "Usuário sem organização vinculada.", "no_organization", 403, "no_organization");
+  }
 
   let body: Payload;
-  try { body = await req.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  try { body = await req.json(); } catch { return err("unknown", "Requisição inválida.", "invalid_body", 400, "invalid_body"); }
   const caseId = body.case_id;
   const draftType = body.draft_type ?? "other";
-  if (!caseId) return json({ error: "case_id_required" }, 400);
+  if (!caseId) return err("case_fetch", "Caso não informado.", "case_id_required", 400, "case_id_required");
+
 
   // -------------------------------------------------------------------------
   // ETAPA 1 — Contexto do caso
