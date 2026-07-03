@@ -189,7 +189,9 @@ export default function DraftDetailPage() {
           <DraftWarningsList
             warnings={draft.warnings}
             missing={draft.missing_information}
+            qualityReport={draft.quality_report}
           />
+
         </div>
       </div>
 
