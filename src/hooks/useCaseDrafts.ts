@@ -20,13 +20,6 @@ export function useCaseDrafts(caseId: string | undefined) {
   });
 }
 
-export function useCaseDrafts(caseId: string | undefined) {
-  return useQuery({
-    queryKey: [KEY, "list", caseId],
-    queryFn: () => listCaseDrafts(caseId!),
-    enabled: !!caseId,
-  });
-}
 
 export function useCaseDraft(id: string | undefined) {
   return useQuery({
