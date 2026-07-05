@@ -43,7 +43,9 @@ import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
 export default function DraftDetailPage() {
   const { id: caseId, draftId } = useParams<{ id: string; draftId: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: draft, isLoading } = useCaseDraft(draftId);
+
   const update = useUpdateDraft();
   const archive = useArchiveDraft();
   const review = useReviewDraft();
