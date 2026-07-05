@@ -81,7 +81,11 @@ export interface CaseDraftQualityReport {
   quality_alerts?: string[];
   needs_rewrite?: boolean;
   rewrite_applied?: boolean;
+  jurisprudence_replacements?: number;
+  jurisprudence_vague_expressions?: number;
+  sensitive_alerts?: Array<{ id: string; severity: "high" | "medium" | "low"; message: string }>;
 }
+
 
 export type CaseDraftGenerationDepth =
   | "quick_draft"
