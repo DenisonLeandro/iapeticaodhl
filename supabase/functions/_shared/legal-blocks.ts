@@ -60,17 +60,29 @@ export const REQUIRED_BLOCKS: Record<string, Record<string, RequiredBlocksSet>> 
 
 export const NON_LIMITATION_TOPIC = `DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO
 
-Os valores atribuídos aos pedidos formulados na presente inicial são apresentados por estimativa, em atendimento ao art. 840, §1º, da CLT, não representando renúncia a eventuais diferenças apuradas em regular liquidação de sentença, especialmente porque diversos documentos necessários à exata apuração dos créditos estão em poder da Reclamada.
+Os valores atribuídos aos pedidos formulados na presente inicial são apresentados por MERA ESTIMATIVA, em atendimento ao disposto no art. 840, §1º, da CLT, não representando renúncia a eventuais diferenças que vierem a ser apuradas em regular liquidação de sentença.
 
-Assim, requer-se que os valores indicados sejam considerados meramente estimativos, não havendo limitação da condenação aos montantes atribuídos na inicial, devendo prevalecer o valor integral que vier a ser apurado em liquidação de sentença, observados os documentos juntados aos autos, os documentos cuja exibição se requer e a prova produzida.
+Isso porque diversos documentos indispensáveis à exata apuração dos créditos trabalhistas estão em poder exclusivo da Reclamada — em especial, tratando-se de motorista profissional, os controles de jornada, o diário de bordo, as papeletas, a ficha de trabalho externo, os relatórios de rastreador/GPS, discos e relatórios de tacógrafo, MDF-e, CT-e, relatórios de viagem, relatórios de km rodado, relatórios de produtividade, comprovantes de pagamento de produtividade e/ou bônus, holerites, recibos de férias, extratos analíticos de FGTS, comprovantes de depósito do FGTS, fichas de EPI, PPRA/PGR, PCMSO, LTCAT, laudos ambientais e documentos referentes a produtos químicos transportados.
 
-[REVISAR JURISPRUDÊNCIA ATUAL SOBRE LIMITAÇÃO AOS VALORES DA INICIAL]`;
+Diante disso, requer-se que os valores indicados sejam considerados MERAMENTE ESTIMATIVOS, sem qualquer limitação da condenação aos montantes atribuídos na inicial, devendo prevalecer o valor INTEGRAL que vier a ser apurado em liquidação de sentença, observados os documentos juntados aos autos, os documentos cuja exibição se requer e a prova produzida.
+
+[REVISAR JURISPRUDÊNCIA ATUAL SOBRE LIMITAÇÃO AOS VALORES DA INICIAL — verificar entendimento aplicável do TST e do respectivo TRT]`;
 
 export const NON_LIMITATION_REQUEST =
-  "Requer seja reconhecido que os valores atribuídos aos pedidos são meramente estimativos, não limitando a condenação, devendo as parcelas deferidas ser apuradas integralmente em liquidação de sentença.";
+  "seja expressamente reconhecido que os valores atribuídos aos pedidos são MERAMENTE ESTIMATIVOS, na forma do art. 840, §1º, da CLT, NÃO LIMITANDO A CONDENAÇÃO, devendo as parcelas deferidas ser apuradas INTEGRALMENTE em liquidação de sentença, observados os documentos juntados, os documentos cuja exibição se requer e a prova produzida";
 
 export const NON_LIMITATION_WARNING =
   "[REVISAR JURISPRUDÊNCIA ATUAL SOBRE LIMITAÇÃO AOS VALORES DA INICIAL]";
+
+// Pedido sucessivo obrigatório em inicial que sustente rescisão indireta.
+export const SUCCESSIVE_RESCISAO_INDIRETA_TOPIC = `DO PEDIDO SUCESSIVO — HIPÓTESE DE NÃO RECONHECIMENTO DA RESCISÃO INDIRETA
+
+Na remota hipótese de este r. Juízo entender pela não caracterização da rescisão indireta do contrato de trabalho (art. 483 da CLT), requer-se, SUCESSIVAMENTE, que seja reconhecido o direito do Reclamante ao pagamento de todas as parcelas contratuais, verbas e diferenças reconhecidas ao longo do pacto laboral, ainda que rejeitada a conversão pretendida, mantendo-se hígidos os demais pedidos formulados nesta inicial que não dependam, exclusivamente, do reconhecimento da rescisão indireta.
+
+O pedido sucessivo é formulado por cautela, em atenção ao princípio da eventualidade e à ampla defesa dos interesses do Reclamante, sem prejuízo da procedência do pedido principal de conversão do vínculo em rescisão indireta.`;
+
+export const SUCCESSIVE_RESCISAO_INDIRETA_REQUEST =
+  "SUCESSIVAMENTE, na hipótese de não reconhecimento da rescisão indireta, seja a Reclamada condenada ao pagamento das parcelas contratuais, verbas e diferenças reconhecidas ao longo do pacto laboral, mantidos os demais pedidos que não dependam exclusivamente da conversão pretendida";
 
 // -------------------------------------------------------------------------
 // Detecção de perfil motorista profissional
