@@ -462,6 +462,54 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     (qualityReport as Record<string, unknown>).sensitive_alerts = sensitiveAlerts;
 
     // -----------------------------------------------------------------------
+    // Post-checks determinísticos PR-4.4B.2C (tópicos/pedidos obrigatórios)
+    // -----------------------------------------------------------------------
+    let caseRow: Record<string, unknown> | null = null;
+    let intake: Record<string, unknown> | null = null;
+    let analysis: Record<string, unknown> | null = null;
+    try {
+      const [c, i, a] = await Promise.all([
+        admin.from("cases").select("legal_area,subject,start_date,end_date").eq("id", draft.case_id).maybeSingle(),
+        admin.from("case_intake_forms").select("legal_area,represented_party,problem_summary,client_story,facts_period,client_goal").eq("case_id", draft.case_id).maybeSingle(),
+        admin.from("case_analyses").select("content_json").eq("case_id", draft.case_id).eq("status", "done").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      caseRow = (c.data as Record<string, unknown>) ?? null;
+      intake = (i.data as Record<string, unknown>) ?? null;
+      analysis = (a.data as Record<string, unknown>) ?? null;
+    } catch { /* best-effort */ }
+
+    const legalArea = String(intake?.legal_area ?? caseRow?.legal_area ?? "").toLowerCase();
+    const isTrabalhistaInicial = legalArea === "trabalhista" && draft.draft_type === "initial_petition";
+    const isMotorista = detectMotoristaProfile({ intake, analysis, case: caseRow ?? {} });
+    const contextHay = [
+      String(intake?.problem_summary ?? ""),
+      String(intake?.client_story ?? ""),
+      String(intake?.client_goal ?? ""),
+      String((analysis as { content_json?: { summary?: string } } | null)?.content_json?.summary ?? ""),
+      finalContent,
+    ].join(" ").toLowerCase();
+    const hasRescisaoIndireta = /rescis[aã]o indireta/i.test(contextHay);
+    // Contrato atravessa Reforma (11/11/2017)?
+    let contractCrossesReform = false;
+    try {
+      const start = caseRow?.start_date ? new Date(String(caseRow.start_date)) : null;
+      const end = caseRow?.end_date ? new Date(String(caseRow.end_date)) : new Date();
+      const reform = new Date("2017-11-11");
+      contractCrossesReform = !!(start && start < reform && end > reform);
+    } catch { /* ignore */ }
+
+    const deterministicFindings = runDeterministicQualityChecks(finalContent, {
+      isTrabalhistaInicial,
+      isMotorista,
+      hasRescisaoIndireta,
+      contractCrossesReform,
+    });
+    const existingFindings = Array.isArray((qualityReport as { findings?: unknown[] }).findings)
+      ? ((qualityReport as { findings: unknown[] }).findings)
+      : [];
+    (qualityReport as Record<string, unknown>).findings = [...existingFindings, ...deterministicFindings];
+
+    // -----------------------------------------------------------------------
     // Consolida warnings
     // -----------------------------------------------------------------------
     const baseWarnings = Array.isArray(draft.warnings) ? (draft.warnings as string[]) : [];
