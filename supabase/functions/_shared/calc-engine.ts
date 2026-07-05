@@ -140,12 +140,15 @@ function calcAvisoPrevio(ctx: CalcContext): CalcItem {
     legal_basis: "art. 487 CLT + Lei 12.506/2011",
     formula: "(salário / 30) × (30 + min(anos × 3, 60))",
     input_data: { monthly_salary: ctx.monthly_salary, years_completed: yearsCompleted, total_days: totalDays },
-    assumptions: {},
+    assumptions: {
+      dias_aviso_previo: totalDays,
+      premissa: `${totalDays} dias de aviso-prévio, conforme Lei 12.506/2011, considerando o tempo contratual apurado (${yearsCompleted} ano(s) completo(s)).`,
+    },
     estimated_value: value,
     confidence: "high",
     missing_fields: [],
     period: `${totalDays} dias`,
-    notes: null,
+    notes: `Premissa: ${totalDays} dias de aviso-prévio, conforme Lei 12.506/2011, considerando o tempo contratual apurado.`,
   };
 }
 
