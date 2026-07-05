@@ -1,10 +1,17 @@
 import { useState } from "react";
-import { Sparkles, Loader2, ShieldAlert } from "lucide-react";
+import { Sparkles, Loader2, ShieldAlert, Copy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/lib/backend/client";
 import type { CaseDraft } from "@/types/caseDraft";
+
+interface Finding {
+  severidade: "risco_alto" | "atencao" | "pendencia_documental" | "sugestao_estrategica" | string;
+  topico: string;
+  motivo: string;
+  sugestao: string;
+}
 
 interface Props {
   draft: CaseDraft;
@@ -15,6 +22,9 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
   const [running, setRunning] = useState(false);
   const review = (draft as unknown as { senior_review?: SeniorReview | null }).senior_review;
   const status = (draft as unknown as { senior_review_status?: string | null }).senior_review_status;
+  const qualityFindings: Finding[] = Array.isArray(draft.quality_report?.findings)
+    ? (draft.quality_report!.findings as Finding[])
+    : [];
 
   const handleRun = async () => {
     setRunning(true);
@@ -49,7 +59,16 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
         </Button>
       </div>
 
-      {!review && status !== "running" && (
+      {qualityFindings.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <div className="text-[11px] font-semibold uppercase text-muted-foreground">
+            Achados da revisão automática
+          </div>
+          <FindingsList findings={qualityFindings} />
+        </div>
+      )}
+
+      {!review && status !== "running" && qualityFindings.length === 0 && (
         <p className="text-xs text-muted-foreground">
           Ainda não executado. O relatório será exibido aqui e NÃO altera a peça — o advogado decide se aplica as melhorias.
         </p>
@@ -79,6 +98,60 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
         </div>
       )}
     </Card>
+  );
+}
+
+const SEVERITY_STYLE: Record<string, string> = {
+  risco_alto: "border-red-500/50 bg-red-500/10 text-red-800 dark:text-red-200",
+  atencao: "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200",
+  pendencia_documental: "border-blue-500/50 bg-blue-500/10 text-blue-800 dark:text-blue-200",
+  sugestao_estrategica: "border-primary/50 bg-primary/5 text-primary",
+};
+const SEVERITY_LABEL: Record<string, string> = {
+  risco_alto: "Risco alto",
+  atencao: "Atenção",
+  pendencia_documental: "Pendência documental",
+  sugestao_estrategica: "Sugestão estratégica",
+};
+
+function FindingsList({ findings }: { findings: Finding[] }) {
+  const order = ["risco_alto", "atencao", "pendencia_documental", "sugestao_estrategica"];
+  const sorted = [...findings].sort(
+    (a, b) => (order.indexOf(a.severidade) + 1 || 99) - (order.indexOf(b.severidade) + 1 || 99),
+  );
+  return (
+    <ul className="space-y-2">
+      {sorted.map((f, i) => (
+        <li key={i} className={`rounded-md border p-2 text-xs ${SEVERITY_STYLE[f.severidade] ?? "border-border"}`}>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="rounded bg-background/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+              {SEVERITY_LABEL[f.severidade] ?? f.severidade}
+            </span>
+            <span className="truncate text-[11px] font-medium">{f.topico}</span>
+          </div>
+          <div className="mb-1"><strong>Motivo: </strong>{f.motivo}</div>
+          {f.sugestao && (
+            <div>
+              <div className="mb-1"><strong>Sugestão pronta: </strong></div>
+              <div className="mb-1 whitespace-pre-wrap rounded bg-background/60 p-2 font-mono text-[11px]">{f.sugestao}</div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[11px]"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(f.sugestao);
+                    toast.success("Sugestão copiada.");
+                  } catch { toast.error("Falha ao copiar."); }
+                }}
+              >
+                <Copy className="mr-1 h-3 w-3" /> Copiar sugestão
+              </Button>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
