@@ -16,9 +16,11 @@ import { selectAIModelForTask } from "../_shared/model-router.ts";
 import {
   NON_LIMITATION_REQUEST,
   NON_LIMITATION_TOPIC,
+  NON_LIMITATION_TOPIC_HEADER,
   NON_LIMITATION_WARNING,
   SUCCESSIVE_RESCISAO_INDIRETA_TOPIC,
   SUCCESSIVE_RESCISAO_INDIRETA_REQUEST,
+  MOTORISTA_EXHIBITION_LIST,
   detectMotoristaProfile,
   getRequiredBlocks,
   renderRequiredBlocksForPrompt,
