@@ -203,6 +203,122 @@ export type Database = {
           },
         ]
       }
+      case_calculation_items: {
+        Row: {
+          assumptions: Json | null
+          calculation_id: string
+          confidence: string
+          created_at: string
+          estimated_value: number | null
+          formula: string | null
+          id: string
+          input_data: Json | null
+          legal_basis: string | null
+          missing_fields: Json | null
+          notes: string | null
+          period: string | null
+          request_label: string
+          sort_order: number
+        }
+        Insert: {
+          assumptions?: Json | null
+          calculation_id: string
+          confidence?: string
+          created_at?: string
+          estimated_value?: number | null
+          formula?: string | null
+          id?: string
+          input_data?: Json | null
+          legal_basis?: string | null
+          missing_fields?: Json | null
+          notes?: string | null
+          period?: string | null
+          request_label: string
+          sort_order?: number
+        }
+        Update: {
+          assumptions?: Json | null
+          calculation_id?: string
+          confidence?: string
+          created_at?: string
+          estimated_value?: number | null
+          formula?: string | null
+          id?: string
+          input_data?: Json | null
+          legal_basis?: string | null
+          missing_fields?: Json | null
+          notes?: string | null
+          period?: string | null
+          request_label?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_calculation_items_calculation_id_fkey"
+            columns: ["calculation_id"]
+            isOneToOne: false
+            referencedRelation: "case_calculations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_calculations: {
+        Row: {
+          assumptions: Json | null
+          calculation_status: string
+          case_id: string
+          created_at: string
+          created_by: string | null
+          draft_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          total_estimated_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          assumptions?: Json | null
+          calculation_status?: string
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          total_estimated_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          assumptions?: Json | null
+          calculation_status?: string
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          total_estimated_value?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_calculations_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_calculations_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "case_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_chat_feedback: {
         Row: {
           case_id: string
@@ -318,6 +434,7 @@ export type Database = {
       case_drafts: {
         Row: {
           additional_instructions: string | null
+          calculation_id: string | null
           case_id: string
           claim_map: Json | null
           content: string
@@ -333,6 +450,9 @@ export type Database = {
           organization_id: string
           quality_report: Json | null
           quality_status: string
+          senior_review: Json | null
+          senior_review_at: string | null
+          senior_review_status: string | null
           sources_used: Json | null
           status: string
           template_id: string | null
@@ -346,6 +466,7 @@ export type Database = {
         }
         Insert: {
           additional_instructions?: string | null
+          calculation_id?: string | null
           case_id: string
           claim_map?: Json | null
           content?: string
@@ -361,6 +482,9 @@ export type Database = {
           organization_id: string
           quality_report?: Json | null
           quality_status?: string
+          senior_review?: Json | null
+          senior_review_at?: string | null
+          senior_review_status?: string | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null
@@ -374,6 +498,7 @@ export type Database = {
         }
         Update: {
           additional_instructions?: string | null
+          calculation_id?: string | null
           case_id?: string
           claim_map?: Json | null
           content?: string
@@ -389,6 +514,9 @@ export type Database = {
           organization_id?: string
           quality_report?: Json | null
           quality_status?: string
+          senior_review?: Json | null
+          senior_review_at?: string | null
+          senior_review_status?: string | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null
@@ -401,6 +529,13 @@ export type Database = {
           warnings?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "case_drafts_calculation_id_fkey"
+            columns: ["calculation_id"]
+            isOneToOne: false
+            referencedRelation: "case_calculations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "case_drafts_case_id_fkey"
             columns: ["case_id"]
