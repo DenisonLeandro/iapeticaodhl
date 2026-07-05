@@ -118,10 +118,15 @@ export interface CaseDraft {
   quality_report: CaseDraftQualityReport | null;
   generation_depth: CaseDraftGenerationDepth | string | null;
   quality_status?: "not_requested" | "pending" | "running" | "done" | "failed" | string | null;
+  senior_review?: Record<string, unknown> | null;
+  senior_review_status?: "not_requested" | "pending" | "running" | "done" | "failed" | string | null;
+  senior_review_at?: string | null;
+  calculation_id?: string | null;
 
   created_at: string;
   updated_at: string;
 }
+
 
 export interface GenerateDraftPayload {
   case_id: string;
