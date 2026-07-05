@@ -731,6 +731,50 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   }
 
   // -------------------------------------------------------------------------
+  // Persistir memória de cálculo (case_calculations + items)
+  // -------------------------------------------------------------------------
+  let calculationId: string | null = null;
+  try {
+    const { data: calcRow, error: calcErr } = await admin
+      .from("case_calculations")
+      .insert({
+        organization_id: profile.organization_id,
+        case_id: caseId,
+        draft_id: inserted.id,
+        calculation_status: calcResult.status,
+        total_estimated_value: calcResult.total_estimated_value || null,
+        assumptions: calcResult.assumptions,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (!calcErr && calcRow) {
+      calculationId = calcRow.id;
+      const rows = calcResult.items.map((it, idx) => ({
+        calculation_id: calcRow.id,
+        request_label: it.request_label,
+        legal_basis: it.legal_basis,
+        formula: it.formula,
+        input_data: it.input_data,
+        assumptions: it.assumptions,
+        estimated_value: it.estimated_value,
+        confidence: it.confidence,
+        missing_fields: it.missing_fields,
+        period: it.period,
+        notes: it.notes,
+        sort_order: idx,
+      }));
+      if (rows.length > 0) {
+        await admin.from("case_calculation_items").insert(rows);
+      }
+      await admin.from("case_drafts").update({ calculation_id: calcRow.id }).eq("id", inserted.id);
+    }
+  } catch (e) {
+    console.error("generate-legal-draft:calc_persist_failed", (e as Error).message?.slice(0, 120));
+  }
+
+
+  // -------------------------------------------------------------------------
   // Telemetria (metadados apenas — sem conteúdo, sem claim_map, sem relato)
   // -------------------------------------------------------------------------
   try {
