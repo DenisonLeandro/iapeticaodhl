@@ -15,6 +15,124 @@ import { logAiUsage } from "../_shared/usage-log.ts";
 import { selectAIModelForTask } from "../_shared/model-router.ts";
 import { validateJurisprudence } from "../_shared/jurisprudence-validator.ts";
 import { detectSensitiveAlerts } from "../_shared/sensitive-theses.ts";
+import {
+  NON_LIMITATION_TOPIC,
+  NON_LIMITATION_TOPIC_HEADER,
+  NON_LIMITATION_REQUEST,
+  SUCCESSIVE_RESCISAO_INDIRETA_TOPIC,
+  SUCCESSIVE_RESCISAO_INDIRETA_REQUEST,
+  MOTORISTA_EXHIBITION_LIST,
+  detectMotoristaProfile,
+} from "../_shared/legal-blocks.ts";
+
+// -----------------------------------------------------------------------
+// Post-checks determinísticos de qualidade da peça (PR-4.4B.2C)
+// -----------------------------------------------------------------------
+interface DeterministicFinding {
+  severidade: "risco_alto" | "atencao" | "pendencia_documental" | "sugestao_estrategica";
+  topico: string;
+  motivo: string;
+  sugestao: string;
+}
+
+function runDeterministicQualityChecks(
+  content: string,
+  opts: { isTrabalhistaInicial: boolean; isMotorista: boolean; hasRescisaoIndireta: boolean; contractCrossesReform: boolean },
+): DeterministicFinding[] {
+  const findings: DeterministicFinding[] = [];
+  if (!opts.isTrabalhistaInicial) return findings;
+  const lower = content.toLowerCase();
+
+  // 1. Tópico obrigatório de não limitação
+  if (!content.includes(NON_LIMITATION_TOPIC_HEADER)) {
+    findings.push({
+      severidade: "risco_alto",
+      topico: "Não limitação da condenação",
+      motivo: `O tópico obrigatório "${NON_LIMITATION_TOPIC_HEADER}" não foi encontrado na peça.`,
+      sugestao: NON_LIMITATION_TOPIC,
+    });
+  }
+
+  // 2. Item de não limitação no pedido final
+  if (!/não limita(?:ndo)? a condena[cç][aã]o/i.test(content)) {
+    findings.push({
+      severidade: "risco_alto",
+      topico: "Pedido final — não limitação",
+      motivo: 'Falta item de pedido final com "NÃO LIMITANDO A CONDENAÇÃO".',
+      sugestao: NON_LIMITATION_REQUEST,
+    });
+  }
+
+  // 3. Sucessivo da rescisão indireta
+  if (opts.hasRescisaoIndireta) {
+    const hasSucTopic = /pedido sucessivo.*rescis[aã]o indireta|hip[oó]tese de n[aã]o reconhecimento da rescis[aã]o indireta/i.test(content);
+    if (!hasSucTopic) {
+      findings.push({
+        severidade: "risco_alto",
+        topico: "Pedido sucessivo — rescisão indireta",
+        motivo: "A peça sustenta rescisão indireta mas não contém o tópico sucessivo para hipótese de não reconhecimento.",
+        sugestao: SUCCESSIVE_RESCISAO_INDIRETA_TOPIC,
+      });
+    }
+    if (!/sucessivamente.*n[aã]o reconhecimento da rescis[aã]o indireta/i.test(content)) {
+      findings.push({
+        severidade: "risco_alto",
+        topico: "Pedido final — sucessivo rescisão indireta",
+        motivo: "Falta item específico de pedido sucessivo no pedido final para a hipótese de não reconhecimento da rescisão indireta.",
+        sugestao: SUCCESSIVE_RESCISAO_INDIRETA_REQUEST,
+      });
+    }
+  }
+
+  // 4. Exibição ampliada motorista
+  if (opts.isMotorista) {
+    const canonical = MOTORISTA_EXHIBITION_LIST.map((d) =>
+      d.toLowerCase().replace(/\([^)]*\)/g, "").trim().split(/[\s/,]+/)[0]
+    );
+    const present = canonical.filter((k) => k.length >= 3 && lower.includes(k)).length;
+    if (present < 10) {
+      findings.push({
+        severidade: "atencao",
+        topico: "Exibição de documentos — motorista profissional",
+        motivo: `A peça cita apenas ${present} itens da lista canônica ampliada de documentos do motorista (mínimo esperado: 10).`,
+        sugestao:
+          "Requer-se, sob pena das consequências do art. 400 do CPC e da Súmula 338, I, do TST, a exibição pela Reclamada dos seguintes documentos: " +
+          MOTORISTA_EXHIBITION_LIST.join("; ") + ".",
+      });
+    }
+  }
+
+  // 5. Insalubridade — evitar analogia com Súmula 448/TST
+  if (/s[uú]mula\s*448/i.test(content) && /analogi[ac]/i.test(content)) {
+    const hasCLT = /art(?:s|igos)?\.?\s*18[9-9]|art(?:s|igos)?\.?\s*19[0-2]/i.test(content);
+    const hasNR15 = /nr[- ]?15/i.test(content);
+    if (!hasCLT || !hasNR15) {
+      findings.push({
+        severidade: "atencao",
+        topico: "Insalubridade — fundamentação frágil",
+        motivo: "A peça invoca Súmula 448/TST por analogia sem fundamentar simultaneamente em arts. 189/192 CLT e NR-15.",
+        sugestao:
+          "Substituir a analogia à Súmula 448/TST por fundamentação direta: arts. 189, 190, 191 e 192 da CLT c/c NR-15 (agentes químicos, ruído, vibração, calor), com pedido de perícia técnica (art. 195 CLT) e nomeação de perito. Base de cálculo: [REVISAR SV 4/STF e entendimento atual do TST].",
+      });
+    }
+  }
+
+  // 6. Intrajornada pós-Reforma
+  if (opts.contractCrossesReform || /(ap[oó]s|posterior).*11\/11\/2017|(ap[oó]s|posterior).*reforma trabalhista/i.test(content)) {
+    if (/pagamento integral do intervalo|pagamento integral do per[ií]odo (intra|de intervalo)/i.test(content) &&
+        !/revisar aplica[cç][aã]o temporal|art\.?\s*71,?\s*§4/i.test(content)) {
+      findings.push({
+        severidade: "atencao",
+        topico: "Intervalo intrajornada — pós-Reforma",
+        motivo: "A peça afirma pagamento integral do intervalo intrajornada para contratos pós-Reforma sem marcar revisão do art. 71, §4º, CLT.",
+        sugestao:
+          "Substituir por: 'Indenização pela supressão do INTERVALO INTRAJORNADA (art. 71, §4º, CLT). Para períodos contratuais posteriores a 11/11/2017: apenas o tempo SUPRIMIDO, natureza indenizatória. Para períodos anteriores: aplicar Súmula 437/TST (pagamento integral com natureza salarial e reflexos). Segmentar por período — [REVISAR APLICAÇÃO TEMPORAL — art. 71, §4º, CLT pós-Reforma].'",
+      });
+    }
+  }
+
+  return findings;
+}
 
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
