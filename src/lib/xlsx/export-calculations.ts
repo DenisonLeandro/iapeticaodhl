@@ -21,21 +21,36 @@ function download(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const HEADERS = ["Pedido", "Fundamento", "Fórmula", "Dados", "Premissas", "Período", "Valor (R$)", "Confiança", "Faltantes", "Notas"];
+const HEADERS = [
+  "Pedido", "Fundamento", "Fórmula", "Dados",
+  "Fonte dos dados", "Confiança", "Premissas", "Período",
+  "Valor (R$)", "Faltantes", "Observações jurídicas",
+];
 
 function rowsFor(items: CaseCalculationItem[]) {
-  return items.map((i) => [
-    i.request_label,
-    i.legal_basis ?? "",
-    i.formula ?? "",
-    fmt(i.input_data),
-    fmt(i.assumptions),
-    i.period ?? "",
-    i.estimated_value ?? "",
-    i.confidence,
-    Array.isArray(i.missing_fields) ? i.missing_fields.join("; ") : "",
-    i.notes ?? "",
-  ]);
+  return items.map((i) => {
+    const a = (i.assumptions ?? {}) as Record<string, unknown>;
+    const source = typeof a._source === "string" ? (a._source as string) : "";
+    const premise = typeof a.premissa === "string" ? (a.premissa as string) : "";
+    const otherAssumptions = Object.entries(a)
+      .filter(([k]) => !k.startsWith("_") && k !== "premissa")
+      .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+      .join("; ");
+    const premisesCombined = [premise, otherAssumptions].filter(Boolean).join(" | ");
+    return [
+      i.request_label,
+      i.legal_basis ?? "",
+      i.formula ?? "",
+      fmt(i.input_data),
+      source,
+      i.confidence,
+      premisesCombined,
+      i.period ?? "",
+      i.estimated_value ?? "",
+      Array.isArray(i.missing_fields) ? i.missing_fields.join("; ") : "",
+      i.notes ?? "",
+    ];
+  });
 }
 
 export async function exportCalculationXlsx(

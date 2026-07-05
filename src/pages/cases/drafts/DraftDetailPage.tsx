@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Archive, Copy, Loader2, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Eye, Loader2, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -35,6 +35,8 @@ import DraftSourcesBadges from "@/components/cases/drafts/DraftSourcesBadges";
 import DraftWarningsList from "@/components/cases/drafts/DraftWarningsList";
 import CalculationsPanel from "@/components/cases/drafts/CalculationsPanel";
 import SeniorReviewPanel from "@/components/cases/drafts/SeniorReviewPanel";
+import PendingCountBadge from "@/components/cases/drafts/PendingCountBadge";
+import DraftContentPreview from "@/components/cases/drafts/DraftContentPreview";
 import { useQueryClient } from "@tanstack/react-query";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
 
@@ -56,6 +58,7 @@ export default function DraftDetailPage() {
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewTimedOut, setReviewTimedOut] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (draft) {
@@ -195,12 +198,30 @@ export default function DraftDetailPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
 
         <Card className="p-4">
-          <Textarea
-            value={content}
-            onChange={(e) => { setContent(e.target.value); setDirty(true); }}
-            className="min-h-[70vh] resize-y whitespace-pre-wrap font-mono text-sm leading-relaxed"
-            spellCheck
-          />
+          <div className="mb-2 flex items-center justify-end">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowPreview((v) => !v)}
+              title="Alterna entre editor e visualização com destaques (não altera o texto salvo)"
+            >
+              {showPreview ? (
+                <><Pencil className="mr-1 h-3 w-3" /> Editar</>
+              ) : (
+                <><Eye className="mr-1 h-3 w-3" /> Ver com destaques</>
+              )}
+            </Button>
+          </div>
+          {showPreview ? (
+            <DraftContentPreview content={content} className="min-h-[70vh]" />
+          ) : (
+            <Textarea
+              value={content}
+              onChange={(e) => { setContent(e.target.value); setDirty(true); }}
+              className="min-h-[70vh] resize-y whitespace-pre-wrap font-mono text-sm leading-relaxed"
+              spellCheck
+            />
+          )}
         </Card>
 
         <div className="space-y-4">
@@ -222,6 +243,8 @@ export default function DraftDetailPage() {
               </p>
             )}
           </Card>
+
+          <PendingCountBadge content={content} />
 
           <DraftWarningsList
             warnings={draft.warnings}

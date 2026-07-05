@@ -29,6 +29,16 @@ Regras:
 - Considere "weak_topic" um tópico presente mas raso (menos de ~4 parágrafos ou sem fundamento legal específico ou sem pedido correspondente).
 - Considere "missing_topic" um topic com include=true no claim_map que não está desenvolvido na minuta.
 - needs_rewrite=true quando: is_too_short=true, OU matches_template_depth=false, OU há missing_topics/weak_topics relevantes, OU pedido final é raso, OU faltam reflexos/sucessivos aplicáveis.
+
+REGRA CRÍTICA para o array "findings":
+- NÃO dizer apenas "tópico frouxo" ou "faltou pedido". EXPLIQUE o motivo em uma frase objetiva.
+- Sempre apresentar em "sugestao" um TEXTO PRONTO PARA COPIAR (parágrafo/tópico redigido em português jurídico), não uma orientação genérica.
+- Classifique cada finding em severidade:
+  * "risco_alto": omissão que pode causar improcedência ou prescrição.
+  * "atencao": lacuna relevante mas com margem de correção.
+  * "pendencia_documental": falta de documento cuja exibição a peça deveria requerer.
+  * "sugestao_estrategica": melhoria de tese/estrutura.
+
 Retorne APENAS JSON:
 {
   "is_too_short": bool,
@@ -45,7 +55,11 @@ Retorne APENAS JSON:
   "missing_topics": string[],
   "weak_topics": string[],
   "quality_alerts": string[],
-  "needs_rewrite": bool
+  "needs_rewrite": bool,
+  "findings": [
+    { "severidade": "risco_alto"|"atencao"|"pendencia_documental"|"sugestao_estrategica",
+      "topico": string, "motivo": string, "sugestao": string }
+  ]
 }`;
 
 const REWRITE_SYSTEM = `Você é assistente jurídico redator sênior. Reescreva a minuta aprofundando os tópicos apontados. NÃO reduza a peça. Nunca copie fatos do modelo. Responda SOMENTE JSON:

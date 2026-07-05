@@ -61,31 +61,60 @@ export default function CalculationsPanel({ draftId }: { draftId: string }) {
         {items.length === 0 && (
           <p className="text-xs text-muted-foreground">Nenhum item calculado ainda.</p>
         )}
-        {items.map((it) => (
-          <div key={it.id} className="rounded-md border p-2 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">{it.request_label}</div>
-              <div className="flex items-center gap-2">
-                <Badge variant={it.confidence === "high" ? "default" : "outline"} className="text-[10px]">
-                  {CONFIDENCE_LABEL[it.confidence] ?? it.confidence}
-                </Badge>
-                <span className="font-mono">
-                  {it.estimated_value != null
-                    ? it.estimated_value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                    : "[CALCULAR VALOR]"}
-                </span>
+        {items.map((it) => {
+          const a = (it.assumptions ?? {}) as Record<string, unknown>;
+          const source = typeof a._source === "string" ? a._source : null;
+          const premise = typeof a.premissa === "string" ? a.premissa : null;
+          const otherAssumptions = Object.entries(a)
+            .filter(([k]) => !k.startsWith("_") && k !== "premissa")
+            .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`);
+          return (
+            <div key={it.id} className="rounded-md border p-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-medium">{it.request_label}</div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={it.confidence === "high" ? "default" : "outline"} className="text-[10px]">
+                    {CONFIDENCE_LABEL[it.confidence] ?? it.confidence}
+                  </Badge>
+                  <span className="font-mono">
+                    {it.estimated_value != null
+                      ? it.estimated_value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                      : "[CALCULAR VALOR]"}
+                  </span>
+                </div>
               </div>
+              {it.legal_basis && <div className="mt-0.5 text-muted-foreground">{it.legal_basis}</div>}
+              {it.formula && <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">Fórmula: {it.formula}</div>}
+              {source && (
+                <div className="mt-1 text-[11px]">
+                  <span className="font-semibold text-muted-foreground">Fonte dos dados: </span>
+                  <span>{source}</span>
+                </div>
+              )}
+              {premise && (
+                <div className="mt-1 text-[11px]">
+                  <span className="font-semibold text-muted-foreground">Premissa: </span>
+                  <span>{premise}</span>
+                </div>
+              )}
+              {otherAssumptions.length > 0 && (
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  <span className="font-semibold">Premissas técnicas: </span>{otherAssumptions.join("; ")}
+                </div>
+              )}
+              {Array.isArray(it.missing_fields) && it.missing_fields.length > 0 && (
+                <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                  Faltam: {it.missing_fields.join("; ")}
+                </div>
+              )}
+              {it.notes && (
+                <div className="mt-1 text-[11px] italic text-muted-foreground">
+                  <span className="font-semibold not-italic">Observações jurídicas: </span>{it.notes}
+                </div>
+              )}
             </div>
-            {it.legal_basis && <div className="mt-0.5 text-muted-foreground">{it.legal_basis}</div>}
-            {it.formula && <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{it.formula}</div>}
-            {Array.isArray(it.missing_fields) && it.missing_fields.length > 0 && (
-              <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                Faltam: {it.missing_fields.join("; ")}
-              </div>
-            )}
-            {it.notes && <div className="mt-1 text-[11px] italic text-muted-foreground">{it.notes}</div>}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="mt-3 text-[11px] italic text-muted-foreground">

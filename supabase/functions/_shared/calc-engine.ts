@@ -7,6 +7,8 @@
 //     só quando premissas expressas são fornecidas.
 // =============================================================================
 
+import type { CalculationContext } from "./calc-engine/normalize-context.ts";
+
 export type Confidence = "high" | "medium" | "low";
 
 export interface CalcItem {
@@ -138,12 +140,15 @@ function calcAvisoPrevio(ctx: CalcContext): CalcItem {
     legal_basis: "art. 487 CLT + Lei 12.506/2011",
     formula: "(salário / 30) × (30 + min(anos × 3, 60))",
     input_data: { monthly_salary: ctx.monthly_salary, years_completed: yearsCompleted, total_days: totalDays },
-    assumptions: {},
+    assumptions: {
+      dias_aviso_previo: totalDays,
+      premissa: `${totalDays} dias de aviso-prévio, conforme Lei 12.506/2011, considerando o tempo contratual apurado (${yearsCompleted} ano(s) completo(s)).`,
+    },
     estimated_value: value,
     confidence: "high",
     missing_fields: [],
     period: `${totalDays} dias`,
-    notes: null,
+    notes: `Premissa: ${totalDays} dias de aviso-prévio, conforme Lei 12.506/2011, considerando o tempo contratual apurado.`,
   };
 }
 
@@ -458,8 +463,90 @@ export function runCalculations(ctx: CalcContext): CalcResult {
 }
 
 // ---------------------------------------------------------------------------
-// Extração de contexto a partir de ficha/análise (heurísticas leves).
-// Só usa números explícitos. Nunca inventa valor.
+// Adapter: CalculationContext (normalize-context) → CalcContext (legado)
+// + derivação de premissas de jornada (weekly_extra_hours, intrajornada).
+// ---------------------------------------------------------------------------
+
+function timeToMinutes(t: string | null): number | null {
+  if (!t) return null;
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+export function contextFromNormalized(n: CalculationContext): CalcContext {
+  const s = n.work_schedule;
+  const startMin = timeToMinutes(s.start_time);
+  const endMin = timeToMinutes(s.end_time);
+  const interval = s.interval_minutes ?? null;
+  const daysPerWeek = s.days_per_week ?? null;
+
+  let workedMinutesPerDay: number | null = null;
+  if (startMin != null && endMin != null) {
+    let diff = endMin - startMin;
+    if (diff < 0) diff += 24 * 60;
+    if (interval != null) diff -= interval;
+    if (diff > 0) workedMinutesPerDay = diff;
+  }
+  const hoursPerDay = workedMinutesPerDay != null ? workedMinutesPerDay / 60 : null;
+
+  let weeklyExtra: number | null = null;
+  if (hoursPerDay != null && daysPerWeek != null && hoursPerDay > 8) {
+    weeklyExtra = Math.round((hoursPerDay - 8) * daysPerWeek * 100) / 100;
+  }
+
+  let intrajornadaSuppressed: number | null = null;
+  if (interval != null && hoursPerDay != null && hoursPerDay > 6 && interval < 60) {
+    intrajornadaSuppressed = 60 - interval;
+  }
+
+  return {
+    monthly_salary: n.monthly_salary,
+    admission_date: n.admission_date,
+    termination_date: n.termination_date,
+    worked_days_in_last_month: n.termination_day_count,
+    fgts_missing_months: null,
+    weekly_extra_hours: weeklyExtra,
+    intrajornada_minutes_suppressed_per_day: intrajornadaSuppressed,
+    work_days_per_week: daysPerWeek,
+    hours_per_day: hoursPerDay != null ? Math.min(hoursPerDay, 24) : null,
+    hourly_extra_multiplier: 1.5,
+  };
+}
+
+/**
+ * Annotate calc result items with source/confidence info coming from the
+ * normalized context (injected as private keys inside `assumptions`).
+ */
+export function annotateWithSources(result: CalcResult, n: CalculationContext): CalcResult {
+  const bySrc = n.sources_by_field;
+  const byConf = n.confidence_by_field;
+  const has = (k: string) => bySrc[k] || byConf[k];
+  const labelFor = (label: string): { src?: string; conf?: string } => {
+    const l = label.toLowerCase();
+    if (l.includes("saldo")) return { src: bySrc.termination_day_count || bySrc.termination_date, conf: byConf.termination_day_count || byConf.termination_date };
+    if (l.includes("aviso") || l.includes("férias") || l.includes("13") || l.includes("fgts") || l.includes("multa"))
+      return { src: bySrc.monthly_salary, conf: byConf.monthly_salary };
+    if (l.includes("intrajornada") || l.includes("horas extras") || l.includes("interjornada"))
+      return { src: bySrc.work_schedule, conf: byConf.work_schedule };
+    if (l.includes("produtividade") || l.includes("km"))
+      return { src: bySrc.variable_pay, conf: byConf.variable_pay };
+    return { src: has("monthly_salary") ? bySrc.monthly_salary : undefined, conf: byConf.monthly_salary };
+  };
+  return {
+    ...result,
+    items: result.items.map((it) => {
+      const { src, conf } = labelFor(it.request_label);
+      const assumptions = { ...(it.assumptions ?? {}) } as Record<string, unknown>;
+      if (src) assumptions._source = src;
+      if (conf) assumptions._confidence_source = conf;
+      return { ...it, assumptions };
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Backwards-compat helper (fallback quando não há normalização).
 // ---------------------------------------------------------------------------
 
 function pickNumber(...vals: unknown[]): number | null {

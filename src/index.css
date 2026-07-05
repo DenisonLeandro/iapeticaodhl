@@ -295,3 +295,27 @@
 .legal-doc-preview ol { margin: 0.5em 0 1em 2.5em; }
 .legal-doc-preview li { margin-bottom: 0.35em; }
 
+
+/* PR-4.4B.2A — Marcadores pendentes (destaque VISUAL apenas). */
+.pending-marker {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: rgb(185, 28, 28);
+  border: 1px dashed rgba(239, 68, 68, 0.5);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 600;
+  cursor: help;
+}
+.dark .pending-marker {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: rgb(252, 165, 165);
+  border-color: rgba(252, 165, 165, 0.5);
+}
+.pending-marker--calcular { background-color: rgba(234, 179, 8, 0.15); color: rgb(161, 98, 7); border-color: rgba(234, 179, 8, 0.5); }
+.dark .pending-marker--calcular { color: rgb(253, 224, 71); border-color: rgba(253, 224, 71, 0.5); }
+.pending-marker--anexar { background-color: rgba(59, 130, 246, 0.15); color: rgb(29, 78, 216); border-color: rgba(59, 130, 246, 0.5); }
+.dark .pending-marker--anexar { color: rgb(147, 197, 253); border-color: rgba(147, 197, 253, 0.5); }
+.pending-marker--confirmar { background-color: rgba(168, 85, 247, 0.15); color: rgb(126, 34, 206); border-color: rgba(168, 85, 247, 0.5); }
+.dark .pending-marker--confirmar { color: rgb(216, 180, 254); border-color: rgba(216, 180, 254, 0.5); }
+.pending-marker--jurisprudencia { background-color: rgba(20, 184, 166, 0.15); color: rgb(15, 118, 110); border-color: rgba(20, 184, 166, 0.5); }
+.dark .pending-marker--jurisprudencia { color: rgb(94, 234, 212); border-color: rgba(94, 234, 212, 0.5); }
