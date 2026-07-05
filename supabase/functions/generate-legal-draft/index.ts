@@ -417,6 +417,8 @@ Deno.serve(async (req) => {
   }
 
   let docsSummary = "";
+  let docFiles: Array<Record<string, unknown>> = [];
+  let docChunks: Array<Record<string, unknown>> = [];
   if (body.use_documents !== false) {
     const { data: files } = await admin
       .from("client_files")
@@ -424,6 +426,7 @@ Deno.serve(async (req) => {
       .eq("case_id", caseId).order("created_at", { ascending: false }).limit(20);
     if (files && files.length > 0) {
       sourcesUsed.documents = true;
+      docFiles = files as Array<Record<string, unknown>>;
       const lines: string[] = [];
       for (const f of files) {
         lines.push(
@@ -439,6 +442,7 @@ Deno.serve(async (req) => {
         .select("file_id,content,page_from,page_to")
         .in("file_id", fileIds).limit(MAX_CHUNKS);
       if (chunks && chunks.length > 0) {
+        docChunks = chunks as Array<Record<string, unknown>>;
         docsSummary += "\n\nTRECHOS DOS DOCUMENTOS:\n";
         for (const c of chunks) {
           docsSummary += `\n[arquivo ${c.file_id.slice(0, 8)} p.${c.page_from ?? "?"}-${c.page_to ?? "?"}] ${truncate(c.content, MAX_CHUNK_SNIPPET_CHARS)}\n`;
