@@ -33,7 +33,11 @@ import {
 } from "@/hooks/useCaseDrafts";
 import DraftSourcesBadges from "@/components/cases/drafts/DraftSourcesBadges";
 import DraftWarningsList from "@/components/cases/drafts/DraftWarningsList";
+import CalculationsPanel from "@/components/cases/drafts/CalculationsPanel";
+import SeniorReviewPanel from "@/components/cases/drafts/SeniorReviewPanel";
+import { useQueryClient } from "@tanstack/react-query";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
+
 
 
 export default function DraftDetailPage() {
