@@ -17,11 +17,15 @@ import {
   NON_LIMITATION_REQUEST,
   NON_LIMITATION_TOPIC,
   NON_LIMITATION_WARNING,
+  SUCCESSIVE_RESCISAO_INDIRETA_TOPIC,
+  SUCCESSIVE_RESCISAO_INDIRETA_REQUEST,
   detectMotoristaProfile,
   getRequiredBlocks,
   renderRequiredBlocksForPrompt,
 } from "../_shared/legal-blocks.ts";
-import { extractCalcContext, runCalculations } from "../_shared/calc-engine.ts";
+import { runCalculations, contextFromNormalized, annotateWithSources } from "../_shared/calc-engine.ts";
+import { buildCalculationContext } from "../_shared/calc-engine/normalize-context.ts";
+import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 
 
 
