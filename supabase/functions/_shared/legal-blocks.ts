@@ -35,7 +35,7 @@ const TRABALHISTA_MOTORISTA: RequiredBlock[] = [
   { id: "controle_jornada", label: "Controle de jornada", guidance: "Diário de bordo, papeleta, ficha externa, tacógrafo, MDF-e, CT-e, rastreador/GPS." },
   { id: "art_62_i", label: "Art. 62, I, CLT", guidance: "Afastar quando houver meios de controle (Lei 13.103); inverter ônus da prova." },
   { id: "tempo_espera", label: "Tempo de espera", guidance: "Distinguir de hora extra; art. 235-C §8º CLT." },
-  { id: "intra", label: "Intervalo intrajornada", guidance: "art. 71 CLT; após Reforma (13/11/2017) aplicar §4º — indenização só do tempo suprimido." },
+  { id: "intra", label: "Intervalo intrajornada", guidance: "art. 71 CLT. SEGMENTAR por período contratual: antes de 11/11/2017 aplicar Súmula 437/TST (pagamento integral, natureza salarial, com reflexos); a partir de 11/11/2017 aplicar §4º (apenas o tempo SUPRIMIDO, natureza indenizatória). NÃO afirmar pagamento integral de forma absoluta em contratos pós-Reforma. Marcar [REVISAR APLICAÇÃO TEMPORAL — art. 71, §4º, CLT pós-Reforma]." },
   { id: "inter", label: "Intervalo interjornada", guidance: "art. 66 CLT; horas suprimidas como extras + reflexos." },
   { id: "dsr_feriados", label: "Domingos e feriados", guidance: "Lei 605/49; Súmula 146/TST; dobra sem compensação." },
   { id: "adicional_noturno", label: "Adicional noturno", guidance: "art. 73 CLT; hora reduzida; prorrogação; reflexos." },
@@ -43,6 +43,8 @@ const TRABALHISTA_MOTORISTA: RequiredBlock[] = [
   { id: "produtividade", label: "Produtividade / comissões / pagamentos variáveis", guidance: "Habitualidade; integração; separar do holerite de pagamento por fora." },
   { id: "fgts", label: "FGTS", guidance: "Lei 8.036/90; Súmula 461/TST; multa 40%." },
   { id: "rescisorias", label: "Verbas rescisórias", guidance: "arts. 477 e 467 CLT; aviso, 13º, férias+1/3, saldo, FGTS+40%, guias, baixa CTPS, seguro-desemprego." },
+  { id: "exibicao_motorista", label: "Exibição ampliada de documentos (motorista)", guidance: "art. 400 CPC + Súmula 338, I, TST. Requerer lista canônica MOTORISTA_EXHIBITION_LIST: controles de jornada, diário de bordo, papeletas, ficha de trabalho externo, relatórios de rastreador/GPS, discos e relatórios de tacógrafo, MDF-e, CT-e, relatórios de viagem, relatórios de km rodado, relatórios de produtividade, comprovantes de pagamento de produtividade/bônus, holerites, recibos de férias, extratos analíticos de FGTS, comprovantes de depósito do FGTS, fichas de EPI, PPRA/PGR, PCMSO, LTCAT, laudos ambientais, documentos referentes a produtos químicos transportados (FISPQ, romaneios, MOPP, ANTT)." },
+  { id: "insalubridade_motorista", label: "Insalubridade (motorista com produtos químicos/ruído/vibração)", guidance: "Fundamentar em arts. 189, 190, 191, 192 CLT + NR-15 (agentes químicos, ruído, vibração, calor) + perícia (art. 195 CLT). NÃO invocar Súmula 448/TST por analogia — usar CLT/NR-15 diretamente. Base de cálculo: [REVISAR ENTENDIMENTO ATUAL — SV 4/STF]." },
 ];
 
 export const REQUIRED_BLOCKS: Record<string, Record<string, RequiredBlocksSet>> = {
@@ -58,18 +60,47 @@ export const REQUIRED_BLOCKS: Record<string, Record<string, RequiredBlocksSet>> 
 // Textos fixos obrigatórios
 // -------------------------------------------------------------------------
 
-export const NON_LIMITATION_TOPIC = `DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO
+export const NON_LIMITATION_TOPIC_HEADER =
+  "DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO";
+
+// Lista canônica de documentos para exibição obrigatória em causas de motorista profissional.
+export const MOTORISTA_EXHIBITION_LIST = [
+  "controles de jornada",
+  "diário de bordo",
+  "papeletas",
+  "ficha de trabalho externo",
+  "relatórios de rastreador/GPS",
+  "discos e relatórios de tacógrafo",
+  "MDF-e",
+  "CT-e",
+  "relatórios de viagem",
+  "relatórios de km rodado",
+  "relatórios de produtividade",
+  "comprovantes de pagamento de produtividade e/ou bônus",
+  "holerites",
+  "recibos de férias",
+  "extratos analíticos de FGTS",
+  "comprovantes de depósito do FGTS",
+  "fichas de EPI",
+  "PPRA/PGR",
+  "PCMSO",
+  "LTCAT",
+  "laudos ambientais",
+  "documentos referentes a produtos químicos transportados (FISPQ, romaneios, MOPP, ANTT)",
+];
+
+export const NON_LIMITATION_TOPIC = `${NON_LIMITATION_TOPIC_HEADER}
 
 Os valores atribuídos aos pedidos formulados na presente inicial são apresentados por MERA ESTIMATIVA, em atendimento ao disposto no art. 840, §1º, da CLT, não representando renúncia a eventuais diferenças que vierem a ser apuradas em regular liquidação de sentença.
 
-Isso porque diversos documentos indispensáveis à exata apuração dos créditos trabalhistas estão em poder exclusivo da Reclamada — em especial, tratando-se de motorista profissional, os controles de jornada, o diário de bordo, as papeletas, a ficha de trabalho externo, os relatórios de rastreador/GPS, discos e relatórios de tacógrafo, MDF-e, CT-e, relatórios de viagem, relatórios de km rodado, relatórios de produtividade, comprovantes de pagamento de produtividade e/ou bônus, holerites, recibos de férias, extratos analíticos de FGTS, comprovantes de depósito do FGTS, fichas de EPI, PPRA/PGR, PCMSO, LTCAT, laudos ambientais e documentos referentes a produtos químicos transportados.
+Isso porque diversos documentos indispensáveis à exata apuração dos créditos trabalhistas estão em poder exclusivo da Reclamada — em especial, tratando-se de motorista profissional, ${MOTORISTA_EXHIBITION_LIST.join(", ")}.
 
 Diante disso, requer-se que os valores indicados sejam considerados MERAMENTE ESTIMATIVOS, sem qualquer limitação da condenação aos montantes atribuídos na inicial, devendo prevalecer o valor INTEGRAL que vier a ser apurado em liquidação de sentença, observados os documentos juntados aos autos, os documentos cuja exibição se requer e a prova produzida.
 
-[REVISAR JURISPRUDÊNCIA ATUAL SOBRE LIMITAÇÃO AOS VALORES DA INICIAL — verificar entendimento aplicável do TST e do respectivo TRT]`;
+[REVISAR JURISPRUDÊNCIA ATUAL DO RESPECTIVO TRT E DO TST SOBRE LIMITAÇÃO/ESTIMATIVA DO ART. 840, §1º, CLT APÓS A REFORMA TRABALHISTA]`;
 
 export const NON_LIMITATION_REQUEST =
-  "seja expressamente reconhecido que os valores atribuídos aos pedidos são MERAMENTE ESTIMATIVOS, na forma do art. 840, §1º, da CLT, NÃO LIMITANDO A CONDENAÇÃO, devendo as parcelas deferidas ser apuradas INTEGRALMENTE em liquidação de sentença, observados os documentos juntados, os documentos cuja exibição se requer e a prova produzida";
+  "seja expressamente reconhecido que os valores atribuídos aos pedidos são MERAMENTE ESTIMATIVOS, na forma do art. 840, §1º, da CLT, NÃO LIMITANDO A CONDENAÇÃO aos montantes indicados na inicial, devendo as parcelas deferidas ser apuradas INTEGRALMENTE em liquidação de sentença, observados os documentos juntados, os documentos cuja exibição se requer e a prova produzida";
 
 export const NON_LIMITATION_WARNING =
   "[REVISAR JURISPRUDÊNCIA ATUAL SOBRE LIMITAÇÃO AOS VALORES DA INICIAL]";
@@ -77,12 +108,12 @@ export const NON_LIMITATION_WARNING =
 // Pedido sucessivo obrigatório em inicial que sustente rescisão indireta.
 export const SUCCESSIVE_RESCISAO_INDIRETA_TOPIC = `DO PEDIDO SUCESSIVO — HIPÓTESE DE NÃO RECONHECIMENTO DA RESCISÃO INDIRETA
 
-Na remota hipótese de este r. Juízo entender pela não caracterização da rescisão indireta do contrato de trabalho (art. 483 da CLT), requer-se, SUCESSIVAMENTE, que seja reconhecido o direito do Reclamante ao pagamento de todas as parcelas contratuais, verbas e diferenças reconhecidas ao longo do pacto laboral, ainda que rejeitada a conversão pretendida, mantendo-se hígidos os demais pedidos formulados nesta inicial que não dependam, exclusivamente, do reconhecimento da rescisão indireta.
+Na remota hipótese de este r. Juízo entender pela não caracterização da rescisão indireta do contrato de trabalho (art. 483 da CLT), requer-se, SUCESSIVAMENTE, que seja reconhecido o direito do Reclamante ao pagamento de todas as parcelas contratuais, verbas e diferenças reconhecidas ao longo do pacto laboral — em especial aviso-prévio proporcional indenizado (Lei 12.506/2011), 13º salário proporcional, férias proporcionais + 1/3, saldo de salário, FGTS do período + multa de 40%, liberação/indenização substitutiva das guias de FGTS e do seguro-desemprego, baixa e anotações regulares na CTPS — ainda que rejeitada a conversão pretendida, mantendo-se hígidos os demais pedidos formulados nesta inicial que não dependam, exclusivamente, do reconhecimento da rescisão indireta.
 
 O pedido sucessivo é formulado por cautela, em atenção ao princípio da eventualidade e à ampla defesa dos interesses do Reclamante, sem prejuízo da procedência do pedido principal de conversão do vínculo em rescisão indireta.`;
 
 export const SUCCESSIVE_RESCISAO_INDIRETA_REQUEST =
-  "SUCESSIVAMENTE, na hipótese de não reconhecimento da rescisão indireta, seja a Reclamada condenada ao pagamento das parcelas contratuais, verbas e diferenças reconhecidas ao longo do pacto laboral, mantidos os demais pedidos que não dependam exclusivamente da conversão pretendida";
+  "SUCESSIVAMENTE, na hipótese de não reconhecimento da rescisão indireta, seja a Reclamada condenada ao pagamento das parcelas contratuais e verbas rescisórias como se tratasse de dispensa sem justa causa — aviso-prévio proporcional indenizado (Lei 12.506/2011), 13º proporcional, férias proporcionais + 1/3, saldo de salário, FGTS do período + multa de 40%, liberação das guias de FGTS e do seguro-desemprego, baixa e anotações na CTPS — utilizando-se [CALCULAR VALOR — revisar memória de cálculo] para os valores não injetáveis, mantidos os demais pedidos que não dependam exclusivamente da conversão pretendida";
 
 // -------------------------------------------------------------------------
 // Detecção de perfil motorista profissional
