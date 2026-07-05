@@ -660,8 +660,14 @@ ${calcSummaryForPrompt}
 ${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir literalmente ANTES do pedido final):
 ${NON_LIMITATION_TOPIC}
 
-# ITEM OBRIGATÓRIO NO PEDIDO FINAL (inserir com esta redação):
-"${NON_LIMITATION_REQUEST}"` : ""}
+# TÓPICO OBRIGATÓRIO (inserir SEMPRE que a peça sustentar rescisão indireta):
+${SUCCESSIVE_RESCISAO_INDIRETA_TOPIC}
+
+# ITENS OBRIGATÓRIOS NO PEDIDO FINAL (inserir com estas redações):
+- "${NON_LIMITATION_REQUEST}"
+- "${SUCCESSIVE_RESCISAO_INDIRETA_REQUEST}" (quando houver pedido de rescisão indireta)
+
+${TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE}` : ""}
 
 # JURISPRUDÊNCIA — REGRA DURA
 - Súmulas e OJs do TST/STF PODEM ser citadas sem link (biblioteca interna conferida).
