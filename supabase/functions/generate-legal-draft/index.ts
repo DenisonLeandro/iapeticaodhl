@@ -16,9 +16,11 @@ import { selectAIModelForTask } from "../_shared/model-router.ts";
 import {
   NON_LIMITATION_REQUEST,
   NON_LIMITATION_TOPIC,
+  NON_LIMITATION_TOPIC_HEADER,
   NON_LIMITATION_WARNING,
   SUCCESSIVE_RESCISAO_INDIRETA_TOPIC,
   SUCCESSIVE_RESCISAO_INDIRETA_REQUEST,
+  MOTORISTA_EXHIBITION_LIST,
   detectMotoristaProfile,
   getRequiredBlocks,
   renderRequiredBlocksForPrompt,
@@ -83,14 +85,15 @@ FUNDAMENTAÇÃO JURÍDICA MÍNIMA (áreas trabalhistas — usar quando aplicáve
 - Ônus da prova: art. 818 CLT; art. 373 CPC; aptidão para a prova; art. 400 CPC para exibição.
 - Motorista profissional / jornada: Lei 13.103/2015; obrigação de controle (diário de bordo, papeleta, tacógrafo, MDF-e, CTe, rastreador); afastamento do art. 62, I, CLT quando houver meios de controle; inversão do ônus da prova.
 - Horas extras: art. 7º, XIII e XVI, CF; arts. 58 e 59 CLT; reflexos em DSR, férias+1/3, 13º, FGTS+40%, aviso-prévio.
-- Intervalo intrajornada: art. 71 e §4º CLT; Súmula 437/TST quando aplicável; [REVISAR APLICAÇÃO TEMPORAL / REFORMA TRABALHISTA] se pertinente.
+- Intervalo intrajornada: art. 71 CLT. Para períodos contratuais POSTERIORES a 11/11/2017 (Lei 13.467/17), o §4º impõe pagamento APENAS do tempo SUPRIMIDO, com natureza indenizatória — NÃO afirmar de forma absoluta pagamento integral do período. Para períodos ANTERIORES a 11/11/2017, aplicar Súmula 437/TST (pagamento integral com natureza salarial e reflexos). Quando o contrato ATRAVESSAR a Reforma, SEGMENTAR o pedido em dois períodos, cada um com sua base legal, e marcar [REVISAR APLICAÇÃO TEMPORAL — art. 71, §4º, CLT após 11/11/2017].
 - Intervalo interjornada: art. 66 CLT; art. 67 CLT (DSR); horas suprimidas como extras.
 - Domingos e feriados: Lei 605/49; Súmula 146/TST; adicional 100% sem compensação.
 - Pagamento por fora / comissões: art. 457 CLT; habitualidade; natureza salarial; integração em férias+1/3, 13º, FGTS, aviso, HE, verbas; exibição de documentos.
 - FGTS: Lei 8.036/90; Súmula 461/TST (ônus dos depósitos); multa 40%.
 - Verbas rescisórias: arts. 477 e §8º CLT; art. 467 CLT; aviso, 13º, férias+1/3, saldo, FGTS+40%, guias, baixa CTPS, seguro-desemprego.
 - Férias: arts. 134, 137, 145 CLT; se citar Súmula 450/TST incluir [REVISAR ADPF 501/STF E ENTENDIMENTO ATUAL].
-- Insalubridade/periculosidade: arts. 189-192 CLT; NR-15/16; perícia; reflexos.
+- Insalubridade: arts. 189, 190, 191 e 192 CLT; NR-15 e seus anexos (agentes químicos, ruído, vibração, calor); necessidade de PERÍCIA TÉCNICA (art. 195 CLT); pedido de nomeação de perito. Base de cálculo: [REVISAR ENTENDIMENTO ATUAL — Súmula Vinculante 4/STF e jurisprudência corrente do TST]. NÃO invocar Súmula 448/TST por analogia — fundamentar diretamente na CLT, na NR-15 e na prova pericial; se houver hipótese específica de enquadramento por analogia, marcar [REVISAR FUNDAMENTO — analogia com Súmula 448/TST pode ser frágil].
+- Periculosidade (item separado): arts. 193 CLT; NR-16.
 - Adicional noturno: art. 73 CLT; hora reduzida; prorrogação; reflexos.
 - Honorários: art. 791-A CLT; cuidado com justiça gratuita.
 
@@ -668,17 +671,26 @@ ${requiredBlocksPrompt}
 
 ${calcSummaryForPrompt}
 
-${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir literalmente ANTES do pedido final):
+${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir LITERALMENTE ANTES do pedido final, com este título EXATO: "${NON_LIMITATION_TOPIC_HEADER}"):
 ${NON_LIMITATION_TOPIC}
 
-# TÓPICO OBRIGATÓRIO (inserir SEMPRE que a peça sustentar rescisão indireta):
+REGRA DURA: o tópico com o título EXATO "${NON_LIMITATION_TOPIC_HEADER}" é OBRIGATÓRIO. É PROIBIDO omiti-lo, mesmo que a peça já mencione estimativa em outro lugar. Manter a lista ampliada de documentos e a menção ao art. 840, §1º, CLT.
+
+# TÓPICO OBRIGATÓRIO (inserir SEMPRE que a peça sustentar rescisão indireta, ANTES do pedido final):
 ${SUCCESSIVE_RESCISAO_INDIRETA_TOPIC}
 
-# ITENS OBRIGATÓRIOS NO PEDIDO FINAL (inserir com estas redações):
+# ITENS OBRIGATÓRIOS NO PEDIDO FINAL (inserir com estas redações literais):
 - "${NON_LIMITATION_REQUEST}"
 - "${SUCCESSIVE_RESCISAO_INDIRETA_REQUEST}" (quando houver pedido de rescisão indireta)
 
-${TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE}` : ""}
+${isMotorista ? `# EXIBIÇÃO DE DOCUMENTOS — MOTORISTA (OBRIGATÓRIO)
+Redigir tópico próprio no corpo da peça E item específico no pedido final requerendo, sob pena das consequências do art. 400 CPC e da Súmula 338, I, TST, a exibição pela Reclamada da seguinte lista canônica AMPLIADA (não omitir itens):
+${MOTORISTA_EXHIBITION_LIST.map((d) => `- ${d}`).join("\n")}
+` : ""}
+${TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE}
+
+# GARANTIA DE VALORES NOS NOVOS ITENS
+Ao redigir os itens de não limitação, sucessivo, exibição motorista, insalubridade e intrajornada, continuar usando "[CALCULAR VALOR — revisar memória de cálculo]" sempre que não houver valor injetável correspondente.` : ""}
 
 # JURISPRUDÊNCIA — REGRA DURA
 - Súmulas e OJs do TST/STF PODEM ser citadas sem link (biblioteca interna conferida).
