@@ -684,6 +684,7 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 
   // Quality gate + rewrite ocorrem no review-legal-draft (assíncrono).
   warnings.push("A revisão automática de qualidade ainda não foi executada.");
+  if (isTrabalhistaInicial) warnings.push(NON_LIMITATION_WARNING);
 
   const qualityReport: Record<string, unknown> | null = null;
 
@@ -691,6 +692,7 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   for (const w of warnings) mergedWarningsSet.add(w);
   for (const w of draftWarnings) mergedWarningsSet.add(w);
   const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
+
 
   // -------------------------------------------------------------------------
   // Persistência
