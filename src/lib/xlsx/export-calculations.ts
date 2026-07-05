@@ -23,7 +23,7 @@ function download(blob: Blob, filename: string) {
 
 const HEADERS = [
   "Pedido", "Fundamento", "Fórmula", "Dados",
-  "Fonte dos dados", "Confiança", "Premissas", "Período",
+  "Fonte dos dados", "Confiança", "Uso na peça", "Premissas", "Período",
   "Valor (R$)", "Faltantes", "Observações jurídicas",
 ];
 
@@ -32,6 +32,7 @@ function rowsFor(items: CaseCalculationItem[]) {
     const a = (i.assumptions ?? {}) as Record<string, unknown>;
     const source = typeof a._source === "string" ? (a._source as string) : "";
     const premise = typeof a.premissa === "string" ? (a.premissa as string) : "";
+    const injectable = a._draft_injectable === true && i.estimated_value != null;
     const otherAssumptions = Object.entries(a)
       .filter(([k]) => !k.startsWith("_") && k !== "premissa")
       .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
@@ -44,6 +45,7 @@ function rowsFor(items: CaseCalculationItem[]) {
       fmt(i.input_data),
       source,
       i.confidence,
+      injectable ? "Pronto para peça" : "Somente memória",
       premisesCombined,
       i.period ?? "",
       i.estimated_value ?? "",
