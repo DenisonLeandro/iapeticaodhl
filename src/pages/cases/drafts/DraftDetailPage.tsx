@@ -244,6 +244,8 @@ export default function DraftDetailPage() {
             )}
           </Card>
 
+          <PendingCountBadge content={content} />
+
           <DraftWarningsList
             warnings={draft.warnings}
             missing={draft.missing_information}
