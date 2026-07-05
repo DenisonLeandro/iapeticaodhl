@@ -227,8 +227,16 @@ export default function DraftDetailPage() {
             qualityReport={draft.quality_report}
           />
 
+          <CalculationsPanel draftId={draft.id} />
+
+          <SeniorReviewPanel
+            draft={draft}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
+          />
+
         </div>
       </div>
+
 
       <AlertDialog open={confirmRegen} onOpenChange={setConfirmRegen}>
         <AlertDialogContent>
