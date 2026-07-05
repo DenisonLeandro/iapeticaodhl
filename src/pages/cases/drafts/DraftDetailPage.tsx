@@ -33,13 +33,19 @@ import {
 } from "@/hooks/useCaseDrafts";
 import DraftSourcesBadges from "@/components/cases/drafts/DraftSourcesBadges";
 import DraftWarningsList from "@/components/cases/drafts/DraftWarningsList";
+import CalculationsPanel from "@/components/cases/drafts/CalculationsPanel";
+import SeniorReviewPanel from "@/components/cases/drafts/SeniorReviewPanel";
+import { useQueryClient } from "@tanstack/react-query";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
+
 
 
 export default function DraftDetailPage() {
   const { id: caseId, draftId } = useParams<{ id: string; draftId: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: draft, isLoading } = useCaseDraft(draftId);
+
   const update = useUpdateDraft();
   const archive = useArchiveDraft();
   const review = useReviewDraft();
@@ -223,8 +229,16 @@ export default function DraftDetailPage() {
             qualityReport={draft.quality_report}
           />
 
+          <CalculationsPanel draftId={draft.id} />
+
+          <SeniorReviewPanel
+            draft={draft}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
+          />
+
         </div>
       </div>
+
 
       <AlertDialog open={confirmRegen} onOpenChange={setConfirmRegen}>
         <AlertDialogContent>

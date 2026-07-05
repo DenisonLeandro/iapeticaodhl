@@ -13,6 +13,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { logAiUsage } from "../_shared/usage-log.ts";
 import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { validateJurisprudence } from "../_shared/jurisprudence-validator.ts";
+import { detectSensitiveAlerts } from "../_shared/sensitive-theses.ts";
+
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -316,6 +319,16 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     }
 
     // -----------------------------------------------------------------------
+    // Validação de jurisprudência + alertas sensíveis (SEM apagar fundamentação)
+    // -----------------------------------------------------------------------
+    const jurisValidation = validateJurisprudence(finalContent);
+    finalContent = jurisValidation.content;
+    const sensitiveAlerts = detectSensitiveAlerts(finalContent);
+    (qualityReport as Record<string, unknown>).jurisprudence_replacements = jurisValidation.replacements;
+    (qualityReport as Record<string, unknown>).jurisprudence_vague_expressions = jurisValidation.vague_expressions;
+    (qualityReport as Record<string, unknown>).sensitive_alerts = sensitiveAlerts;
+
+    // -----------------------------------------------------------------------
     // Consolida warnings
     // -----------------------------------------------------------------------
     const baseWarnings = Array.isArray(draft.warnings) ? (draft.warnings as string[]) : [];
@@ -328,10 +341,14 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     for (const t of (missingTopics as unknown[]).map(String)) merged.add(`Tópico ausente/insuficiente: ${t}`);
     for (const t of (weakTopics as unknown[]).map(String)) merged.add(`Tópico frouxo: ${t}`);
     for (const a of (qaAlerts as unknown[]).map(String)) merged.add(a);
+    for (const w of jurisValidation.warnings) merged.add(w);
+    for (const sa of sensitiveAlerts) {
+      merged.add(`[${sa.severity === "high" ? "RISCO ALTO" : sa.severity === "medium" ? "REVISAR" : "ATENÇÃO"}] ${sa.message}`);
+    }
     if (rewriteSkippedDueToEdit) {
       merged.add("A reescrita não foi aplicada porque a minuta foi editada durante a revisão.");
     }
-    const finalWarnings = Array.from(merged).slice(0, 50);
+    const finalWarnings = Array.from(merged).slice(0, 80);
 
     const baseMissing = Array.isArray(draft.missing_information) ? (draft.missing_information as string[]) : [];
     const mergedMissing = Array.from(new Set([...(rewriteApplied ? rewriteMissing : baseMissing)])).slice(0, 30);
@@ -347,9 +364,11 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
       tokens_input: (draft.tokens_input ?? 0) + totalTokens.input,
       tokens_output: (draft.tokens_output ?? 0) + totalTokens.output,
     };
-    if (rewriteApplied) {
+    // O jurisprudence-validator pode ter alterado finalContent mesmo sem rewrite.
+    if (rewriteApplied || jurisValidation.replacements > 0 || jurisValidation.vague_expressions > 0) {
       patch.content = finalContent;
-      if (finalTitle) patch.title = finalTitle;
+      if (rewriteApplied && finalTitle) patch.title = finalTitle;
+
     }
 
     // Update condicional final: se draft foi editado após início da review,
