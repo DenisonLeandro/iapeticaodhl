@@ -671,17 +671,26 @@ ${requiredBlocksPrompt}
 
 ${calcSummaryForPrompt}
 
-${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir literalmente ANTES do pedido final):
+${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir LITERALMENTE ANTES do pedido final, com este título EXATO: "${NON_LIMITATION_TOPIC_HEADER}"):
 ${NON_LIMITATION_TOPIC}
 
-# TÓPICO OBRIGATÓRIO (inserir SEMPRE que a peça sustentar rescisão indireta):
+REGRA DURA: o tópico com o título EXATO "${NON_LIMITATION_TOPIC_HEADER}" é OBRIGATÓRIO. É PROIBIDO omiti-lo, mesmo que a peça já mencione estimativa em outro lugar. Manter a lista ampliada de documentos e a menção ao art. 840, §1º, CLT.
+
+# TÓPICO OBRIGATÓRIO (inserir SEMPRE que a peça sustentar rescisão indireta, ANTES do pedido final):
 ${SUCCESSIVE_RESCISAO_INDIRETA_TOPIC}
 
-# ITENS OBRIGATÓRIOS NO PEDIDO FINAL (inserir com estas redações):
+# ITENS OBRIGATÓRIOS NO PEDIDO FINAL (inserir com estas redações literais):
 - "${NON_LIMITATION_REQUEST}"
 - "${SUCCESSIVE_RESCISAO_INDIRETA_REQUEST}" (quando houver pedido de rescisão indireta)
 
-${TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE}` : ""}
+${isMotorista ? `# EXIBIÇÃO DE DOCUMENTOS — MOTORISTA (OBRIGATÓRIO)
+Redigir tópico próprio no corpo da peça E item específico no pedido final requerendo, sob pena das consequências do art. 400 CPC e da Súmula 338, I, TST, a exibição pela Reclamada da seguinte lista canônica AMPLIADA (não omitir itens):
+${MOTORISTA_EXHIBITION_LIST.map((d) => `- ${d}`).join("\n")}
+` : ""}
+${TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE}
+
+# GARANTIA DE VALORES NOS NOVOS ITENS
+Ao redigir os itens de não limitação, sucessivo, exibição motorista, insalubridade e intrajornada, continuar usando "[CALCULAR VALOR — revisar memória de cálculo]" sempre que não houver valor injetável correspondente.` : ""}
 
 # JURISPRUDÊNCIA — REGRA DURA
 - Súmulas e OJs do TST/STF PODEM ser citadas sem link (biblioteca interna conferida).
