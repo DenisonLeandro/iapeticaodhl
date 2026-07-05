@@ -526,6 +526,13 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     for (const sa of sensitiveAlerts) {
       merged.add(`[${sa.severity === "high" ? "RISCO ALTO" : sa.severity === "medium" ? "REVISAR" : "ATENÇÃO"}] ${sa.message}`);
     }
+    for (const f of deterministicFindings) {
+      const tag = f.severidade === "risco_alto" ? "RISCO ALTO"
+        : f.severidade === "atencao" ? "ATENÇÃO"
+        : f.severidade === "pendencia_documental" ? "PENDÊNCIA DOCUMENTAL"
+        : "SUGESTÃO";
+      merged.add(`[${tag}] ${f.topico}: ${f.motivo}`);
+    }
     if (rewriteSkippedDueToEdit) {
       merged.add("A reescrita não foi aplicada porque a minuta foi editada durante a revisão.");
     }
