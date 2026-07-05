@@ -583,31 +583,42 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const calcCtx = contextFromNormalized(normalized);
   // 3) Roda cálculos e anota fontes/confiança por item.
   const calcResult = annotateWithSources(runCalculations(calcCtx), normalized);
-  const computedItems = calcResult.items.filter((i) => i.estimated_value != null);
-  const pendingItems = calcResult.items.filter((i) => i.estimated_value == null);
+  const isInjectable = (i: typeof calcResult.items[number]) =>
+    ((i.assumptions ?? {}) as Record<string, unknown>)._draft_injectable === true &&
+    i.estimated_value != null;
+  const computedItems = calcResult.items.filter(isInjectable);
+  const pendingItems = calcResult.items.filter((i) => !isInjectable(i));
+  const injectableTotal = computedItems.reduce((a, i) => a + (i.estimated_value ?? 0), 0);
+  const hasInconsistency = pendingItems.length > 0;
 
   const fmtMoney = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA (usar EXATAMENTE estes valores; NÃO inventar cálculos)
+  const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA
 Fontes normalizadas: ${Object.entries(normalized.sources_by_field).map(([k, v]) => `${k}=${v}`).join("; ") || "—"}
+
+## VALORES PRONTOS PARA USO (únicos que podem ser escritos no corpo da peça)
 ${computedItems.length > 0
     ? computedItems.map((i) => {
         const a = (i.assumptions ?? {}) as Record<string, unknown>;
         const src = a._source ? ` [fonte: ${a._source}]` : "";
-        const conf = ` [confiança: ${i.confidence}]`;
         const premise = a.premissa ? ` [premissa: ${a.premissa}]` : "";
-        return `- ${i.request_label}: ${fmtMoney(i.estimated_value ?? 0)} — fórmula: ${i.formula}${conf}${src}${premise}`;
+        return `- ${i.request_label}: ${fmtMoney(i.estimated_value ?? 0)} — fórmula: ${i.formula}${src}${premise}`;
       }).join("\n")
-    : "Nenhum valor determinístico disponível — usar [CALCULAR VALOR] para todos os pedidos monetários."}
-${pendingItems.length > 0
-    ? `\nPedidos SEM valor calculado (usar OBRIGATORIAMENTE "[CALCULAR VALOR — faltam: ...]" — nunca inventar):\n${pendingItems.map((i) => `- ${i.request_label}: [CALCULAR VALOR — faltam: ${i.missing_fields.join(", ") || "dados"}]`).join("\n")}`
-    : ""}
-Total estimado (soma dos itens calculados): ${fmtMoney(calcResult.total_estimated_value)}
-Status geral: ${calcResult.status}
+    : "Nenhum. Todos os pedidos monetários devem usar [CALCULAR VALOR — revisar memória de cálculo]."}
 
-REGRA DE SUBSTITUIÇÃO OBRIGATÓRIA:
-- Para todo pedido monetário com valor calculado acima, ESCREVER o valor no corpo da peça no formato "R$ X.XXX,XX conforme memória de cálculo estimativa anexa, sujeito à revisão em liquidação".
-- Se o item incluir "premissa", CITAR a premissa entre parênteses (ex.: aviso-prévio: "considerada a premissa de 33 dias, conforme Lei 12.506/2011").
-- SÓ usar "[CALCULAR VALOR — faltam: ...]" quando o item vier SEM valor.`;
+## PEDIDOS SEM VALOR CONSISTENTE (obrigatório usar marcador literal)
+${pendingItems.length > 0
+    ? pendingItems.map((i) => `- ${i.request_label}: [CALCULAR VALOR — revisar memória de cálculo] (motivo: ${(i.missing_fields ?? []).join(", ") || "fonte/confiança insuficientes"})`).join("\n")
+    : "—"}
+
+Subtotal dos itens injetáveis (referência interna, NÃO transcrever automaticamente): ${fmtMoney(injectableTotal)}
+
+REGRAS DURAS DE VALOR:
+- É PROIBIDO transcrever no corpo da peça qualquer valor monetário que NÃO esteja na lista "VALORES PRONTOS PARA USO" acima.
+- Para todo pedido da segunda lista, escrever LITERALMENTE "[CALCULAR VALOR — revisar memória de cálculo]" no lugar do valor. Manter o pedido completo (rubrica, base legal, período, reflexos) — a ausência de valor não elimina o pedido.
+- Nunca inserir número de dias, meses ou frações (ex.: "14 dias", "17 dias", "11/12 avos", "33 dias") que não venham dos VALORES PRONTOS PARA USO — nesses casos usar "[CALCULAR VALOR — revisar memória de cálculo]".
+- Valor da causa: ${hasInconsistency
+      ? 'escrever "[CALCULAR VALOR — valor estimado, sujeito à revisão em liquidação]" (há itens com inconsistência).'
+      : 'pode usar o subtotal acima acrescido da estimativa dos itens remanescentes, sempre indicando "sujeito à revisão em liquidação".'}`;
 
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const claimTaskChoice = selectAIModelForTask("legal_intent_classification");

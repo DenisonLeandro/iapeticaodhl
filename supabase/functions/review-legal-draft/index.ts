@@ -33,8 +33,9 @@ Regras:
 REGRA CRÍTICA para o array "findings":
 - NÃO dizer apenas "tópico frouxo" ou "faltou pedido". EXPLIQUE o motivo em uma frase objetiva.
 - Sempre apresentar em "sugestao" um TEXTO PRONTO PARA COPIAR (parágrafo/tópico redigido em português jurídico), não uma orientação genérica.
+- CLASSIFIQUE como "risco_alto" e sugira substituição pelo marcador "[CALCULAR VALOR — revisar memória de cálculo]" SEMPRE que a minuta transcrever valores monetários, número de dias, meses ou frações (ex.: "14 dias", "17 dias", "11/12 avos", "33 dias", "R$ ...") que não conferem com a memória de cálculo ou que representem cálculo parcial/incerto/inconsistente.
 - Classifique cada finding em severidade:
-  * "risco_alto": omissão que pode causar improcedência ou prescrição.
+  * "risco_alto": omissão que pode causar improcedência ou prescrição, OU valor/cálculo inconsistente transcrito na peça.
   * "atencao": lacuna relevante mas com margem de correção.
   * "pendencia_documental": falta de documento cuja exibição a peça deveria requerer.
   * "sugestao_estrategica": melhoria de tese/estrutura.

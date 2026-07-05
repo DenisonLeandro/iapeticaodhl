@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCalculationByDraft } from "@/hooks/useCaseCalculations";
 import { exportCalculationXlsx } from "@/lib/xlsx/export-calculations";
+import { isDraftInjectable } from "@/types/caseCalculation";
 import { toast } from "sonner";
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -57,6 +58,12 @@ export default function CalculationsPanel({ draftId }: { draftId: string }) {
         </strong>
       </div>
 
+      <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
+        Estas estimativas são ferramenta de apoio. Valores só entram automaticamente na petição
+        quando marcados como <strong>Pronto para peça</strong>. Os demais devem ser conferidos
+        antes do protocolo.
+      </p>
+
       <div className="mt-3 space-y-2">
         {items.length === 0 && (
           <p className="text-xs text-muted-foreground">Nenhum item calculado ainda.</p>
@@ -65,14 +72,22 @@ export default function CalculationsPanel({ draftId }: { draftId: string }) {
           const a = (it.assumptions ?? {}) as Record<string, unknown>;
           const source = typeof a._source === "string" ? a._source : null;
           const premise = typeof a.premissa === "string" ? a.premissa : null;
+          const injectable = isDraftInjectable(it);
           const otherAssumptions = Object.entries(a)
             .filter(([k]) => !k.startsWith("_") && k !== "premissa")
             .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`);
           return (
             <div key={it.id} className="rounded-md border p-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="font-medium">{it.request_label}</div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {injectable ? (
+                    <Badge className="bg-emerald-600 text-[10px] text-white hover:bg-emerald-600">Pronto para peça</Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300" title="Este valor não entra automaticamente na petição — revisar antes do protocolo.">
+                      Somente memória — revisar
+                    </Badge>
+                  )}
                   <Badge variant={it.confidence === "high" ? "default" : "outline"} className="text-[10px]">
                     {CONFIDENCE_LABEL[it.confidence] ?? it.confidence}
                   </Badge>

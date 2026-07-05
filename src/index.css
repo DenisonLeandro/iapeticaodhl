@@ -296,26 +296,25 @@
 .legal-doc-preview li { margin-bottom: 0.35em; }
 
 
-/* PR-4.4B.2A — Marcadores pendentes (destaque VISUAL apenas). */
+/* PR-4.4B.2B — Marcadores pendentes: SEMPRE vermelho por padrão. */
 .pending-marker {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: rgb(185, 28, 28);
-  border: 1px dashed rgba(239, 68, 68, 0.5);
-  border-radius: 3px;
-  padding: 0 3px;
-  font-weight: 600;
+  color: #dc2626;
+  background: #fef2f2;
+  font-weight: 700;
+  border-bottom: 1px dashed #dc2626;
+  padding: 0 2px;
+  border-radius: 2px;
   cursor: help;
 }
 .dark .pending-marker {
-  background-color: rgba(239, 68, 68, 0.2);
-  color: rgb(252, 165, 165);
-  border-color: rgba(252, 165, 165, 0.5);
+  color: #fca5a5;
+  background: rgba(220, 38, 38, 0.18);
+  border-bottom-color: #fca5a5;
 }
-.pending-marker--calcular { background-color: rgba(234, 179, 8, 0.15); color: rgb(161, 98, 7); border-color: rgba(234, 179, 8, 0.5); }
-.dark .pending-marker--calcular { color: rgb(253, 224, 71); border-color: rgba(253, 224, 71, 0.5); }
-.pending-marker--anexar { background-color: rgba(59, 130, 246, 0.15); color: rgb(29, 78, 216); border-color: rgba(59, 130, 246, 0.5); }
-.dark .pending-marker--anexar { color: rgb(147, 197, 253); border-color: rgba(147, 197, 253, 0.5); }
-.pending-marker--confirmar { background-color: rgba(168, 85, 247, 0.15); color: rgb(126, 34, 206); border-color: rgba(168, 85, 247, 0.5); }
-.dark .pending-marker--confirmar { color: rgb(216, 180, 254); border-color: rgba(216, 180, 254, 0.5); }
-.pending-marker--jurisprudencia { background-color: rgba(20, 184, 166, 0.15); color: rgb(15, 118, 110); border-color: rgba(20, 184, 166, 0.5); }
-.dark .pending-marker--jurisprudencia { color: rgb(94, 234, 212); border-color: rgba(94, 234, 212, 0.5); }
+/* Categoria vira apenas acento lateral — cor/fundo permanecem vermelhos. */
+.pending-marker--calcular       { border-left: 3px solid #eab308; padding-left: 4px; }
+.pending-marker--anexar         { border-left: 3px solid #3b82f6; padding-left: 4px; }
+.pending-marker--confirmar      { border-left: 3px solid #a855f7; padding-left: 4px; }
+.pending-marker--jurisprudencia { border-left: 3px solid #14b8a6; padding-left: 4px; }
+.pending-marker--revisar        { border-left: 3px solid #f97316; padding-left: 4px; }
+.pending-marker--informar       { border-left: 3px solid #dc2626; padding-left: 4px; }

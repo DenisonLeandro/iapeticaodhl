@@ -58,7 +58,7 @@ export default function DraftDetailPage() {
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewTimedOut, setReviewTimedOut] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
 
   useEffect(() => {
     if (draft) {
@@ -198,7 +198,8 @@ export default function DraftDetailPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
 
         <Card className="p-4">
-          <div className="mb-2 flex items-center justify-end">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <PendingCountBadge content={content} />
             <Button
               size="sm"
               variant="ghost"
@@ -206,12 +207,17 @@ export default function DraftDetailPage() {
               title="Alterna entre editor e visualização com destaques (não altera o texto salvo)"
             >
               {showPreview ? (
-                <><Pencil className="mr-1 h-3 w-3" /> Editar</>
+                <><Pencil className="mr-1 h-3 w-3" /> Editar texto</>
               ) : (
                 <><Eye className="mr-1 h-3 w-3" /> Ver com destaques</>
               )}
             </Button>
           </div>
+          {!showPreview && (
+            <div className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
+              Editando texto bruto — clique em "Ver com destaques" para revisar os marcadores pendentes em vermelho.
+            </div>
+          )}
           {showPreview ? (
             <DraftContentPreview content={content} className="min-h-[70vh]" />
           ) : (

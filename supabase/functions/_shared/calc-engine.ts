@@ -517,6 +517,8 @@ export function contextFromNormalized(n: CalculationContext): CalcContext {
 /**
  * Annotate calc result items with source/confidence info coming from the
  * normalized context (injected as private keys inside `assumptions`).
+ * Also sets `_draft_injectable` — gate that controls whether a value can be
+ * written into the petition body. See `isItemConsistent`.
  */
 export function annotateWithSources(result: CalcResult, n: CalculationContext): CalcResult {
   const bySrc = n.sources_by_field;
@@ -540,9 +542,41 @@ export function annotateWithSources(result: CalcResult, n: CalculationContext): 
       const assumptions = { ...(it.assumptions ?? {}) } as Record<string, unknown>;
       if (src) assumptions._source = src;
       if (conf) assumptions._confidence_source = conf;
-      return { ...it, assumptions };
+      const injectable = isItemConsistent(it, {
+        salarySrc: bySrc.monthly_salary,
+        admissionSrc: bySrc.admission_date,
+        terminationSrc: bySrc.termination_date,
+        scheduleSrc: bySrc.work_schedule,
+        itemSrc: src,
+      });
+      assumptions._draft_injectable = injectable;
+      const notes = injectable ? it.notes : "[CALCULAR VALOR — revisar memória de cálculo]";
+      return { ...it, assumptions, notes };
     }),
   };
+}
+
+/**
+ * Draft-injection gate. Conservative on purpose: any doubt → keep
+ * "[CALCULAR VALOR — revisar memória de cálculo]" in the petition body.
+ */
+export function isItemConsistent(
+  item: CalcItem,
+  sources: { salarySrc?: string; admissionSrc?: string; terminationSrc?: string; scheduleSrc?: string; itemSrc?: string },
+): boolean {
+  if (item.estimated_value == null) return false;
+  if (item.confidence !== "high") return false;
+  if (Array.isArray(item.missing_fields) && item.missing_fields.length > 0) return false;
+  const doc = (s?: string) => s === "documento" || s === "ficha";
+  const l = item.request_label.toLowerCase();
+  if (l.includes("saldo")) return doc(sources.terminationSrc);
+  if (l.includes("aviso") || l.includes("férias") || l.includes("13") || l.includes("fgts"))
+    return doc(sources.salarySrc) && doc(sources.admissionSrc) && doc(sources.terminationSrc);
+  if (l.includes("multa do art. 477") || l.includes("multa 477")) return doc(sources.salarySrc);
+  if (l.includes("horas extras") || l.includes("intrajornada") || l.includes("interjornada"))
+    return doc(sources.scheduleSrc) && doc(sources.salarySrc);
+  if (l.includes("honorário")) return false;
+  return doc(sources.itemSrc);
 }
 
 // ---------------------------------------------------------------------------

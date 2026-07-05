@@ -31,3 +31,12 @@ export interface CaseCalculation {
   updated_at: string;
   items?: CaseCalculationItem[];
 }
+
+/**
+ * Read the draft-injection gate flag set by the backend calc-engine.
+ * Legacy items without the flag are treated as NOT injectable.
+ */
+export function isDraftInjectable(item: CaseCalculationItem): boolean {
+  const a = (item.assumptions ?? {}) as Record<string, unknown>;
+  return a._draft_injectable === true && item.estimated_value != null;
+}
