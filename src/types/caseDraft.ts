@@ -84,6 +84,12 @@ export interface CaseDraftQualityReport {
   jurisprudence_replacements?: number;
   jurisprudence_vague_expressions?: number;
   sensitive_alerts?: Array<{ id: string; severity: "high" | "medium" | "low"; message: string }>;
+  findings?: Array<{
+    severidade: "risco_alto" | "atencao" | "pendencia_documental" | "sugestao_estrategica" | string;
+    topico: string;
+    motivo: string;
+    sugestao: string;
+  }>;
 }
 
 
