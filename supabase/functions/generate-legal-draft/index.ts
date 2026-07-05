@@ -569,21 +569,45 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const requiredBlocksPrompt = renderRequiredBlocksForPrompt(requiredBlocks);
   const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
 
-  // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt
-  const calcCtx = extractCalcContext({ intake, analysis });
-  const calcResult = runCalculations(calcCtx);
+  // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt.
+  // 1) Normaliza contexto a partir de todas as fontes disponíveis.
+  const normalized = buildCalculationContext({
+    caseData: caseRow as Record<string, unknown>,
+    client: (caseRow as { clients?: Record<string, unknown> }).clients ?? null,
+    intake, analysis,
+    documents: docFiles,
+    chunks: docChunks,
+    additionalInstructions: body.additional_instructions ?? null,
+  });
+  // 2) Adapta para CalcContext legado + deriva jornada/intra.
+  const calcCtx = contextFromNormalized(normalized);
+  // 3) Roda cálculos e anota fontes/confiança por item.
+  const calcResult = annotateWithSources(runCalculations(calcCtx), normalized);
   const computedItems = calcResult.items.filter((i) => i.estimated_value != null);
   const pendingItems = calcResult.items.filter((i) => i.estimated_value == null);
 
+  const fmtMoney = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA (usar EXATAMENTE estes valores; NÃO inventar cálculos)
+Fontes normalizadas: ${Object.entries(normalized.sources_by_field).map(([k, v]) => `${k}=${v}`).join("; ") || "—"}
 ${computedItems.length > 0
-    ? computedItems.map((i) => `- ${i.request_label}: R$ ${i.estimated_value?.toFixed(2)} (${i.formula}) — confiança ${i.confidence}`).join("\n")
+    ? computedItems.map((i) => {
+        const a = (i.assumptions ?? {}) as Record<string, unknown>;
+        const src = a._source ? ` [fonte: ${a._source}]` : "";
+        const conf = ` [confiança: ${i.confidence}]`;
+        const premise = a.premissa ? ` [premissa: ${a.premissa}]` : "";
+        return `- ${i.request_label}: ${fmtMoney(i.estimated_value ?? 0)} — fórmula: ${i.formula}${conf}${src}${premise}`;
+      }).join("\n")
     : "Nenhum valor determinístico disponível — usar [CALCULAR VALOR] para todos os pedidos monetários."}
 ${pendingItems.length > 0
-    ? `\nPedidos SEM valor calculado (usar OBRIGATORIAMENTE "[CALCULAR VALOR]" — nunca inventar):\n${pendingItems.map((i) => `- ${i.request_label}: faltam ${i.missing_fields.join(", ") || "dados"}`).join("\n")}`
+    ? `\nPedidos SEM valor calculado (usar OBRIGATORIAMENTE "[CALCULAR VALOR — faltam: ...]" — nunca inventar):\n${pendingItems.map((i) => `- ${i.request_label}: [CALCULAR VALOR — faltam: ${i.missing_fields.join(", ") || "dados"}]`).join("\n")}`
     : ""}
-Total estimado (soma dos itens calculados): R$ ${calcResult.total_estimated_value.toFixed(2)}
-Status geral: ${calcResult.status}`;
+Total estimado (soma dos itens calculados): ${fmtMoney(calcResult.total_estimated_value)}
+Status geral: ${calcResult.status}
+
+REGRA DE SUBSTITUIÇÃO OBRIGATÓRIA:
+- Para todo pedido monetário com valor calculado acima, ESCREVER o valor no corpo da peça no formato "R$ X.XXX,XX conforme memória de cálculo estimativa anexa, sujeito à revisão em liquidação".
+- Se o item incluir "premissa", CITAR a premissa entre parênteses (ex.: aviso-prévio: "considerada a premissa de 33 dias, conforme Lei 12.506/2011").
+- SÓ usar "[CALCULAR VALOR — faltam: ...]" quando o item vier SEM valor.`;
 
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const claimTaskChoice = selectAIModelForTask("legal_intent_classification");
