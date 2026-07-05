@@ -554,6 +554,29 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const caseContext = buildCaseContextBlock();
   const templateBlueprint = buildTemplateBlueprint(template);
 
+  // Blocos obrigatórios do escritório (por área/tipo, + subgrupo motorista)
+  const legalArea = String(intake?.legal_area ?? caseRow.legal_area ?? "").toLowerCase();
+  const isMotorista = detectMotoristaProfile({ intake, analysis, case: caseRow });
+  const requiredBlocks = getRequiredBlocks(legalArea, draftType, isMotorista);
+  const requiredBlocksPrompt = renderRequiredBlocksForPrompt(requiredBlocks);
+  const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
+
+  // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt
+  const calcCtx = extractCalcContext({ intake, analysis });
+  const calcResult = runCalculations(calcCtx);
+  const computedItems = calcResult.items.filter((i) => i.estimated_value != null);
+  const pendingItems = calcResult.items.filter((i) => i.estimated_value == null);
+
+  const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA (usar EXATAMENTE estes valores; NÃO inventar cálculos)
+${computedItems.length > 0
+    ? computedItems.map((i) => `- ${i.request_label}: R$ ${i.estimated_value?.toFixed(2)} (${i.formula}) — confiança ${i.confidence}`).join("\n")
+    : "Nenhum valor determinístico disponível — usar [CALCULAR VALOR] para todos os pedidos monetários."}
+${pendingItems.length > 0
+    ? `\nPedidos SEM valor calculado (usar OBRIGATORIAMENTE "[CALCULAR VALOR]" — nunca inventar):\n${pendingItems.map((i) => `- ${i.request_label}: faltam ${i.missing_fields.join(", ") || "dados"}`).join("\n")}`
+    : ""}
+Total estimado (soma dos itens calculados): R$ ${calcResult.total_estimated_value.toFixed(2)}
+Status geral: ${calcResult.status}`;
+
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const claimTaskChoice = selectAIModelForTask("legal_intent_classification");
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -598,6 +621,22 @@ ${claimMapForPrompt}
 # TEMPLATE_BLUEPRINT (régua mínima estrutural)
 ${JSON.stringify(templateBlueprint)}
 
+${requiredBlocksPrompt}
+
+${calcSummaryForPrompt}
+
+${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir literalmente ANTES do pedido final):
+${NON_LIMITATION_TOPIC}
+
+# ITEM OBRIGATÓRIO NO PEDIDO FINAL (inserir com esta redação):
+"${NON_LIMITATION_REQUEST}"` : ""}
+
+# JURISPRUDÊNCIA — REGRA DURA
+- Súmulas e OJs do TST/STF PODEM ser citadas sem link (biblioteca interna conferida).
+- Decisões específicas (acórdãos, RR, AIRR, RE, ARE, REsp, ADI, ADPF, Tema com número): APENAS COM link verificável (URL do tribunal). Se não houver link, use o marcador "[JURISPRUDÊNCIA A INSERIR — TEMA: <tema>]".
+- PROIBIDO: "jurisprudência pacífica", "entendimento consolidado", "o TST entende", "os tribunais superiores entendem" sem fonte vinculada. Reformule ou use marcador.
+- Nunca invente número de processo, relator, data ou órgão julgador.
+
 # TAREFA
 Gerar minuta PROFISSIONAL COMPLETA de "${draftLabel}". Objetivo: ${body.objective || "(não informado)"}. Tom: ${body.tone || "template_default"}.
 Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, completa e no mínimo equivalente ao modelo.
@@ -605,10 +644,15 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 # INSTRUÇÕES FINAIS
 - Gere o texto no campo "content" com quebras de linha e seções em MAIÚSCULAS.
 - Cada topic include=true do CLAIM_MAP deve virar um tópico numerado com: fatos → fundamento legal específico (artigos/leis/súmulas) → aplicação ao caso → pedido correspondente.
-- Estrutura sugerida para "${draftLabel}" trabalhista: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DA RELAÇÃO DE EMPREGO/CONTRATO; III—DA FUNÇÃO EXERCIDA; IV—DA JORNADA E HORAS EXTRAS; V—DOS INTERVALOS (INTRA E INTERJORNADA); VI—DE DOMINGOS E FERIADOS; VII—DO ADICIONAL NOTURNO (se aplicável); VIII—DAS VERBAS RESCISÓRIAS; IX—DO FGTS; X—DE PAGAMENTOS POR FORA/COMISSÕES (se aplicável); XI—DA INSALUBRIDADE/PERICULOSIDADE (se aplicável); XII—DO ÔNUS DA PROVA E DA EXIBIÇÃO DE DOCUMENTOS; XIII—DA JUSTIÇA GRATUITA; XIV—DOS PEDIDOS (numerados, discriminados, com reflexos, sucessivos quando cabíveis, valores ou [CALCULAR VALOR]); XV—DO VALOR DA CAUSA; XVI—DOS REQUERIMENTOS FINAIS. Adapte para outras áreas mantendo a mesma profundidade.
+- Cada BLOCO OBRIGATÓRIO acima deve ser explicitamente avaliado. Se não houver base, escreva "não se aplica" com justificativa curta — nunca omitir silenciosamente.
+- Use SOMENTE os valores dos CÁLCULOS DETERMINÍSTICOS acima. Para pedidos sem valor calculado, escreva "[CALCULAR VALOR]" e liste os dados faltantes em "missing_information".
+- ${isTrabalhistaInicial ? 'Inclua OBRIGATORIAMENTE o tópico "DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO" e o item correspondente no pedido final.' : ""}
+- Se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar sucumbência de beneficiário da gratuidade, inserir [REVISAR ADI 5.766/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (13/11/2017), aplicar art. 71 §4º CLT.
+- Estrutura sugerida para "${draftLabel}" trabalhista: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DA RELAÇÃO DE EMPREGO/CONTRATO; III—DA FUNÇÃO EXERCIDA; IV—DA JORNADA E HORAS EXTRAS; V—DOS INTERVALOS (INTRA E INTERJORNADA); VI—DE DOMINGOS E FERIADOS; VII—DO ADICIONAL NOTURNO (se aplicável); VIII—DAS VERBAS RESCISÓRIAS; IX—DO FGTS; X—DE PAGAMENTOS POR FORA/COMISSÕES (se aplicável); XI—DA INSALUBRIDADE/PERICULOSIDADE (se aplicável); XII—DO ÔNUS DA PROVA E DA EXIBIÇÃO DE DOCUMENTOS; XIII—DA JUSTIÇA GRATUITA; ${isTrabalhistaInicial ? "XIV—DA ESTIMATIVA DOS VALORES E NÃO LIMITAÇÃO DA CONDENAÇÃO; " : ""}XV—DOS PEDIDOS (numerados, discriminados, com reflexos, sucessivos quando cabíveis, valores ou [CALCULAR VALOR]); XVI—DO VALOR DA CAUSA; XVII—DOS REQUERIMENTOS FINAIS. Adapte para outras áreas mantendo a mesma profundidade.
 - Termine com seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
 - Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.
 - Responda APENAS o JSON solicitado, sem cercas de código.`;
+
 
   const draftRes = await callLlm(apiKey, taskChoice.model, DRAFT_SYSTEM, draftPrompt, 120_000);
   totalTokens.input += draftRes.input_tokens;
