@@ -328,23 +328,40 @@ export default function DraftGeneratorPage() {
               disabled={!templateId}
               disabledLabel="(selecione um modelo)"
             />
-            <CheckboxRow
-              checked={useChatHistory}
-              onChange={setUseChatHistory}
-              label="Usar histórico do Chat (opcional)"
-            />
+            {mode === "fast" && (
+              <CheckboxRow
+                checked={useChatHistory}
+                onChange={setUseChatHistory}
+                label="Usar histórico do Chat (opcional)"
+              />
+            )}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Instruções adicionais do advogado</Label>
-          <Textarea
-            value={additionalInstructions}
-            onChange={(e) => setAdditionalInstructions(e.target.value)}
-            placeholder="Ex.: destacar férias pagas em atraso, FGTS, pagamentos por fora e jornada; marcar lacunas para confirmar com o cliente; não incluir dano moral sem base suficiente."
-            rows={4}
-          />
-        </div>
+        {mode === "fast" ? (
+          <div className="space-y-2">
+            <Label>Instruções adicionais do advogado</Label>
+            <Textarea
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              placeholder="Ex.: destacar férias pagas em atraso, FGTS, pagamentos por fora e jornada; marcar lacunas para confirmar com o cliente; não incluir dano moral sem base suficiente."
+              rows={4}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>Orientações para a estrutura da petição</Label>
+            <Textarea
+              value={structureInstructions}
+              onChange={(e) => setStructureInstructions(e.target.value)}
+              placeholder="Ex.: incluir dano moral, não pedir férias em dobro, reforçar horas extras, seguir modelo do escritório, deixar a peça mais objetiva."
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              Estas orientações guiam apenas a criação do esqueleto. O conteúdo de cada capítulo será redigido em uma etapa posterior.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2 border-t pt-4">
           <div className="text-xs text-muted-foreground">
@@ -353,19 +370,37 @@ export default function DraftGeneratorPage() {
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {PROGRESS_STEPS[progressIdx]}
               </span>
+            ) : planChapters.isPending ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Planejando capítulos…
+              </span>
             ) : (
-              <span>A geração pode levar 30–90 segundos.</span>
+              <span>
+                {mode === "fast"
+                  ? "A geração pode levar 30–90 segundos."
+                  : "O planejamento dos capítulos leva alguns segundos."}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate(`/cases/${caseId}`)}>
               Cancelar
             </Button>
-            <Button onClick={handleGenerate} disabled={generate.isPending}>
-              {generate.isPending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+            <Button
+              onClick={handleGenerate}
+              disabled={generate.isPending || planChapters.isPending}
+            >
+              {mode === "fast" ? (
+                generate.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+                ) : (
+                  <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+                )
+              ) : planChapters.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Planejando…</>
               ) : (
-                <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+                <><Sparkles className="mr-2 h-4 w-4" /> Planejar capítulos</>
               )}
             </Button>
           </div>
@@ -374,6 +409,7 @@ export default function DraftGeneratorPage() {
     </div>
   );
 }
+
 
 
 function CheckboxRow({
