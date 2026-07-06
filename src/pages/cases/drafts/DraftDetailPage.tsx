@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+
 import { ArrowLeft, Archive, Copy, Eye, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import {
   DropdownMenu,
@@ -99,6 +100,13 @@ export default function DraftDetailPage() {
   if (isLoading || !draft) {
     return <Skeleton className="h-96 w-full" />;
   }
+
+  // PR-2 — Drafts do modo por capítulos com conteúdo vazio ficam no planejamento
+  // para não exibir uma minuta em branco como se fosse erro.
+  if (draft.generation_mode === "chapters" && !(draft.content && draft.content.trim().length > 0)) {
+    return <Navigate to={`/cases/${caseId}/drafts/${draft.id}/chapters`} replace />;
+  }
+
 
   const handleSave = async () => {
     try {
