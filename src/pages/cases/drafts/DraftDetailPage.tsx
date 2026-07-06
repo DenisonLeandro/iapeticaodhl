@@ -186,14 +186,29 @@ export default function DraftDetailPage() {
           <Button variant="outline" size="sm" onClick={handleCopy}>
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRegen}>
-            <Sparkles className="mr-1 h-4 w-4" />
-            {draft.senior_review_status === "done" ? "Regenerar minuta (fluxo inicial)" : "Regenerar minuta"}
-          </Button>
+          {!seniorReviewDone && (
+            <Button variant="outline" size="sm" onClick={handleRegen}>
+              <Sparkles className="mr-1 h-4 w-4" /> Regenerar minuta
+            </Button>
+          )}
           {draft.status !== "archived" && (
             <Button variant="outline" size="sm" onClick={handleArchive}>
               <Archive className="mr-1 h-4 w-4" /> Arquivar
             </Button>
+          )}
+          {seniorReviewDone && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" title="Mais opções">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleRegen} className="text-xs">
+                  <Sparkles className="mr-2 h-3 w-3" /> Regenerar minuta (fluxo inicial)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button size="sm" onClick={handleSave} disabled={update.isPending || !dirty}>
             {update.isPending ? (
