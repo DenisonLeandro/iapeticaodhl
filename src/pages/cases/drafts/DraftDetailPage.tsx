@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Archive, Copy, Eye, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Eye, FileDown, FileText, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { exportDocumentToDOCX } from "@/lib/docx/export-document";
+import { exportDocumentToPDF } from "@/lib/pdf/export-document";
+import { downloadBlob } from "@/lib/document-parser";
+import { sanitizeStorageKey } from "@/lib/utils/sanitize-filename";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +74,8 @@ export default function DraftDetailPage() {
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewTimedOut, setReviewTimedOut] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  const [exportingDocx, setExportingDocx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     if (draft) {
@@ -127,6 +133,43 @@ export default function DraftDetailPage() {
       toast.success("Minuta copiada com sucesso.");
     } catch {
       toast.error("Não foi possível copiar a minuta.");
+    }
+  };
+
+  const buildExportFilename = (ext: "docx" | "pdf") => {
+    const base = (title && title.trim()) || `peticao-${caseId ?? "caso"}`;
+    const slug = sanitizeStorageKey(base) || "peticao";
+    const date = new Date().toISOString().slice(0, 10);
+    return `peticao-${slug}-${date}.${ext}`;
+  };
+
+  const handleExportDocx = async () => {
+    if (!content?.trim()) return;
+    setExportingDocx(true);
+    try {
+      const blob = await exportDocumentToDOCX(content, title?.trim() || "Minuta");
+      downloadBlob(blob, buildExportFilename("docx"));
+      toast.success("Arquivo Word gerado com sucesso.");
+    } catch (e) {
+      console.error("[DraftDetailPage] export DOCX failed", e);
+      toast.error("Não foi possível exportar a minuta. Tente novamente.");
+    } finally {
+      setExportingDocx(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!content?.trim()) return;
+    setExportingPdf(true);
+    try {
+      const blob = await exportDocumentToPDF(content, title?.trim() || "Minuta");
+      downloadBlob(blob, buildExportFilename("pdf"));
+      toast.success("Arquivo PDF gerado com sucesso.");
+    } catch (e) {
+      console.error("[DraftDetailPage] export PDF failed", e);
+      toast.error("Não foi possível exportar a minuta. Tente novamente.");
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -193,6 +236,32 @@ export default function DraftDetailPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={handleCopy}>
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportDocx}
+            disabled={exportingDocx || !content?.trim()}
+            title={!content?.trim() ? "Esta minuta ainda não possui conteúdo para exportação." : undefined}
+          >
+            {exportingDocx ? (
+              <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Gerando Word…</>
+            ) : (
+              <><FileText className="mr-1 h-4 w-4" /> Exportar Word</>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exportingPdf || !content?.trim()}
+            title={!content?.trim() ? "Esta minuta ainda não possui conteúdo para exportação." : undefined}
+          >
+            {exportingPdf ? (
+              <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Gerando PDF…</>
+            ) : (
+              <><FileDown className="mr-1 h-4 w-4" /> Exportar PDF</>
+            )}
           </Button>
           {!seniorReviewDone && (
             <Button variant="outline" size="sm" onClick={handleRegen}>
