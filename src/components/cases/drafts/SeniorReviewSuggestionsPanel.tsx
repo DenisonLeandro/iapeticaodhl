@@ -75,7 +75,7 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
       <Card className="p-4">
         <h3 className="mb-1 text-sm font-semibold">Sugestões do revisor sênior</h3>
         <p className="text-xs text-muted-foreground">
-          A revisão sênior não gerou sugestões acionáveis automaticamente. Confira a análise em texto no painel acima.
+          A revisão foi concluída em texto, mas não gerou sugestões aplicáveis automaticamente.
         </p>
       </Card>
     );
