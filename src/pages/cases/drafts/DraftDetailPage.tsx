@@ -38,6 +38,7 @@ import SeniorReviewPanel from "@/components/cases/drafts/SeniorReviewPanel";
 import PendingCountBadge from "@/components/cases/drafts/PendingCountBadge";
 import DraftContentPreview from "@/components/cases/drafts/DraftContentPreview";
 import { useQueryClient } from "@tanstack/react-query";
+import PlaybookCompliancePanel from "@/components/cases/drafts/PlaybookCompliancePanel";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
 
 
@@ -259,6 +260,9 @@ export default function DraftDetailPage() {
           />
 
           <CalculationsPanel draftId={draft.id} />
+
+          <PlaybookCompliancePanel draft={draft as never} />
+
 
           <SeniorReviewPanel
             draft={draft}
