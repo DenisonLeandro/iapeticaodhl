@@ -32,9 +32,17 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
       const { data, error } = await supabase.functions.invoke("senior-legal-review", {
         body: { draft_id: draft.id },
       });
-      if (error) throw new Error(error.message);
-      if (data?.status === "failed") throw new Error(data?.error || "Falha na revisão sênior");
-      toast.success("Revisão sênior concluída.");
+      if (error) throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
+      if (data?.status === "failed") {
+        throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
+      }
+      if (data?.structured_ok === false) {
+        toast.warning(
+          "A revisão foi concluída, mas as sugestões automáticas não puderam ser estruturadas. A análise em texto continua disponível.",
+        );
+      } else {
+        toast.success("Revisão sênior concluída.");
+      }
       onRefresh();
     } catch (e) {
       toast.error((e as Error).message || "Não foi possível concluir a revisão sênior.");
