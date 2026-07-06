@@ -65,6 +65,7 @@ export default function DraftDetailPage() {
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [confirmRegenAfterSenior, setConfirmRegenAfterSenior] = useState(false);
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewTimedOut, setReviewTimedOut] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
