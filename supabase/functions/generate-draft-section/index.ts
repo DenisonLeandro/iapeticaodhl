@@ -288,6 +288,31 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
         last_error: `llm_http_${httpStatus}: ${truncate(result.text, 300)}`,
         updated_by: user.id,
       }).eq("id", sectionId);
+      // Telemetria de falha (não bloqueia resposta)
+      try {
+        await logAiUsage(admin, {
+          organization_id: profile.organization_id,
+          profile_id: user.id,
+          operation: "legal_draft_generation",
+          provider: modelChoice.provider,
+          model: modelChoice.model,
+          tokens_input: 0,
+          tokens_output: 0,
+          cost_estimated: 0,
+          processing_time_ms: Date.now() - startedAt,
+          case_id: draft.case_id,
+          prompt_summary: `draft_section:${sectionId.slice(0, 8)}`,
+          metadata: {
+            source: "generate_draft_section",
+            draft_id: draftId,
+            section_id: sectionId,
+            section_key: section.section_key,
+            status: "error",
+            http_status: httpStatus,
+            force_regenerate: !!body.force_regenerate,
+          },
+        });
+      } catch { /* noop */ }
       return json({ success: false, code: "llm_http", stage: "llm", message: friendly, status: httpStatus }, httpStatus === 429 || httpStatus === 402 ? httpStatus : 502);
     }
 
@@ -310,6 +335,13 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
       nextNotes.has_placeholders = true;
     }
 
+    // Custo estimado (USD) — usa tabela central de preços. Se modelo não estiver
+    // catalogado, estimateCost retorna 0; nesse caso persistimos null.
+    const tIn = result.tokens_input ?? 0;
+    const tOut = result.tokens_output ?? 0;
+    const costUsd = estimateCost(modelChoice.model, tIn, tOut);
+    const costForSection = costUsd > 0 ? costUsd : null;
+
     // Prompt auditável (resumido)
     const auditPrompt = {
       section_key: section.section_key,
@@ -329,6 +361,7 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
       model_used: modelChoice.model,
       tokens_input: result.tokens_input,
       tokens_output: result.tokens_output,
+      cost_estimate: costForSection,
       generation_prompt: auditPrompt,
       quality_notes: Object.keys(nextNotes).length > 0 ? nextNotes : null,
       last_error: null,
@@ -336,6 +369,39 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
     }).eq("id", sectionId);
 
     if (saveErr) return err("save", "Falha ao salvar capítulo gerado.", "save_failed", 500, saveErr.message);
+
+    // Telemetria de sucesso (metadados apenas — sem conteúdo jurídico)
+    try {
+      await logAiUsage(admin, {
+        organization_id: profile.organization_id,
+        profile_id: user.id,
+        operation: "legal_draft_generation",
+        provider: modelChoice.provider,
+        model: modelChoice.model,
+        tokens_input: tIn,
+        tokens_output: tOut,
+        cost_estimated: costUsd,
+        processing_time_ms: Date.now() - startedAt,
+        case_id: draft.case_id,
+        prompt_summary: `draft_section:${sectionId.slice(0, 8)}`,
+        metadata: {
+          source: "generate_draft_section",
+          draft_id: draftId,
+          section_id: sectionId,
+          section_key: section.section_key,
+          section_status: finalStatus,
+          status: "success",
+          used_template: !!templateContent,
+          used_playbook: !!playbookSummary,
+          used_intake: !!intake,
+          used_analysis: !!analysis,
+          force_regenerate: !!body.force_regenerate,
+          content_chars: finalContent.length,
+          alerts: alerts.length,
+          has_placeholders: !!nextNotes.has_placeholders,
+        },
+      });
+    } catch { /* noop */ }
 
     return json({
       success: true,
