@@ -4,10 +4,12 @@ import {
   generateCaseDraft,
   getCaseDraft,
   listCaseDrafts,
+  planDraftChapters,
   triggerDraftReview,
   updateCaseDraft,
 } from "@/services/caseDrafts";
-import type { CaseDraft, GenerateDraftPayload } from "@/types/caseDraft";
+import type { CaseDraft, GenerateDraftPayload, PlanChaptersPayload } from "@/types/caseDraft";
+
 
 const KEY = "case_drafts";
 
