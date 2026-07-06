@@ -431,6 +431,83 @@ export type Database = {
           },
         ]
       }
+      case_draft_sections: {
+        Row: {
+          case_id: string
+          content: string | null
+          cost_estimate: number | null
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          generation_prompt: Json | null
+          id: string
+          last_error: string | null
+          model_used: string | null
+          order_index: number
+          organization_id: string
+          quality_notes: Json | null
+          section_key: string
+          section_label: string
+          status: string
+          tokens_input: number | null
+          tokens_output: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          case_id: string
+          content?: string | null
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          generation_prompt?: Json | null
+          id?: string
+          last_error?: string | null
+          model_used?: string | null
+          order_index: number
+          organization_id: string
+          quality_notes?: Json | null
+          section_key: string
+          section_label: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          case_id?: string
+          content?: string | null
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          generation_prompt?: Json | null
+          id?: string
+          last_error?: string | null
+          model_used?: string | null
+          order_index?: number
+          organization_id?: string
+          quality_notes?: Json | null
+          section_key?: string
+          section_label?: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_draft_sections_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "case_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_draft_versions: {
         Row: {
           applied_suggestion_ids: Json | null
@@ -475,6 +552,7 @@ export type Database = {
       case_drafts: {
         Row: {
           additional_instructions: string | null
+          assembly_status: string | null
           calculation_id: string | null
           case_id: string
           claim_map: Json | null
@@ -484,11 +562,13 @@ export type Database = {
           created_by: string | null
           draft_type: string
           generation_depth: string
+          generation_mode: string
           id: string
           missing_information: Json | null
           model_used: string | null
           objective: string | null
           organization_id: string
+          piece_type_key: string | null
           playbook_compliance: Json | null
           playbook_id: string | null
           playbook_snapshot: Json | null
@@ -515,6 +595,7 @@ export type Database = {
         }
         Insert: {
           additional_instructions?: string | null
+          assembly_status?: string | null
           calculation_id?: string | null
           case_id: string
           claim_map?: Json | null
@@ -524,11 +605,13 @@ export type Database = {
           created_by?: string | null
           draft_type: string
           generation_depth?: string
+          generation_mode?: string
           id?: string
           missing_information?: Json | null
           model_used?: string | null
           objective?: string | null
           organization_id: string
+          piece_type_key?: string | null
           playbook_compliance?: Json | null
           playbook_id?: string | null
           playbook_snapshot?: Json | null
@@ -555,6 +638,7 @@ export type Database = {
         }
         Update: {
           additional_instructions?: string | null
+          assembly_status?: string | null
           calculation_id?: string | null
           case_id?: string
           claim_map?: Json | null
@@ -564,11 +648,13 @@ export type Database = {
           created_by?: string | null
           draft_type?: string
           generation_depth?: string
+          generation_mode?: string
           id?: string
           missing_information?: Json | null
           model_used?: string | null
           objective?: string | null
           organization_id?: string
+          piece_type_key?: string | null
           playbook_compliance?: Json | null
           playbook_id?: string | null
           playbook_snapshot?: Json | null
