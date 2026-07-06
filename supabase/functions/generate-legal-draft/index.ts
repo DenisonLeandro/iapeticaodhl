@@ -579,13 +579,36 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
     ? "motorista_profissional"
     : String((intake as { ai_suggested_subtype?: string } | null)?.ai_suggested_subtype ?? "").toLowerCase() || null;
   const playbookDocType = draftType === "initial_petition" ? "peticao_inicial" : draftType;
-  const playbook = await loadApplicablePlaybook(admin as never, {
+  let playbook: Awaited<ReturnType<typeof loadApplicablePlaybook>> | null = null;
+  try {
+    playbook = await loadApplicablePlaybook(admin as never, {
+      organization_id: profile.organization_id,
+      legal_area: legalArea,
+      document_type: playbookDocType,
+      case_subtype: caseSubtypeHint,
+    });
+  } catch (e) {
+    console.warn("generate-legal-draft:playbook_load_failed", { stage: "playbook_load", playbook_found: false, error: (e as Error)?.message });
+    playbook = null;
+  }
+  console.log("generate-legal-draft:generate_start", {
+    stage: "generate_start",
+    case_id: caseId,
     organization_id: profile.organization_id,
-    legal_area: legalArea,
-    document_type: playbookDocType,
-    case_subtype: caseSubtypeHint,
+    playbook_found: !!playbook,
+    playbook_id: playbook?.id ?? null,
   });
-  const playbookPromptBlock = playbook ? renderPlaybookForPrompt(playbook) : "";
+  let playbookPromptBlock = "";
+  if (playbook) {
+    try {
+      const rendered = renderPlaybookForPrompt(playbook);
+      // Trunca a ~4KB para não explodir o contexto do LLM.
+      playbookPromptBlock = rendered.length > 4000 ? rendered.slice(0, 4000) + "\n…(truncado)" : rendered;
+    } catch (e) {
+      console.warn("generate-legal-draft:playbook_render_failed", { stage: "playbook_render", error: (e as Error)?.message });
+      playbookPromptBlock = "";
+    }
+  }
 
   // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt.
   // 1) Normaliza contexto a partir de todas as fontes disponíveis.
