@@ -65,22 +65,86 @@ function statusBadge(status: string) {
 
 const OBRIGATORIAS = new Set(["generated", "approved", "skipped", "edited"]);
 
+// Espelha o critério do assemble-draft-chapters.
+const REQUIRED_ESSENTIAL = new Set<string>([
+  "enderecamento",
+  "qualificacao",
+  "dados_funcionais",
+  "sintese_fatos",
+  "rol_pedidos_valores",
+  "valor_causa",
+  "pedido_final",
+  "fechamento",
+]);
+const OPTIONAL_KEYS = new Set<string>(["justica_gratuita", "preliminares"]);
+const FINAL_TRIPLET = ["rol_pedidos_valores", "valor_causa", "pedido_final"];
+
+function isSectionRequired(section_key: string): boolean {
+  if (OPTIONAL_KEYS.has(section_key)) return false;
+  if (REQUIRED_ESSENTIAL.has(section_key)) return true;
+  if (section_key.startsWith("merito_") || section_key === "merito") return true;
+  return true;
+}
+
+function sectionHasContent(s: CaseDraftSection): boolean {
+  return typeof s.content === "string" && s.content.trim().length > 0;
+}
+
 export default function DraftChaptersPlanPage() {
   const { id: caseId, draftId } = useParams<{ id: string; draftId: string }>();
   const navigate = useNavigate();
   const { data: draft, isLoading: draftLoading } = useCaseDraft(draftId);
   const { data: sections = [], isLoading: sectionsLoading } = useCaseDraftSections(draftId);
   const generateSection = useGenerateDraftSection();
+  const assembleChapters = useAssembleDraftChapters();
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [confirmRegen, setConfirmRegen] = useState<CaseDraftSection | null>(null);
+  const [confirmAssemble, setConfirmAssemble] = useState(false);
+  const [blockedList, setBlockedList] = useState<AssembleChaptersPendingSection[] | null>(null);
 
   const allDone = useMemo(
     () => sections.length > 0 && sections.every((s) => OBRIGATORIAS.has(String(s.status))),
     [sections],
   );
+
+  const pendingRequired = useMemo<AssembleChaptersPendingSection[]>(() => {
+    const out: AssembleChaptersPendingSection[] = [];
+    for (const s of sections) {
+      if (s.status === "skipped") continue;
+      if (!isSectionRequired(s.section_key)) continue;
+      if (s.status === "pending" || s.status === "generating") {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "not_generated", status: String(s.status) });
+        continue;
+      }
+      if (s.status === "failed") {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "failed", status: String(s.status) });
+        continue;
+      }
+      if (!sectionHasContent(s)) {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "empty_content", status: String(s.status) });
+      }
+    }
+    const byKey = new Map(sections.map((s) => [s.section_key, s]));
+    for (const key of FINAL_TRIPLET) {
+      const s = byKey.get(key);
+      if (!s || s.status === "skipped" || !sectionHasContent(s)) {
+        if (!out.some((p) => p.section_key === key)) {
+          out.push({
+            section_key: key,
+            section_label: s?.section_label ?? key,
+            reason: s ? "empty_content" : "missing",
+            status: String(s?.status ?? "missing"),
+          });
+        }
+      }
+    }
+    return out;
+  }, [sections]);
+
+  const canAssemble = sections.length > 0 && pendingRequired.length === 0;
 
   if (draftLoading || !draft) {
     return <Skeleton className="h-96 w-full" />;
