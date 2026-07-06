@@ -249,13 +249,39 @@ export default function DraftChaptersPlanPage() {
           <Info className="mt-0.5 h-4 w-4 text-primary" />
           <div className="text-sm">
             <p className="font-medium">
-              Cada capítulo é redigido individualmente pela IA. A montagem final da petição fica para o próximo PR.
+              Cada capítulo é redigido individualmente pela IA. Quando todos os capítulos obrigatórios estiverem gerados, você pode montar a petição final.
             </p>
             <p className="mt-1 text-muted-foreground">
-              O conteúdo salvo aqui não altera a minuta principal até a etapa de montagem.
+              A montagem é determinística: o sistema apenas concatena os capítulos na ordem correta, sem reescrever o conteúdo.
             </p>
           </div>
         </Card>
+
+        {pendingRequired.length > 0 && sections.length > 0 && (
+          <Card className="border-amber-500/40 bg-amber-500/5 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 text-amber-600" />
+              <div className="min-w-0 text-sm">
+                <p className="font-medium">
+                  Para montar a petição final, gere os capítulos obrigatórios pendentes:
+                </p>
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                  {pendingRequired.map((p) => (
+                    <li key={p.section_key}>
+                      <span className="font-medium text-foreground">{p.section_label}</span>{" "}
+                      <span className="text-xs">
+                        ({p.reason === "not_generated" ? "não gerado"
+                          : p.reason === "failed" ? "com falha"
+                          : p.reason === "empty_content" ? "sem conteúdo"
+                          : p.reason === "missing" ? "não planejado" : p.reason})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -277,19 +303,31 @@ export default function DraftChaptersPlanPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span>
-                    <Button size="sm" variant="outline" disabled>
-                      Montar petição final — próximo PR
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={!canAssemble || assembleChapters.isPending || !!batchProgress}
+                      onClick={() => setConfirmAssemble(true)}
+                    >
+                      {assembleChapters.isPending ? (
+                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Montando…</>
+                      ) : (
+                        <>Montar petição final</>
+                      )}
                     </Button>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {allDone
-                    ? "Todos os capítulos estão prontos. A montagem chega no próximo PR."
-                    : "Gere todos os capítulos primeiro. A montagem chega no próximo PR."}
+                  {canAssemble
+                    ? "Concatena os capítulos gerados na ordem correta."
+                    : allDone
+                      ? "Verifique se todas as seções obrigatórias possuem conteúdo."
+                      : "Gere todos os capítulos obrigatórios antes de montar."}
                 </TooltipContent>
               </Tooltip>
             </div>
           </div>
+
 
           {batchProgress && (
             <div className="mb-4">
