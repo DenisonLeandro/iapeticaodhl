@@ -71,6 +71,7 @@ const App = () => (
                 <Route path="/cases" element={<CasesPage />} />
                 
                 <Route path="/cases/:id" element={<CaseDetailPage />} />
+                <Route path="/cases/:caseId/claim-map" element={<CaseClaimMapPage />} />
                 <Route path="/cases/:id/drafts/new" element={<DraftGeneratorPage />} />
                 <Route path="/cases/:id/drafts/:draftId" element={<DraftDetailPage />} />
                 <Route path="/cases/:id/drafts/:draftId/chapters" element={<DraftChaptersPlanPage />} />
