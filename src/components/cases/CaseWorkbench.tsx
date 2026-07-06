@@ -12,10 +12,14 @@ import {
   FileSearch,
   FileSignature,
   FileText,
+  ListChecks,
   MessageSquare,
   PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useCurrentClaimMap } from "@/hooks/useCaseClaimMap";
+import { CLAIM_MAP_STATUS_LABEL } from "@/types/caseClaimMap";
 import { useCaseFiles, type CaseFileRow } from "@/hooks/useCaseFiles";
 import type { CaseDocument, CaseWithRelations } from "@/types/case";
 import CaseActionCard from "./CaseActionCard";
@@ -74,6 +78,7 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
   const [placeholder, setPlaceholder] = useState<Placeholder>(null);
   const { analysis, isLoading: analysisLoading, isRunning, generate } = useCaseAnalysis(caseData.id);
   const { intake } = useCaseIntake(caseData.id, caseData.client_id);
+  const { data: claimMap } = useCurrentClaimMap(caseData.id);
 
 
   const hasClient = !!caseData.client_id;
@@ -128,6 +133,37 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
           <ArrowRight className="ml-1 h-3.5 w-3.5" />
         </Button>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3 text-sm">
+          <ListChecks className="h-4 w-4 text-primary" />
+          <div className="min-w-0">
+            <span className="font-medium">Mapa de Pedidos e Riscos:</span>{" "}
+            {claimMap ? (
+              <>
+                <Badge variant="outline" className="ml-1">
+                  v{claimMap.version} · {CLAIM_MAP_STATUS_LABEL[claimMap.status] ?? claimMap.status}
+                </Badge>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {claimMap.claims.length} claims
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Não gerado</span>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(`/cases/${caseData.id}/claim-map`)}
+        >
+          {claimMap ? "Abrir mapa" : "Gerar mapa"}
+          <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+
 
 
 
