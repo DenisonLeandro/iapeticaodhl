@@ -119,3 +119,20 @@ export function useGenerateDraftSection() {
     },
   });
 }
+
+// PR-4 — Montagem determinística da petição final.
+export function useAssembleDraftChapters() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AssembleChaptersPayload) => assembleDraftChapters(payload),
+    onSettled: (res, _err, vars) => {
+      qc.invalidateQueries({ queryKey: [KEY, "one", vars.draft_id] });
+      qc.invalidateQueries({ queryKey: ["case_draft_sections", "list", vars.draft_id] });
+      qc.invalidateQueries({ queryKey: ["case_draft_versions", vars.draft_id] });
+      if (res && res.success && "draft_id" in res) {
+        qc.invalidateQueries({ queryKey: [KEY, "one", res.draft_id] });
+      }
+    },
+  });
+}
+
