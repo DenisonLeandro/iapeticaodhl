@@ -133,12 +133,18 @@ export default function DraftDetailPage() {
   };
 
   const handleRegen = () => {
+    if (draft.senior_review_status === "done") {
+      setConfirmRegenAfterSenior(true);
+      return;
+    }
     if (dirty) {
       setConfirmRegen(true);
     } else {
       navigate(`/cases/${caseId}/drafts/new`);
     }
   };
+
+  const seniorReviewDone = draft.senior_review_status === "done";
 
   const typeLabel =
     CASE_DRAFT_TYPE_LABEL[draft.draft_type as CaseDraftType] ?? draft.draft_type;
