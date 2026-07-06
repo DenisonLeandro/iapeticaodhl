@@ -136,6 +136,43 @@ export default function DraftDetailPage() {
     }
   };
 
+  const buildExportFilename = (ext: "docx" | "pdf") => {
+    const base = (title && title.trim()) || `peticao-${caseId ?? "caso"}`;
+    const slug = sanitizeStorageKey(base) || "peticao";
+    const date = new Date().toISOString().slice(0, 10);
+    return `peticao-${slug}-${date}.${ext}`;
+  };
+
+  const handleExportDocx = async () => {
+    if (!content?.trim()) return;
+    setExportingDocx(true);
+    try {
+      const blob = await exportDocumentToDOCX(content, title?.trim() || "Minuta");
+      downloadBlob(blob, buildExportFilename("docx"));
+      toast.success("Arquivo Word gerado com sucesso.");
+    } catch (e) {
+      console.error("[DraftDetailPage] export DOCX failed", e);
+      toast.error("Não foi possível exportar a minuta. Tente novamente.");
+    } finally {
+      setExportingDocx(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!content?.trim()) return;
+    setExportingPdf(true);
+    try {
+      const blob = await exportDocumentToPDF(content, title?.trim() || "Minuta");
+      downloadBlob(blob, buildExportFilename("pdf"));
+      toast.success("Arquivo PDF gerado com sucesso.");
+    } catch (e) {
+      console.error("[DraftDetailPage] export PDF failed", e);
+      toast.error("Não foi possível exportar a minuta. Tente novamente.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const handleArchive = async () => {
     try {
       await archive.mutateAsync(draft.id);
