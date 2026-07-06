@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
 
   let admin: ReturnType<typeof createClient> | null = null;
   let sectionId: string | undefined;
+  const startedAt = Date.now();
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
