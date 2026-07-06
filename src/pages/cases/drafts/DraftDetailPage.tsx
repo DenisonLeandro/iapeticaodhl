@@ -237,6 +237,32 @@ export default function DraftDetailPage() {
           <Button variant="outline" size="sm" onClick={handleCopy}>
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportDocx}
+            disabled={exportingDocx || !content?.trim()}
+            title={!content?.trim() ? "Esta minuta ainda não possui conteúdo para exportação." : undefined}
+          >
+            {exportingDocx ? (
+              <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Gerando Word…</>
+            ) : (
+              <><FileText className="mr-1 h-4 w-4" /> Exportar Word</>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exportingPdf || !content?.trim()}
+            title={!content?.trim() ? "Esta minuta ainda não possui conteúdo para exportação." : undefined}
+          >
+            {exportingPdf ? (
+              <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Gerando PDF…</>
+            ) : (
+              <><FileDown className="mr-1 h-4 w-4" /> Exportar PDF</>
+            )}
+          </Button>
           {!seniorReviewDone && (
             <Button variant="outline" size="sm" onClick={handleRegen}>
               <Sparkles className="mr-1 h-4 w-4" /> Regenerar minuta
