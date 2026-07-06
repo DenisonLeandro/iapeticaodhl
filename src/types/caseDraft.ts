@@ -237,4 +237,34 @@ export interface GenerateDraftResponse {
   created_at: string;
 }
 
+// PR-2 — Planejamento por capítulos (esqueleto)
+export interface PlanChaptersPayload {
+  case_id: string;
+  draft_id?: string | null;
+  piece_type_key: string; // "trabalhista_inicial" suportado neste PR
+  legal_area?: string | null;
+  template_id?: string | null;
+  objective?: string;
+  structure_instructions?: string;
+  use_intake: boolean;
+  use_analysis: boolean;
+  use_documents: boolean;
+  use_template: boolean;
+}
+
+export interface PlanChaptersResponse {
+  success: true;
+  draft_id: string;
+  piece_type_key: string;
+  sections_count: number;
+}
+
+export interface PlanChaptersUnsupported {
+  success: false;
+  code: "unsupported_piece_type";
+  stage: "unsupported_type";
+  message: string;
+}
+
+
 

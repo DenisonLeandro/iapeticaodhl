@@ -7,7 +7,11 @@ import type {
   CaseDraftStatus,
   GenerateDraftPayload,
   GenerateDraftResponse,
+  PlanChaptersPayload,
+  PlanChaptersResponse,
+  PlanChaptersUnsupported,
 } from "@/types/caseDraft";
+
 
 // Types ainda não regenerados para a tabela case_drafts; usamos any localmente.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,5 +128,51 @@ export async function generateCaseDraft(
   }
   return data as GenerateDraftResponse;
 }
+
+// =============================================================================
+// PR-2 — Planejar capítulos (modo "por capítulos")
+// Retorna a resposta bruta (sucesso ou "unsupported_piece_type") para o hook
+// tratar de forma amigável, sem lançar exceção nesse caso.
+// =============================================================================
+export async function planDraftChapters(
+  payload: PlanChaptersPayload,
+): Promise<PlanChaptersResponse | PlanChaptersUnsupported> {
+  const FRIENDLY = "Não foi possível planejar os capítulos. Verifique os dados do caso e tente novamente.";
+  const { data, error } = await supabase.functions.invoke("plan-draft-chapters", { body: payload });
+
+  if (error) {
+    let status: number | undefined;
+    let code: string | undefined;
+    let message: string | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp: Response | undefined = (error as any)?.context?.response;
+      if (resp) {
+        status = resp.status;
+        const parsed = await resp.clone().json().catch(() => null);
+        if (parsed && typeof parsed === "object") {
+          code = parsed.code;
+          message = parsed.message;
+        }
+      }
+    } catch { /* ignore */ }
+    console.error("planDraftChapters:error", { status, code, message: message ?? error.message });
+    throw new Error(FRIENDLY);
+  }
+
+  if (data && data.success === false) {
+    if (data.code === "unsupported_piece_type") {
+      return data as PlanChaptersUnsupported;
+    }
+    console.error("planDraftChapters:soft_error", { code: data.code, message: data.message });
+    throw new Error(FRIENDLY);
+  }
+  if (!data?.draft_id) {
+    console.error("planDraftChapters:invalid_response");
+    throw new Error(FRIENDLY);
+  }
+  return data as PlanChaptersResponse;
+}
+
 
 

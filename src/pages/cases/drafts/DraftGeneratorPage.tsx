@@ -25,11 +25,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCaseDetail } from "@/hooks/useCaseDetail";
 import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
 import { useCaseFiles } from "@/hooks/useCaseFiles";
-import { useGenerateDraft } from "@/hooks/useCaseDrafts";
+import { useGenerateDraft, usePlanDraftChapters } from "@/hooks/useCaseDrafts";
+
 import { useMatchingTemplates } from "@/hooks/useMatchingTemplates";
 import {
   CASE_DRAFT_TYPE_OPTIONS,
@@ -46,6 +48,8 @@ export default function DraftGeneratorPage() {
   const { analysis } = useCaseAnalysis(caseId);
   const { data: files = [] } = useCaseFiles(caseId);
 
+  const [mode, setMode] = useState<"fast" | "chapters">("fast");
+  const [structureInstructions, setStructureInstructions] = useState("");
   const [draftType, setDraftType] = useState<CaseDraftType>("initial_petition");
   const [objective, setObjective] = useState("");
   const [tone, setTone] = useState("template_default");
@@ -56,6 +60,7 @@ export default function DraftGeneratorPage() {
   const [useDocuments, setUseDocuments] = useState(true);
   const [useTemplate, setUseTemplate] = useState(true);
   const [useChatHistory, setUseChatHistory] = useState(false);
+
 
   const hasIntake = !!intake;
   const hasAnalysis = !!analysis;
@@ -112,8 +117,39 @@ export default function DraftGeneratorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generate.isPending]);
 
+  const planChapters = usePlanDraftChapters();
+
   const handleGenerate = async () => {
     if (!caseId) return;
+    // PR-2 — Modo por capítulos: planeja o esqueleto e navega para a tela dedicada.
+    if (mode === "chapters") {
+      try {
+        const res = await planChapters.mutateAsync({
+          case_id: caseId,
+          piece_type_key: "trabalhista_inicial",
+          legal_area: (intake?.legal_area as string) || null,
+          template_id: useTemplate ? templateId : null,
+          objective: objective || undefined,
+          structure_instructions: structureInstructions || undefined,
+          use_intake: useIntake && hasIntake,
+          use_analysis: useAnalysis && hasAnalysis,
+          use_documents: useDocuments && hasDocuments,
+          use_template: useTemplate && !!templateId,
+        });
+        if (res.success === false) {
+          toast.warning(res.message);
+          return;
+        }
+
+        toast.success("Estrutura por capítulos criada.");
+        navigate(`/cases/${caseId}/drafts/${res.draft_id}/chapters`);
+      } catch (e) {
+        toast.error((e as Error).message || "Falha ao planejar capítulos.");
+      }
+      return;
+    }
+
+    // Modo rápido — fluxo atual intacto.
     try {
       const res = await generate.mutateAsync({
         case_id: caseId,
@@ -134,6 +170,7 @@ export default function DraftGeneratorPage() {
       toast.error((e as Error).message || "Falha ao gerar minuta.");
     }
   };
+
 
 
   if (caseLoading || !caseData) {
@@ -175,6 +212,34 @@ export default function DraftGeneratorPage() {
       </div>
 
       <Card className="space-y-5 p-6">
+        <div className="space-y-2">
+          <Label>Modo de geração</Label>
+          <RadioGroup
+            value={mode}
+            onValueChange={(v) => setMode(v as "fast" | "chapters")}
+            className="grid grid-cols-1 gap-2 md:grid-cols-2"
+          >
+            <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "fast" ? "border-primary/60 bg-primary/5" : ""}`}>
+              <RadioGroupItem value="fast" className="mt-1" />
+              <div>
+                <div className="text-sm font-medium">Gerar petição completa — modo rápido</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Gera a minuta inteira de uma vez. Indicado para casos simples ou urgentes.
+                </div>
+              </div>
+            </label>
+            <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "chapters" ? "border-primary/60 bg-primary/5" : ""}`}>
+              <RadioGroupItem value="chapters" className="mt-1" />
+              <div>
+                <div className="text-sm font-medium">Gerar por capítulos — qualidade máxima</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  A IA monta primeiro a estrutura da peça, separando fatos, fundamentos, pedidos individuais, rol de pedidos com valores e requerimentos finais. Indicado para peças mais importantes ou complexas.
+                </div>
+              </div>
+            </label>
+          </RadioGroup>
+        </div>
+
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
           <div className="flex items-center gap-2 font-medium">
             <Info className="h-4 w-4 text-primary" />
@@ -199,18 +264,21 @@ export default function DraftGeneratorPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Tom/estilo</Label>
-            <Select value={tone} onValueChange={setTone}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TONE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {mode === "fast" && (
+            <div className="space-y-2">
+              <Label>Tom/estilo</Label>
+              <Select value={tone} onValueChange={setTone}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TONE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
+
 
         <div className="space-y-2">
           <Label>Objetivo da peça</Label>
@@ -260,23 +328,40 @@ export default function DraftGeneratorPage() {
               disabled={!templateId}
               disabledLabel="(selecione um modelo)"
             />
-            <CheckboxRow
-              checked={useChatHistory}
-              onChange={setUseChatHistory}
-              label="Usar histórico do Chat (opcional)"
-            />
+            {mode === "fast" && (
+              <CheckboxRow
+                checked={useChatHistory}
+                onChange={setUseChatHistory}
+                label="Usar histórico do Chat (opcional)"
+              />
+            )}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Instruções adicionais do advogado</Label>
-          <Textarea
-            value={additionalInstructions}
-            onChange={(e) => setAdditionalInstructions(e.target.value)}
-            placeholder="Ex.: destacar férias pagas em atraso, FGTS, pagamentos por fora e jornada; marcar lacunas para confirmar com o cliente; não incluir dano moral sem base suficiente."
-            rows={4}
-          />
-        </div>
+        {mode === "fast" ? (
+          <div className="space-y-2">
+            <Label>Instruções adicionais do advogado</Label>
+            <Textarea
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              placeholder="Ex.: destacar férias pagas em atraso, FGTS, pagamentos por fora e jornada; marcar lacunas para confirmar com o cliente; não incluir dano moral sem base suficiente."
+              rows={4}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>Orientações para a estrutura da petição</Label>
+            <Textarea
+              value={structureInstructions}
+              onChange={(e) => setStructureInstructions(e.target.value)}
+              placeholder="Ex.: incluir dano moral, não pedir férias em dobro, reforçar horas extras, seguir modelo do escritório, deixar a peça mais objetiva."
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              Estas orientações guiam apenas a criação do esqueleto. O conteúdo de cada capítulo será redigido em uma etapa posterior.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2 border-t pt-4">
           <div className="text-xs text-muted-foreground">
@@ -285,19 +370,37 @@ export default function DraftGeneratorPage() {
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {PROGRESS_STEPS[progressIdx]}
               </span>
+            ) : planChapters.isPending ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Planejando capítulos…
+              </span>
             ) : (
-              <span>A geração pode levar 30–90 segundos.</span>
+              <span>
+                {mode === "fast"
+                  ? "A geração pode levar 30–90 segundos."
+                  : "O planejamento dos capítulos leva alguns segundos."}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate(`/cases/${caseId}`)}>
               Cancelar
             </Button>
-            <Button onClick={handleGenerate} disabled={generate.isPending}>
-              {generate.isPending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+            <Button
+              onClick={handleGenerate}
+              disabled={generate.isPending || planChapters.isPending}
+            >
+              {mode === "fast" ? (
+                generate.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…</>
+                ) : (
+                  <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+                )
+              ) : planChapters.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Planejando…</>
               ) : (
-                <><Sparkles className="mr-2 h-4 w-4" /> Gerar minuta</>
+                <><Sparkles className="mr-2 h-4 w-4" /> Planejar capítulos</>
               )}
             </Button>
           </div>
@@ -306,6 +409,7 @@ export default function DraftGeneratorPage() {
     </div>
   );
 }
+
 
 
 function CheckboxRow({
