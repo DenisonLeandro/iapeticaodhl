@@ -128,10 +128,15 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
           {isApplying ? (
             <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Aplicando…</>
           ) : (
-            <><Sparkles className="mr-1 h-3 w-3" /> Aplicar sugestões aceitas na minuta ({acceptedIds.length})</>
+            <><Sparkles className="mr-1 h-3 w-3" /> Aplicar sugestões aceitas na minuta{acceptedIds.length > 0 ? ` (${acceptedIds.length})` : ""}</>
           )}
         </Button>
       </div>
+      {acceptedIds.length === 0 && !isApplying && (
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Selecione ao menos uma sugestão para aplicar.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {suggestions.map((s) => (
