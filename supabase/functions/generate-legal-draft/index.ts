@@ -830,9 +830,26 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
         try { return checkPlaybookCompliance(content, playbook); }
         catch (e) { console.warn("generate-legal-draft:compliance_failed", { stage: "compliance", error: (e as Error)?.message }); return null; }
       })(),
+      playbook_status: playbook ? "playbook_applied" : "no_playbook_found",
     })
     .select("id,title,draft_type,created_at")
     .single();
+
+  // Snapshot inicial em case_draft_versions (best-effort)
+  if (inserted?.id) {
+    try {
+      await admin.from("case_draft_versions").insert({
+        organization_id: profile.organization_id,
+        draft_id: inserted.id,
+        content,
+        source: "initial_generation",
+        applied_suggestion_ids: null,
+        created_by: user.id,
+      });
+    } catch (e) {
+      console.warn("generate-legal-draft:initial_version_failed", (e as Error)?.message);
+    }
+  }
 
   if (insErr || !inserted) {
     return err("insert", "Não foi possível salvar a minuta gerada.", insErr?.code ?? "persist_failed", 500, "persist_failed");

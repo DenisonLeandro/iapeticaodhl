@@ -39,6 +39,8 @@ import PendingCountBadge from "@/components/cases/drafts/PendingCountBadge";
 import DraftContentPreview from "@/components/cases/drafts/DraftContentPreview";
 import { useQueryClient } from "@tanstack/react-query";
 import PlaybookCompliancePanel from "@/components/cases/drafts/PlaybookCompliancePanel";
+import SeniorReviewSuggestionsPanel from "@/components/cases/drafts/SeniorReviewSuggestionsPanel";
+import DraftVersionsPanel from "@/components/cases/drafts/DraftVersionsPanel";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
 
 
@@ -172,7 +174,8 @@ export default function DraftDetailPage() {
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
           </Button>
           <Button variant="outline" size="sm" onClick={handleRegen}>
-            <Sparkles className="mr-1 h-4 w-4" /> Regenerar
+            <Sparkles className="mr-1 h-4 w-4" />
+            {draft.senior_review_status === "done" ? "Regenerar minuta (fluxo inicial)" : "Regenerar minuta"}
           </Button>
           {draft.status !== "archived" && (
             <Button variant="outline" size="sm" onClick={handleArchive}>
@@ -268,6 +271,10 @@ export default function DraftDetailPage() {
             draft={draft}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
           />
+
+          <SeniorReviewSuggestionsPanel draft={draft} />
+
+          <DraftVersionsPanel draftId={draft.id} />
 
         </div>
       </div>

@@ -1,7 +1,7 @@
 // =============================================================================
 // PR-4.4B.2 — senior-legal-review
-// Revisor jurídico sênior sob demanda. Retorna relatório estruturado.
-// NÃO altera a peça — o UI decide se aplica melhorias (nova versão via update).
+// Revisor jurídico sênior sob demanda. Retorna relatório estruturado + sugestões acionáveis.
+// NÃO altera a peça — o UI decide se aplica melhorias via apply-senior-review-to-draft.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/cors.ts";
@@ -26,7 +26,7 @@ Regras de qualidade a verificar:
 - Pontos em que a peça está abaixo do modelo/padrão do escritório.
 - Cópia indevida de fatos do modelo.
 
-Retorne APENAS JSON:
+Retorne APENAS JSON com estes campos:
 {
   "missing_requests": string[],
   "requests_without_documental_basis": string[],
@@ -39,8 +39,21 @@ Retorne APENAS JSON:
   "gaps_vs_template": string[],
   "improvement_suggestions": string[],
   "overall_score": number,
-  "should_rewrite": boolean
-}`;
+  "should_rewrite": boolean,
+  "suggestions": [
+    {
+      "titulo": string,          // curto, apto ao advogado comum entender
+      "descricao": string,       // explicação em 1-2 frases, sem juridiquês
+      "fundamento_juridico": string, // artigo/súmula/tese
+      "trecho_sugerido": string, // texto pronto para inserção na peça
+      "local_recomendado_na_peca": string, // ex.: "Fatos", "Pedidos", "Preliminares"
+      "categoria": string,       // "pedido_faltante" | "fundamento" | "documento" | "risco" | "valor" | "contradicao" | "melhoria"
+      "severidade": string       // "risco_alto" | "atencao" | "sugestao"
+    }
+  ]
+}
+
+O array "suggestions" deve conter de 3 a 15 itens acionáveis, cada um representando UMA melhoria concreta que possa ser incorporada ao texto atual sem regerar a peça do zero.`;
 
 function extractJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
@@ -48,6 +61,36 @@ function extractJson(raw: string): Record<string, unknown> | null {
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return null;
   try { return JSON.parse(m[0]); } catch { return null; }
+}
+
+type RawSuggestion = {
+  titulo?: string;
+  descricao?: string;
+  fundamento_juridico?: string;
+  trecho_sugerido?: string;
+  local_recomendado_na_peca?: string;
+  categoria?: string;
+  severidade?: string;
+};
+
+function buildSuggestions(parsed: Record<string, unknown>): Array<Record<string, unknown>> {
+  const raw = Array.isArray((parsed as { suggestions?: unknown }).suggestions)
+    ? (parsed as { suggestions: RawSuggestion[] }).suggestions
+    : [];
+  const cleaned = raw
+    .filter((s) => s && typeof s === "object")
+    .map((s, i) => ({
+      id: `sug_${Date.now().toString(36)}_${i}`,
+      titulo: String(s.titulo ?? "").slice(0, 200) || `Sugestão ${i + 1}`,
+      descricao: String(s.descricao ?? "").slice(0, 1200),
+      fundamento_juridico: String(s.fundamento_juridico ?? "").slice(0, 600),
+      trecho_sugerido: String(s.trecho_sugerido ?? "").slice(0, 4000),
+      local_recomendado_na_peca: String(s.local_recomendado_na_peca ?? "").slice(0, 120),
+      categoria: String(s.categoria ?? "melhoria").slice(0, 60),
+      severidade: String(s.severidade ?? "sugestao").slice(0, 40),
+      status: "pending",
+    }));
+  return cleaned;
 }
 
 async function callLlm(apiKey: string, model: string, user: string) {
@@ -133,7 +176,7 @@ ${content}
 ${claimMap}
 
 # TAREFA
-Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado.`;
+Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado, incluindo o array "suggestions" com melhorias acionáveis.`;
 
   try {
     const res = await callLlm(apiKey, taskChoice.model, prompt);
@@ -142,11 +185,16 @@ Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado.`;
       return json({ status: "failed", error: "llm_invalid_response" }, 200);
     }
 
+    const suggestions = buildSuggestions(res.parsed);
+
     const now = new Date().toISOString();
     await admin.from("case_drafts").update({
       senior_review: res.parsed,
+      senior_review_suggestions: suggestions,
       senior_review_status: "done",
       senior_review_at: now,
+      senior_review_apply_status: null,
+      senior_review_apply_error: null,
       tokens_input: (draft.tokens_input ?? 0) + res.input_tokens,
       tokens_output: (draft.tokens_output ?? 0) + res.output_tokens,
     }).eq("id", draftId);
@@ -167,10 +215,11 @@ Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado.`;
         overall_score: typeof (res.parsed as { overall_score?: number }).overall_score === "number"
           ? (res.parsed as { overall_score: number }).overall_score : null,
         should_rewrite: (res.parsed as { should_rewrite?: boolean }).should_rewrite === true,
+        suggestions_count: suggestions.length,
       },
     });
 
-    return json({ status: "done", draft_id: draftId, senior_review: res.parsed });
+    return json({ status: "done", draft_id: draftId, senior_review: res.parsed, suggestions });
   } catch (e) {
     console.error("senior-legal-review:error", (e as Error).message);
     await admin.from("case_drafts").update({ senior_review_status: "failed" }).eq("id", draftId);

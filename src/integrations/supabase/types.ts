@@ -431,6 +431,47 @@ export type Database = {
           },
         ]
       }
+      case_draft_versions: {
+        Row: {
+          applied_suggestion_ids: Json | null
+          content: string
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          id: string
+          organization_id: string
+          source: string
+        }
+        Insert: {
+          applied_suggestion_ids?: Json | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          id?: string
+          organization_id: string
+          source: string
+        }
+        Update: {
+          applied_suggestion_ids?: Json | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          id?: string
+          organization_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_draft_versions_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "case_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_drafts: {
         Row: {
           additional_instructions: string | null
@@ -451,11 +492,16 @@ export type Database = {
           playbook_compliance: Json | null
           playbook_id: string | null
           playbook_snapshot: Json | null
+          playbook_status: string | null
           quality_report: Json | null
           quality_status: string
           senior_review: Json | null
+          senior_review_applied_at: string | null
+          senior_review_apply_error: string | null
+          senior_review_apply_status: string | null
           senior_review_at: string | null
           senior_review_status: string | null
+          senior_review_suggestions: Json | null
           sources_used: Json | null
           status: string
           template_id: string | null
@@ -486,11 +532,16 @@ export type Database = {
           playbook_compliance?: Json | null
           playbook_id?: string | null
           playbook_snapshot?: Json | null
+          playbook_status?: string | null
           quality_report?: Json | null
           quality_status?: string
           senior_review?: Json | null
+          senior_review_applied_at?: string | null
+          senior_review_apply_error?: string | null
+          senior_review_apply_status?: string | null
           senior_review_at?: string | null
           senior_review_status?: string | null
+          senior_review_suggestions?: Json | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null
@@ -521,11 +572,16 @@ export type Database = {
           playbook_compliance?: Json | null
           playbook_id?: string | null
           playbook_snapshot?: Json | null
+          playbook_status?: string | null
           quality_report?: Json | null
           quality_status?: string
           senior_review?: Json | null
+          senior_review_applied_at?: string | null
+          senior_review_apply_error?: string | null
+          senior_review_apply_status?: string | null
           senior_review_at?: string | null
           senior_review_status?: string | null
+          senior_review_suggestions?: Json | null
           sources_used?: Json | null
           status?: string
           template_id?: string | null

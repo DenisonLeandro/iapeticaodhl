@@ -73,12 +73,27 @@ function MissingList({ title, items }: { title: string; items: ComplianceMissing
 export default function PlaybookCompliancePanel({ draft }: Props) {
   const pb = draft?.playbook_snapshot ?? null;
   const compliance = draft?.playbook_compliance ?? null;
+  const rawStatus = (draft as unknown as { playbook_status?: string | null })?.playbook_status ?? null;
+
+  // Estado amigável para o advogado comum
+  const friendly = (() => {
+    if (rawStatus === "playbook_error") {
+      return "A peça foi gerada, mas recomenda-se revisão manual de alguns pontos.";
+    }
+    if (rawStatus === "playbook_partial") {
+      return "A peça foi gerada, mas recomenda-se revisão manual de alguns pontos.";
+    }
+    if (rawStatus === "playbook_applied" || pb) {
+      return "IA aplicou o padrão jurídico recomendado para este tipo de caso.";
+    }
+    return "Nenhum padrão jurídico específico foi encontrado. A IA gerou a peça com análise jurídica geral.";
+  })();
 
   if (!pb) {
     return (
       <Card className="p-4">
-        <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Nenhum playbook jurídico aplicado.</p>
+        <h3 className="text-sm font-semibold">Padrão jurídico</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{friendly}</p>
       </Card>
     );
   }
@@ -89,10 +104,10 @@ export default function PlaybookCompliancePanel({ draft }: Props) {
     "incompleto",
     "risco_alto",
   ];
-  const rawStatus = compliance?.status;
+  const rawComplianceStatus = compliance?.status;
   const status: PlaybookComplianceStatus =
-    rawStatus && KNOWN_STATUSES.includes(rawStatus as PlaybookComplianceStatus)
-      ? (rawStatus as PlaybookComplianceStatus)
+    rawComplianceStatus && KNOWN_STATUSES.includes(rawComplianceStatus as PlaybookComplianceStatus)
+      ? (rawComplianceStatus as PlaybookComplianceStatus)
       : "revisar_antes";
   const score = compliance?.score ?? 0;
   const missingBlocks = compliance?.missing_blocks ?? [];
@@ -106,13 +121,8 @@ export default function PlaybookCompliancePanel({ draft }: Props) {
   if (!compliance) {
     return (
       <Card className="p-4">
-        <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground truncate" title={pb.name}>
-          {pb.name} (v{pb.version})
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Conformidade com Playbook ainda não disponível.
-        </p>
+        <h3 className="text-sm font-semibold">Padrão jurídico</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{friendly}</p>
       </Card>
     );
   }
@@ -121,44 +131,53 @@ export default function PlaybookCompliancePanel({ draft }: Props) {
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground truncate" title={pb.name}>
+          <h3 className="text-sm font-semibold">Padrão jurídico</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{friendly}</p>
+        </div>
+      </div>
+
+      <details className="mt-3 text-xs">
+        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+          Ver detalhes técnicos
+        </summary>
+        <div className="mt-2 space-y-2">
+          <p className="text-[11px] text-muted-foreground truncate" title={pb.name}>
             {pb.name} (v{pb.version})
           </p>
-        </div>
-        <div className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${STATUS_TONE[status]}`}>
-          <StatusIcon status={status} />
-          <span>{score}%</span>
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">{PLAYBOOK_STATUS_LABEL[status]}</p>
+          <div className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${STATUS_TONE[status]}`}>
+            <StatusIcon status={status} />
+            <span>{score}%</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{PLAYBOOK_STATUS_LABEL[status]}</p>
+          <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+            <Badge variant="outline">{passed} cumpridos</Badge>
+            <Badge variant="outline">{totalMissing} faltantes</Badge>
+            {sensitiveAlerts.length > 0 && (
+              <Badge variant="destructive">{sensitiveAlerts.length} teses sensíveis</Badge>
+            )}
+          </div>
 
-      <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-        <Badge variant="outline">{passed} cumpridos</Badge>
-        <Badge variant="outline">{totalMissing} faltantes</Badge>
-        {sensitiveAlerts.length > 0 && (
-          <Badge variant="destructive">{sensitiveAlerts.length} teses sensíveis</Badge>
-        )}
-      </div>
+          <MissingList title="Blocos faltantes" items={missingBlocks} />
+          <MissingList title="Pedidos faltantes" items={missingRequests} />
+          <MissingList title="Documentos faltantes" items={missingDocuments} />
+          <MissingList title="Alertas de teses sensíveis" items={sensitiveAlerts} />
 
-      <MissingList title="Blocos faltantes" items={missingBlocks} />
-      <MissingList title="Pedidos faltantes" items={missingRequests} />
-      <MissingList title="Documentos faltantes" items={missingDocuments} />
-      <MissingList title="Alertas de teses sensíveis" items={sensitiveAlerts} />
-
-      {reviewChecklist.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Checklist de revisão</p>
-          <ul className="space-y-1">
-            {reviewChecklist.map((c) => (
-              <li key={c.key} className="text-xs">
-                <span className="mr-1">☐</span>
-                {c.label}
-              </li>
-            ))}
-          </ul>
+          {reviewChecklist.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Checklist de revisão</p>
+              <ul className="space-y-1">
+                {reviewChecklist.map((c) => (
+                  <li key={c.key} className="text-xs">
+                    <span className="mr-1">☐</span>
+                    {c.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+      </details>
     </Card>
   );
 }
+

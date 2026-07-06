@@ -133,9 +133,41 @@ export interface CaseDraft {
   playbook_id?: string | null;
   playbook_snapshot?: unknown | null;
   playbook_compliance?: unknown | null;
+  playbook_status?: "no_playbook_found" | "playbook_applied" | "playbook_partial" | "playbook_error" | "playbook_not_required" | string | null;
+
+  // PR-4.5B — Revisão sênior aplicável
+  senior_review_suggestions?: SeniorReviewSuggestion[] | null;
+  senior_review_apply_status?: "applying" | "done" | "error" | null | string;
+  senior_review_apply_error?: string | null;
+  senior_review_applied_at?: string | null;
 
   created_at: string;
   updated_at: string;
+}
+
+export type SeniorReviewSuggestionStatus = "pending" | "accepted" | "rejected" | "edited" | "applied";
+
+export interface SeniorReviewSuggestion {
+  id: string;
+  titulo: string;
+  descricao: string;
+  fundamento_juridico?: string;
+  trecho_sugerido?: string;
+  local_recomendado_na_peca?: string;
+  categoria?: string;
+  severidade?: "risco_alto" | "atencao" | "sugestao" | string;
+  status: SeniorReviewSuggestionStatus | string;
+}
+
+export interface CaseDraftVersion {
+  id: string;
+  organization_id: string;
+  draft_id: string;
+  content: string;
+  source: string;
+  applied_suggestion_ids: string[] | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 
