@@ -185,6 +185,8 @@ function Section({ title, items, tone = "warn" }: { title: string; items?: strin
 }
 
 interface SeniorReview {
+  senior_review?: string;
+  recommendation?: string;
   missing_requests?: string[];
   requests_without_documental_basis?: string[];
   outdated_grounds?: string[];
