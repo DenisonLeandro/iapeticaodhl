@@ -544,26 +544,38 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     const baseMissing = Array.isArray(draft.missing_information) ? (draft.missing_information as string[]) : [];
     const mergedMissing = Array.from(new Set([...(rewriteApplied ? rewriteMissing : baseMissing)])).slice(0, 30);
 
-    // PR-4.5A — Conformidade com Playbook (determinístico).
-    let playbookForCheck: LegalPlaybook | null =
-      (draft.playbook_snapshot as LegalPlaybook | null) ?? null;
-    if (!playbookForCheck && draft.playbook_id) {
-      const { data: pbRow } = await admin
-        .from("legal_playbooks").select("*").eq("id", draft.playbook_id).maybeSingle();
-      playbookForCheck = (pbRow as LegalPlaybook | null) ?? null;
+    // PR-4.5A — Conformidade com Playbook (determinístico). Defensivo: nunca quebra a revisão.
+    let playbookForCheck: LegalPlaybook | null = null;
+    try {
+      playbookForCheck = (draft.playbook_snapshot as LegalPlaybook | null) ?? null;
+      if (!playbookForCheck && draft.playbook_id) {
+        const { data: pbRow } = await admin
+          .from("legal_playbooks").select("*").eq("id", draft.playbook_id).maybeSingle();
+        playbookForCheck = (pbRow as LegalPlaybook | null) ?? null;
+      }
+      if (!playbookForCheck && caseRow) {
+        const legalAreaR = String((caseRow as { legal_area?: string }).legal_area ?? "").toLowerCase();
+        playbookForCheck = await loadApplicablePlaybook(admin as never, {
+          organization_id: profile.organization_id,
+          legal_area: legalAreaR,
+          document_type: draft.draft_type === "initial_petition" ? "peticao_inicial" : String(draft.draft_type),
+          case_subtype: isMotorista ? "motorista_profissional" : null,
+        });
+      }
+    } catch (e) {
+      console.warn("review-legal-draft:playbook_load_failed", { stage: "review_compliance", playbook_found: false, error: (e as Error)?.message });
+      playbookForCheck = null;
     }
-    if (!playbookForCheck && caseRow) {
-      const legalAreaR = String((caseRow as { legal_area?: string }).legal_area ?? "").toLowerCase();
-      playbookForCheck = await loadApplicablePlaybook(admin as never, {
-        organization_id: profile.organization_id,
-        legal_area: legalAreaR,
-        document_type: draft.draft_type === "initial_petition" ? "peticao_inicial" : String(draft.draft_type),
-        case_subtype: isMotorista ? "motorista_profissional" : null,
-      });
+    console.log("review-legal-draft:review_compliance", {
+      stage: "review_compliance",
+      playbook_found: !!playbookForCheck,
+      playbook_id: playbookForCheck?.id ?? null,
+    });
+    let playbookCompliance: ReturnType<typeof checkPlaybookCompliance> | null = null;
+    if (playbookForCheck) {
+      try { playbookCompliance = checkPlaybookCompliance(finalContent, playbookForCheck); }
+      catch (e) { console.warn("review-legal-draft:compliance_failed", { stage: "review_compliance", error: (e as Error)?.message }); playbookCompliance = null; }
     }
-    const playbookCompliance = playbookForCheck
-      ? checkPlaybookCompliance(finalContent, playbookForCheck)
-      : null;
 
     // Adiciona findings de compliance ao quality_report
     if (playbookCompliance) {

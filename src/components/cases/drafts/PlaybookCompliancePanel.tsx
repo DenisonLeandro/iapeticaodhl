@@ -71,27 +71,51 @@ function MissingList({ title, items }: { title: string; items: ComplianceMissing
 }
 
 export default function PlaybookCompliancePanel({ draft }: Props) {
-  const pb = draft.playbook_snapshot ?? null;
-  const compliance = draft.playbook_compliance ?? null;
+  const pb = draft?.playbook_snapshot ?? null;
+  const compliance = draft?.playbook_compliance ?? null;
 
   if (!pb) {
     return (
       <Card className="p-4">
         <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Nenhum playbook aplicável foi encontrado para este caso. Instale ou crie um em <em>Configurações → Playbooks Jurídicos</em>.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Nenhum playbook jurídico aplicado.</p>
       </Card>
     );
   }
 
-  const status = (compliance?.status ?? "revisar_antes") as PlaybookComplianceStatus;
+  const KNOWN_STATUSES: PlaybookComplianceStatus[] = [
+    "aprovado_para_revisao",
+    "revisar_antes",
+    "incompleto",
+    "risco_alto",
+  ];
+  const rawStatus = compliance?.status;
+  const status: PlaybookComplianceStatus =
+    rawStatus && KNOWN_STATUSES.includes(rawStatus as PlaybookComplianceStatus)
+      ? (rawStatus as PlaybookComplianceStatus)
+      : "revisar_antes";
   const score = compliance?.score ?? 0;
-  const totalMissing =
-    (compliance?.missing_blocks?.length ?? 0) +
-    (compliance?.missing_requests?.length ?? 0) +
-    (compliance?.missing_documents?.length ?? 0);
+  const missingBlocks = compliance?.missing_blocks ?? [];
+  const missingRequests = compliance?.missing_requests ?? [];
+  const missingDocuments = compliance?.missing_documents ?? [];
+  const sensitiveAlerts = compliance?.sensitive_alerts ?? [];
+  const totalMissing = missingBlocks.length + missingRequests.length + missingDocuments.length;
   const passed = compliance?.passed_items?.length ?? 0;
+  const reviewChecklist = pb.config?.review_checklist ?? [];
+
+  if (!compliance) {
+    return (
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground truncate" title={pb.name}>
+          {pb.name} (v{pb.version})
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Conformidade com Playbook ainda não disponível.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-4">
@@ -109,32 +133,24 @@ export default function PlaybookCompliancePanel({ draft }: Props) {
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{PLAYBOOK_STATUS_LABEL[status]}</p>
 
-      {compliance ? (
-        <>
-          <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-            <Badge variant="outline">{passed} cumpridos</Badge>
-            <Badge variant="outline">{totalMissing} faltantes</Badge>
-            {(compliance.sensitive_alerts?.length ?? 0) > 0 && (
-              <Badge variant="destructive">{compliance.sensitive_alerts.length} teses sensíveis</Badge>
-            )}
-          </div>
+      <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+        <Badge variant="outline">{passed} cumpridos</Badge>
+        <Badge variant="outline">{totalMissing} faltantes</Badge>
+        {sensitiveAlerts.length > 0 && (
+          <Badge variant="destructive">{sensitiveAlerts.length} teses sensíveis</Badge>
+        )}
+      </div>
 
-          <MissingList title="Blocos faltantes" items={compliance.missing_blocks ?? []} />
-          <MissingList title="Pedidos faltantes" items={compliance.missing_requests ?? []} />
-          <MissingList title="Documentos faltantes" items={compliance.missing_documents ?? []} />
-          <MissingList title="Alertas de teses sensíveis" items={compliance.sensitive_alerts ?? []} />
-        </>
-      ) : (
-        <p className="mt-2 text-xs text-muted-foreground">
-          A verificação de conformidade será executada junto com a revisão automática.
-        </p>
-      )}
+      <MissingList title="Blocos faltantes" items={missingBlocks} />
+      <MissingList title="Pedidos faltantes" items={missingRequests} />
+      <MissingList title="Documentos faltantes" items={missingDocuments} />
+      <MissingList title="Alertas de teses sensíveis" items={sensitiveAlerts} />
 
-      {(pb.config?.review_checklist?.length ?? 0) > 0 && (
+      {reviewChecklist.length > 0 && (
         <div className="mt-4">
           <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Checklist de revisão</p>
           <ul className="space-y-1">
-            {pb.config!.review_checklist!.map((c) => (
+            {reviewChecklist.map((c) => (
               <li key={c.key} className="text-xs">
                 <span className="mr-1">☐</span>
                 {c.label}
