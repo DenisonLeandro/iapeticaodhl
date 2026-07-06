@@ -359,7 +359,11 @@ Deno.serve(async (req) => {
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const totalTokens = { input: 0, output: 0 };
 
-  try {
+  // Executa o pipeline pesado em background para evitar 504 (150s idle timeout).
+  // O client já é fire-and-forget e faz polling do quality_status.
+  const runPipeline = async () => {
+   try {
+
     // -----------------------------------------------------------------------
     // QUALITY_GATE
     // -----------------------------------------------------------------------
@@ -647,14 +651,8 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
       },
     });
 
-    return json({
-      status: "done",
-      draft_id: draftId,
-      quality_report: qualityReport,
-      rewrite_applied: rewriteApplied,
-      rewrite_skipped_due_to_edit: rewriteSkippedDueToEdit,
-    });
-  } catch (e) {
+    return;
+   } catch (e) {
     const msg = (e as Error).message || "unknown_error";
     console.error("review-legal-draft:error", msg);
     const baseWarnings = Array.isArray(draft.warnings) ? (draft.warnings as string[]) : [];
@@ -664,6 +662,19 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
       quality_status: "failed",
       warnings: Array.from(merged).slice(0, 50),
     }).eq("id", draftId);
-    return json({ status: "failed", error: msg }, 200);
+    return;
+   }
+  };
+
+  // @ts-ignore EdgeRuntime é fornecido pelo runtime do Supabase Edge Functions
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime.waitUntil === "function") {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(runPipeline());
+  } else {
+    // Fallback: dispara sem aguardar (não bloqueia a resposta).
+    void runPipeline();
   }
+
+  return json({ status: "running", draft_id: draftId }, 202);
 });
+
