@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   archiveCaseDraft,
+  assembleDraftChapters,
   generateCaseDraft,
   generateDraftSection,
   getCaseDraft,
@@ -10,6 +11,7 @@ import {
   updateCaseDraft,
 } from "@/services/caseDrafts";
 import type {
+  AssembleChaptersPayload,
   CaseDraft,
   GenerateDraftPayload,
   GenerateDraftSectionPayload,
