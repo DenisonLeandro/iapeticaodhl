@@ -3,6 +3,9 @@
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
 import type {
+  AssembleChaptersBlocked,
+  AssembleChaptersPayload,
+  AssembleChaptersResponse,
   CaseDraft,
   CaseDraftStatus,
   GenerateDraftPayload,
