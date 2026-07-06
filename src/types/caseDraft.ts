@@ -283,6 +283,34 @@ export interface GenerateDraftSectionResponse {
   alerts?: number;
 }
 
+// PR-4 — Montagem determinística da petição final
+export interface AssembleChaptersPayload {
+  draft_id: string;
+}
+
+export interface AssembleChaptersResponse {
+  success: true;
+  draft_id: string;
+  version_id: string;
+  sections_used: number;
+  chars: number;
+  source: "chapters_assembled" | "chapters_reassembled" | string;
+}
+
+export interface AssembleChaptersPendingSection {
+  section_key: string;
+  section_label: string;
+  reason: "not_generated" | "failed" | "empty_content" | "missing" | string;
+  status: string;
+}
+
+export interface AssembleChaptersBlocked {
+  success: false;
+  code: "missing_required_sections";
+  message: string;
+  pending_sections: AssembleChaptersPendingSection[];
+}
+
 
 
 
