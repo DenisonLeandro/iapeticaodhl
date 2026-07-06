@@ -121,7 +121,10 @@ Deno.serve(async (req) => {
 
   const currentSuggestions: Suggestion[] = Array.isArray(draft.senior_review_suggestions)
     ? (draft.senior_review_suggestions as Suggestion[]) : [];
-  const accepted = currentSuggestions.filter((s) => acceptedIds.includes(s.id));
+  // Defensive: só aplica sugestões cujo ID foi enviado E que não estejam já rejeitadas/aplicadas.
+  const accepted = currentSuggestions.filter(
+    (s) => acceptedIds.includes(s.id) && s.status !== "rejected" && s.status !== "applied",
+  );
   if (accepted.length === 0) return json({ error: "accepted_ids_not_found" }, 400);
 
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
