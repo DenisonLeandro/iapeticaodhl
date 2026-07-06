@@ -212,6 +212,34 @@ export default function DraftGeneratorPage() {
       </div>
 
       <Card className="space-y-5 p-6">
+        <div className="space-y-2">
+          <Label>Modo de geração</Label>
+          <RadioGroup
+            value={mode}
+            onValueChange={(v) => setMode(v as "fast" | "chapters")}
+            className="grid grid-cols-1 gap-2 md:grid-cols-2"
+          >
+            <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "fast" ? "border-primary/60 bg-primary/5" : ""}`}>
+              <RadioGroupItem value="fast" className="mt-1" />
+              <div>
+                <div className="text-sm font-medium">Gerar petição completa — modo rápido</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Gera a minuta inteira de uma vez. Indicado para casos simples ou urgentes.
+                </div>
+              </div>
+            </label>
+            <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "chapters" ? "border-primary/60 bg-primary/5" : ""}`}>
+              <RadioGroupItem value="chapters" className="mt-1" />
+              <div>
+                <div className="text-sm font-medium">Gerar por capítulos — qualidade máxima</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  A IA monta primeiro a estrutura da peça, separando fatos, fundamentos, pedidos individuais, rol de pedidos com valores e requerimentos finais. Indicado para peças mais importantes ou complexas.
+                </div>
+              </div>
+            </label>
+          </RadioGroup>
+        </div>
+
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
           <div className="flex items-center gap-2 font-medium">
             <Info className="h-4 w-4 text-primary" />
@@ -236,18 +264,21 @@ export default function DraftGeneratorPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Tom/estilo</Label>
-            <Select value={tone} onValueChange={setTone}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TONE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {mode === "fast" && (
+            <div className="space-y-2">
+              <Label>Tom/estilo</Label>
+              <Select value={tone} onValueChange={setTone}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TONE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
+
 
         <div className="space-y-2">
           <Label>Objetivo da peça</Label>
