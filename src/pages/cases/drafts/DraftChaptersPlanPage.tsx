@@ -44,10 +44,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-import { useCaseDraft } from "@/hooks/useCaseDrafts";
+import { useAssembleDraftChapters, useCaseDraft } from "@/hooks/useCaseDrafts";
 import { useCaseDraftSections } from "@/hooks/useCaseDraftSections";
 import { useGenerateDraftSection } from "@/hooks/useCaseDrafts";
-import type { CaseDraftSection } from "@/types/caseDraft";
+import type { AssembleChaptersPendingSection, CaseDraftSection } from "@/types/caseDraft";
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; variant: "secondary" | "outline" | "default" | "destructive" }> = {
@@ -65,22 +65,86 @@ function statusBadge(status: string) {
 
 const OBRIGATORIAS = new Set(["generated", "approved", "skipped", "edited"]);
 
+// Espelha o critério do assemble-draft-chapters.
+const REQUIRED_ESSENTIAL = new Set<string>([
+  "enderecamento",
+  "qualificacao",
+  "dados_funcionais",
+  "sintese_fatos",
+  "rol_pedidos_valores",
+  "valor_causa",
+  "pedido_final",
+  "fechamento",
+]);
+const OPTIONAL_KEYS = new Set<string>(["justica_gratuita", "preliminares"]);
+const FINAL_TRIPLET = ["rol_pedidos_valores", "valor_causa", "pedido_final"];
+
+function isSectionRequired(section_key: string): boolean {
+  if (OPTIONAL_KEYS.has(section_key)) return false;
+  if (REQUIRED_ESSENTIAL.has(section_key)) return true;
+  if (section_key.startsWith("merito_") || section_key === "merito") return true;
+  return true;
+}
+
+function sectionHasContent(s: CaseDraftSection): boolean {
+  return typeof s.content === "string" && s.content.trim().length > 0;
+}
+
 export default function DraftChaptersPlanPage() {
   const { id: caseId, draftId } = useParams<{ id: string; draftId: string }>();
   const navigate = useNavigate();
   const { data: draft, isLoading: draftLoading } = useCaseDraft(draftId);
   const { data: sections = [], isLoading: sectionsLoading } = useCaseDraftSections(draftId);
   const generateSection = useGenerateDraftSection();
+  const assembleChapters = useAssembleDraftChapters();
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [confirmRegen, setConfirmRegen] = useState<CaseDraftSection | null>(null);
+  const [confirmAssemble, setConfirmAssemble] = useState(false);
+  const [blockedList, setBlockedList] = useState<AssembleChaptersPendingSection[] | null>(null);
 
   const allDone = useMemo(
     () => sections.length > 0 && sections.every((s) => OBRIGATORIAS.has(String(s.status))),
     [sections],
   );
+
+  const pendingRequired = useMemo<AssembleChaptersPendingSection[]>(() => {
+    const out: AssembleChaptersPendingSection[] = [];
+    for (const s of sections) {
+      if (s.status === "skipped") continue;
+      if (!isSectionRequired(s.section_key)) continue;
+      if (s.status === "pending" || s.status === "generating") {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "not_generated", status: String(s.status) });
+        continue;
+      }
+      if (s.status === "failed") {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "failed", status: String(s.status) });
+        continue;
+      }
+      if (!sectionHasContent(s)) {
+        out.push({ section_key: s.section_key, section_label: s.section_label, reason: "empty_content", status: String(s.status) });
+      }
+    }
+    const byKey = new Map(sections.map((s) => [s.section_key, s]));
+    for (const key of FINAL_TRIPLET) {
+      const s = byKey.get(key);
+      if (!s || s.status === "skipped" || !sectionHasContent(s)) {
+        if (!out.some((p) => p.section_key === key)) {
+          out.push({
+            section_key: key,
+            section_label: s?.section_label ?? key,
+            reason: s ? "empty_content" : "missing",
+            status: String(s?.status ?? "missing"),
+          });
+        }
+      }
+    }
+    return out;
+  }, [sections]);
+
+  const canAssemble = sections.length > 0 && pendingRequired.length === 0;
 
   if (draftLoading || !draft) {
     return <Skeleton className="h-96 w-full" />;
@@ -138,6 +202,23 @@ export default function DraftChaptersPlanPage() {
     );
   }
 
+  async function runAssemble() {
+    if (!draftId) return;
+    try {
+      const res = await assembleChapters.mutateAsync({ draft_id: draftId });
+      if (res.success === false) {
+        setBlockedList(res.pending_sections);
+        toast.error("Existem capítulos obrigatórios pendentes ou com falha.");
+        return;
+      }
+      toast.success("Petição final montada com sucesso.");
+      navigate(`/cases/${caseId}/drafts/${draftId}`);
+    } catch (e) {
+      toast.error(`Falha ao montar petição: ${(e as Error).message}`);
+    }
+  }
+
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -185,13 +266,39 @@ export default function DraftChaptersPlanPage() {
           <Info className="mt-0.5 h-4 w-4 text-primary" />
           <div className="text-sm">
             <p className="font-medium">
-              Cada capítulo é redigido individualmente pela IA. A montagem final da petição fica para o próximo PR.
+              Cada capítulo é redigido individualmente pela IA. Quando todos os capítulos obrigatórios estiverem gerados, você pode montar a petição final.
             </p>
             <p className="mt-1 text-muted-foreground">
-              O conteúdo salvo aqui não altera a minuta principal até a etapa de montagem.
+              A montagem é determinística: o sistema apenas concatena os capítulos na ordem correta, sem reescrever o conteúdo.
             </p>
           </div>
         </Card>
+
+        {pendingRequired.length > 0 && sections.length > 0 && (
+          <Card className="border-amber-500/40 bg-amber-500/5 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 text-amber-600" />
+              <div className="min-w-0 text-sm">
+                <p className="font-medium">
+                  Para montar a petição final, gere os capítulos obrigatórios pendentes:
+                </p>
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                  {pendingRequired.map((p) => (
+                    <li key={p.section_key}>
+                      <span className="font-medium text-foreground">{p.section_label}</span>{" "}
+                      <span className="text-xs">
+                        ({p.reason === "not_generated" ? "não gerado"
+                          : p.reason === "failed" ? "com falha"
+                          : p.reason === "empty_content" ? "sem conteúdo"
+                          : p.reason === "missing" ? "não planejado" : p.reason})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -213,19 +320,31 @@ export default function DraftChaptersPlanPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span>
-                    <Button size="sm" variant="outline" disabled>
-                      Montar petição final — próximo PR
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={!canAssemble || assembleChapters.isPending || !!batchProgress}
+                      onClick={() => setConfirmAssemble(true)}
+                    >
+                      {assembleChapters.isPending ? (
+                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Montando…</>
+                      ) : (
+                        <>Montar petição final</>
+                      )}
                     </Button>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {allDone
-                    ? "Todos os capítulos estão prontos. A montagem chega no próximo PR."
-                    : "Gere todos os capítulos primeiro. A montagem chega no próximo PR."}
+                  {canAssemble
+                    ? "Concatena os capítulos gerados na ordem correta."
+                    : allDone
+                      ? "Verifique se todas as seções obrigatórias possuem conteúdo."
+                      : "Gere todos os capítulos obrigatórios antes de montar."}
                 </TooltipContent>
               </Tooltip>
             </div>
           </div>
+
 
           {batchProgress && (
             <div className="mb-4">
@@ -352,6 +471,56 @@ export default function DraftChaptersPlanPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmAssemble} onOpenChange={setConfirmAssemble}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Montar petição final?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A petição final será montada a partir dos capítulos gerados. Depois disso, você poderá revisar como advogado sênior e exportar em Word/PDF. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmAssemble(false);
+                void runAssemble();
+              }}
+            >
+              Montar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!blockedList} onOpenChange={(open) => !open && setBlockedList(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Capítulos obrigatórios pendentes</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gere ou corrija os capítulos abaixo antes de montar a petição final:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-60 list-disc space-y-1 overflow-y-auto pl-6 text-sm">
+            {(blockedList ?? []).map((p) => (
+              <li key={p.section_key}>
+                <span className="font-medium">{p.section_label}</span>{" "}
+                <span className="text-xs text-muted-foreground">
+                  ({p.reason === "not_generated" ? "não gerado"
+                    : p.reason === "failed" ? "com falha"
+                    : p.reason === "empty_content" ? "sem conteúdo"
+                    : p.reason === "missing" ? "não planejado" : p.reason})
+                </span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setBlockedList(null)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
+
   );
 }

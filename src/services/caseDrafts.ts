@@ -3,6 +3,9 @@
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
 import type {
+  AssembleChaptersBlocked,
+  AssembleChaptersPayload,
+  AssembleChaptersResponse,
   CaseDraft,
   CaseDraftStatus,
   GenerateDraftPayload,
@@ -213,4 +216,53 @@ export async function generateDraftSection(
   }
   return data as GenerateDraftSectionResponse;
 }
+
+// PR-4 — Montagem determinística da petição final a partir dos capítulos.
+// Retorna `AssembleChaptersBlocked` (sem lançar) quando faltam obrigatórios,
+// para a UI listar os capítulos pendentes. Demais erros lançam.
+export async function assembleDraftChapters(
+  payload: AssembleChaptersPayload,
+): Promise<AssembleChaptersResponse | AssembleChaptersBlocked> {
+  const FRIENDLY = "Não foi possível montar a petição final. Tente novamente.";
+  const { data, error } = await supabase.functions.invoke("assemble-draft-chapters", { body: payload });
+
+  if (error) {
+    let status: number | undefined;
+    let code: string | undefined;
+    let message: string | undefined;
+    let parsedBody: unknown = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp: Response | undefined = (error as any)?.context?.response;
+      if (resp) {
+        status = resp.status;
+        const parsed = await resp.clone().json().catch(() => null);
+        parsedBody = parsed;
+        if (parsed && typeof parsed === "object") {
+          code = (parsed as { code?: string }).code;
+          message = (parsed as { message?: string }).message;
+        }
+      }
+    } catch { /* ignore */ }
+    console.error("assembleDraftChapters:error", { status, code, message: message ?? error.message });
+    if (code === "missing_required_sections" && parsedBody && typeof parsedBody === "object") {
+      return parsedBody as AssembleChaptersBlocked;
+    }
+    throw new Error(message ?? FRIENDLY);
+  }
+
+  if (data && data.success === false) {
+    if (data.code === "missing_required_sections") {
+      return data as AssembleChaptersBlocked;
+    }
+    console.error("assembleDraftChapters:soft_error", { code: data.code, message: data.message });
+    throw new Error(data.message ?? FRIENDLY);
+  }
+  if (!data?.draft_id) {
+    console.error("assembleDraftChapters:invalid_response");
+    throw new Error(FRIENDLY);
+  }
+  return data as AssembleChaptersResponse;
+}
+
 
