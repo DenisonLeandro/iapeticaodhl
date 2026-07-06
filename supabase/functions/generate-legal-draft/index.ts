@@ -800,6 +800,9 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       quality_report: qualityReport,
       quality_status: "pending",
       generation_depth: "professional_full",
+      playbook_id: playbook?.id ?? null,
+      playbook_snapshot: playbook ?? null,
+      playbook_compliance: playbook ? checkPlaybookCompliance(content, playbook) : null,
     })
     .select("id,title,draft_type,created_at")
     .single();
