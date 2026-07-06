@@ -431,6 +431,74 @@ export type Database = {
           },
         ]
       }
+      case_claim_maps: {
+        Row: {
+          case_id: string
+          claims: Json
+          cost_estimate: number | null
+          created_at: string
+          created_by: string | null
+          global_warnings: Json
+          id: string
+          is_current: boolean
+          missing_case_data: Json
+          model_used: string | null
+          organization_id: string
+          status: string
+          tokens_input: number | null
+          tokens_output: number | null
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          case_id: string
+          claims?: Json
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          global_warnings?: Json
+          id?: string
+          is_current?: boolean
+          missing_case_data?: Json
+          model_used?: string | null
+          organization_id: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          case_id?: string
+          claims?: Json
+          cost_estimate?: number | null
+          created_at?: string
+          created_by?: string | null
+          global_warnings?: Json
+          id?: string
+          is_current?: boolean
+          missing_case_data?: Json
+          model_used?: string | null
+          organization_id?: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_claim_maps_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_draft_sections: {
         Row: {
           case_id: string
