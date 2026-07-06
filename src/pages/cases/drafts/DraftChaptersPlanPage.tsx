@@ -44,10 +44,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-import { useCaseDraft } from "@/hooks/useCaseDrafts";
+import { useAssembleDraftChapters, useCaseDraft } from "@/hooks/useCaseDrafts";
 import { useCaseDraftSections } from "@/hooks/useCaseDraftSections";
 import { useGenerateDraftSection } from "@/hooks/useCaseDrafts";
-import type { CaseDraftSection } from "@/types/caseDraft";
+import type { AssembleChaptersPendingSection, CaseDraftSection } from "@/types/caseDraft";
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; variant: "secondary" | "outline" | "default" | "destructive" }> = {
