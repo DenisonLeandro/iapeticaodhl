@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Archive, Copy, Eye, Loader2, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Eye, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
