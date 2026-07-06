@@ -2,13 +2,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   archiveCaseDraft,
   generateCaseDraft,
+  generateDraftSection,
   getCaseDraft,
   listCaseDrafts,
   planDraftChapters,
   triggerDraftReview,
   updateCaseDraft,
 } from "@/services/caseDrafts";
-import type { CaseDraft, GenerateDraftPayload, PlanChaptersPayload } from "@/types/caseDraft";
+import type {
+  CaseDraft,
+  GenerateDraftPayload,
+  GenerateDraftSectionPayload,
+  PlanChaptersPayload,
+} from "@/types/caseDraft";
+
 
 
 const KEY = "case_drafts";
