@@ -117,8 +117,38 @@ export default function DraftGeneratorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generate.isPending]);
 
+  const planChapters = usePlanDraftChapters();
+
   const handleGenerate = async () => {
     if (!caseId) return;
+    // PR-2 — Modo por capítulos: planeja o esqueleto e navega para a tela dedicada.
+    if (mode === "chapters") {
+      try {
+        const res = await planChapters.mutateAsync({
+          case_id: caseId,
+          piece_type_key: "trabalhista_inicial",
+          legal_area: (intake?.legal_area as string) || null,
+          template_id: useTemplate ? templateId : null,
+          objective: objective || undefined,
+          structure_instructions: structureInstructions || undefined,
+          use_intake: useIntake && hasIntake,
+          use_analysis: useAnalysis && hasAnalysis,
+          use_documents: useDocuments && hasDocuments,
+          use_template: useTemplate && !!templateId,
+        });
+        if (!res.success) {
+          toast.warning(res.message);
+          return;
+        }
+        toast.success("Estrutura por capítulos criada.");
+        navigate(`/cases/${caseId}/drafts/${res.draft_id}/chapters`);
+      } catch (e) {
+        toast.error((e as Error).message || "Falha ao planejar capítulos.");
+      }
+      return;
+    }
+
+    // Modo rápido — fluxo atual intacto.
     try {
       const res = await generate.mutateAsync({
         case_id: caseId,
@@ -139,6 +169,7 @@ export default function DraftGeneratorPage() {
       toast.error((e as Error).message || "Falha ao gerar minuta.");
     }
   };
+
 
 
   if (caseLoading || !caseData) {
