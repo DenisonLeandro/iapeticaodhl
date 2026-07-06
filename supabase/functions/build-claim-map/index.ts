@@ -345,8 +345,17 @@ ${docChunks.map((c) => `[${c.file_id.slice(0, 8)} p.${c.page_from ?? "?"}-${c.pa
       }
     }
 
+    // deno-lint-ignore no-explicit-any
+    const analysisCaseType = String(((analysis as any)?.content_json ?? {}).case_type ?? "").toLowerCase();
     const legalArea = String(intake?.legal_area ?? caseRow.legal_area ?? "").toLowerCase();
-    const isTrabalhistaInicial = legalArea.includes("trabalh");
+    const areaSignals = [
+      legalArea,
+      analysisCaseType,
+      String(intake?.legal_area_other ?? "").toLowerCase(),
+      String(intake?.ai_suggested_area ?? "").toLowerCase(),
+      String(caseRow.subject ?? "").toLowerCase(),
+    ].join(" ");
+    const isTrabalhistaInicial = /trabalh/.test(areaSignals);
 
     const requiredClaims = isTrabalhistaInicial ? TRABALHISTA_INICIAL_REQUIRED_CLAIMS : [];
     if (requiredClaims.length > 0) {
