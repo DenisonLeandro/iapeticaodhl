@@ -90,6 +90,11 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
               {review.should_rewrite && <span className="ml-2 rounded bg-red-500/10 px-1.5 py-0.5 text-red-700">recomenda reescrita</span>}
             </div>
           )}
+          {typeof (review as unknown as { senior_review?: unknown }).senior_review === "string" && (
+            <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-muted/30 p-2 text-xs leading-relaxed">
+              {(review as unknown as { senior_review: string }).senior_review}
+            </div>
+          )}
           <Section title="Pedidos faltantes" items={review.missing_requests} />
           <Section title="Sem base documental" items={review.requests_without_documental_basis} />
           <Section title="Fundamentos desatualizados" items={review.outdated_grounds} />
