@@ -359,7 +359,11 @@ Deno.serve(async (req) => {
   const taskChoice = selectAIModelForTask("legal_draft_generation");
   const totalTokens = { input: 0, output: 0 };
 
-  try {
+  // Executa o pipeline pesado em background para evitar 504 (150s idle timeout).
+  // O client já é fire-and-forget e faz polling do quality_status.
+  const runPipeline = async () => {
+   try {
+
     // -----------------------------------------------------------------------
     // QUALITY_GATE
     // -----------------------------------------------------------------------
