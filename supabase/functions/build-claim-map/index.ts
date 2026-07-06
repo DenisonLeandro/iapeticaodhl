@@ -176,6 +176,59 @@ function applyDeterministicGuards(claims: any[]): any[] {
   });
 }
 
+// Normaliza IDs quando o LLM inventar variações (ex.: em inglês) mapeando
+// para os ids canônicos por título/palavra-chave.
+const CLAIM_ALIASES: Array<{ id: string; patterns: RegExp[] }> = [
+  { id: "rescisao_indireta", patterns: [/rescis[aã]o\s+indireta/i, /revers[aã]o.*(pedido\s+de\s+)?demiss[aã]o/i, /indirect\s+rescission/i, /constructive\s+dismissal/i] },
+  { id: "verbas_rescisorias", patterns: [/verbas\s+rescis[oó]rias/i, /severance/i] },
+  { id: "horas_extras", patterns: [/horas?\s+extras?/i, /overtime/i] },
+  { id: "intervalo_intrajornada", patterns: [/intra[- ]?jornada/i, /intra[_ ]?journey/i, /intervalo.*intra/i] },
+  { id: "intervalo_interjornada", patterns: [/inter[- ]?jornada/i, /inter[_ ]?journey/i] },
+  { id: "domingos_feriados_dsr", patterns: [/domingos?\s+e?\s*feriados?/i, /\bdsr\b/i, /dsr[_ ]?holidays/i, /repouso\s+semanal/i] },
+  { id: "fgts_irregular", patterns: [/fgts.*(irregular|dep[oó]sito|diferen)/i, /diferen[cç]as?\s+de\s+fgts/i, /fgts\s+differences/i] },
+  { id: "multa_40_fgts", patterns: [/multa\s+de?\s*40|multa.*fgts/i, /40%\s+fgts/i, /fgts\s+fine/i] },
+  { id: "multa_467_477_clt", patterns: [/(art\.?\s*467|art\.?\s*477)/i, /multa.*(467|477)/i] },
+  { id: "insalubridade", patterns: [/insalubridade/i, /insalubrity/i] },
+  { id: "periculosidade", patterns: [/periculosidade/i, /hazard/i] },
+  { id: "ferias_em_dobro", patterns: [/f[eé]rias\s+em\s+dobro/i, /pagamento\s+em\s+dobro.*f[eé]rias/i, /vacation\s+double/i, /s[uú]mula\s*450/i] },
+  { id: "ferias", patterns: [/^f[eé]rias($|\s+vencidas|\s+proporcionais)/i, /vacation(?!\s+double)/i] },
+  { id: "adicional_noturno", patterns: [/adicional\s+noturno/i, /night\s+shift/i] },
+  { id: "integracao_verbas_variaveis", patterns: [/integra[cç][aã]o.*(vari[aá]v|comiss|pr[eê]mi)/i, /pagamento\s+por\s+fora/i, /variable\s+pay/i] },
+  { id: "diferencas_salariais", patterns: [/diferen[cç]as?\s+salariais/i, /salary\s+differences/i] },
+  { id: "acumulo_desvio_funcao", patterns: [/ac[uú]mulo|desvio.*fun[cç][aã]o/i, /role\s+accumulation/i] },
+  { id: "dano_moral", patterns: [/dano\s+moral/i, /moral\s+damage/i] },
+  { id: "estabilidade", patterns: [/estabilidade/i, /job\s+stability/i] },
+  { id: "acidente_doenca_ocupacional", patterns: [/acidente\s+de?\s*trabalho|doen[cç]a\s+ocupacional/i, /occupational\s+(disease|accident)/i] },
+  { id: "exibicao_documentos_onus_prova", patterns: [/exibi[cç][aã]o.*documentos?/i, /[oó]nus.*prova/i, /burden\s+of\s+proof/i, /document\s+exhibition/i] },
+  { id: "honorarios_sucumbenciais", patterns: [/honor[aá]rios?\s+(sucumbenciais|advocat)/i, /attorney\s+fees/i] },
+  { id: "justica_gratuita", patterns: [/justi[cç]a\s+gratuita/i, /free\s+justice/i, /gratuidade/i] },
+];
+
+function normalizeClaimIds(
+  // deno-lint-ignore no-explicit-any
+  claims: any[],
+  required: typeof TRABALHISTA_INICIAL_REQUIRED_CLAIMS,
+  // deno-lint-ignore no-explicit-any
+): any[] {
+  const requiredIds = new Set(required.map((r) => r.id));
+  return claims.map((c) => {
+    const claim = { ...c };
+    const idStr = String(claim.id ?? "").toLowerCase();
+    if (requiredIds.has(idStr)) return claim;
+    const haystack = `${claim.id ?? ""} ${claim.title ?? ""}`;
+    for (const alias of CLAIM_ALIASES) {
+      if (alias.patterns.some((p) => p.test(haystack))) {
+        claim.id = alias.id;
+        // Preserve título e categoria oficiais do catálogo
+        const canonical = required.find((r) => r.id === alias.id);
+        if (canonical) claim.category = claim.category ?? canonical.category;
+        break;
+      }
+    }
+    return claim;
+  });
+}
+
 // Completa claims obrigatórias que o LLM não retornou.
 // deno-lint-ignore no-explicit-any
 function ensureRequiredClaims(claims: any[], required: typeof TRABALHISTA_INICIAL_REQUIRED_CLAIMS): any[] {
