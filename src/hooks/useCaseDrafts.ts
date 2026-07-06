@@ -106,3 +106,14 @@ export function usePlanDraftChapters() {
   });
 }
 
+
+// PR-3 — Gera conteúdo de UMA seção. Invalida a lista de sections do draft.
+export function useGenerateDraftSection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: GenerateDraftSectionPayload) => generateDraftSection(payload),
+    onSettled: (_res, _err, vars) => {
+      qc.invalidateQueries({ queryKey: ["case_draft_sections", "list", vars.draft_id] });
+    },
+  });
+}
