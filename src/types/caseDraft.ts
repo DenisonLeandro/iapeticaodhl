@@ -141,9 +141,47 @@ export interface CaseDraft {
   senior_review_apply_error?: string | null;
   senior_review_applied_at?: string | null;
 
+  // PR-1 (chapters foundation) — sem uso ativo no fluxo atual
+  generation_mode?: "fast" | "chapters" | string | null;
+  assembly_status?: "stale" | "assembled" | "failed" | null | string;
+  piece_type_key?: string | null;
+
   created_at: string;
   updated_at: string;
 }
+
+export type CaseDraftSectionStatus =
+  | "pending"
+  | "generating"
+  | "generated"
+  | "edited"
+  | "approved"
+  | "skipped"
+  | "failed";
+
+export interface CaseDraftSection {
+  id: string;
+  organization_id: string;
+  case_id: string;
+  draft_id: string;
+  section_key: string;
+  section_label: string;
+  order_index: number;
+  content: string | null;
+  status: CaseDraftSectionStatus | string;
+  generation_prompt: Record<string, unknown> | null;
+  model_used: string | null;
+  tokens_input: number | null;
+  tokens_output: number | null;
+  cost_estimate: number | null;
+  quality_notes: Record<string, unknown> | null;
+  last_error: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 
 export type SeniorReviewSuggestionStatus = "pending" | "accepted" | "rejected" | "edited" | "applied";
 
