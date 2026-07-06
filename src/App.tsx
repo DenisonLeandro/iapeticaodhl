@@ -31,6 +31,7 @@ import TemplateDetailPage from "./pages/templates/TemplateDetailPage.tsx";
 import DraftGeneratorPage from "./pages/cases/drafts/DraftGeneratorPage.tsx";
 import DraftDetailPage from "./pages/cases/drafts/DraftDetailPage.tsx";
 import DraftChaptersPlanPage from "./pages/cases/drafts/DraftChaptersPlanPage.tsx";
+import CaseClaimMapPage from "./pages/cases/CaseClaimMapPage.tsx";
 
 import NotFound from "./pages/NotFound.tsx";
 
