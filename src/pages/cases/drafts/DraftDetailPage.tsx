@@ -272,6 +272,10 @@ export default function DraftDetailPage() {
             onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
           />
 
+          <SeniorReviewSuggestionsPanel draft={draft} />
+
+          <DraftVersionsPanel draftId={draft.id} />
+
         </div>
       </div>
 
