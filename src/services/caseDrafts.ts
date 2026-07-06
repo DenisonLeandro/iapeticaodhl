@@ -7,10 +7,13 @@ import type {
   CaseDraftStatus,
   GenerateDraftPayload,
   GenerateDraftResponse,
+  GenerateDraftSectionPayload,
+  GenerateDraftSectionResponse,
   PlanChaptersPayload,
   PlanChaptersResponse,
   PlanChaptersUnsupported,
 } from "@/types/caseDraft";
+
 
 
 // Types ainda não regenerados para a tabela case_drafts; usamos any localmente.
