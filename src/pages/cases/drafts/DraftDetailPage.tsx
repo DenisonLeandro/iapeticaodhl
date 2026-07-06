@@ -326,6 +326,23 @@ export default function DraftDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmRegenAfterSenior} onOpenChange={setConfirmRegenAfterSenior}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerar pelo fluxo inicial?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este comando iniciará uma nova geração pelo fluxo inicial e pode não incorporar a revisão sênior. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate(`/cases/${caseId}/drafts/new`)}>
+              Continuar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
