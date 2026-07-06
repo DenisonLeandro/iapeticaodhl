@@ -136,10 +136,11 @@ export default function DraftGeneratorPage() {
           use_documents: useDocuments && hasDocuments,
           use_template: useTemplate && !!templateId,
         });
-        if (!res.success) {
+        if (res.success === false) {
           toast.warning(res.message);
           return;
         }
+
         toast.success("Estrutura por capítulos criada.");
         navigate(`/cases/${caseId}/drafts/${res.draft_id}/chapters`);
       } catch (e) {
