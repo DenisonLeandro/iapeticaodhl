@@ -48,6 +48,8 @@ export default function DraftGeneratorPage() {
   const { analysis } = useCaseAnalysis(caseId);
   const { data: files = [] } = useCaseFiles(caseId);
 
+  const [mode, setMode] = useState<"fast" | "chapters">("fast");
+  const [structureInstructions, setStructureInstructions] = useState("");
   const [draftType, setDraftType] = useState<CaseDraftType>("initial_petition");
   const [objective, setObjective] = useState("");
   const [tone, setTone] = useState("template_default");
@@ -58,6 +60,7 @@ export default function DraftGeneratorPage() {
   const [useDocuments, setUseDocuments] = useState(true);
   const [useTemplate, setUseTemplate] = useState(true);
   const [useChatHistory, setUseChatHistory] = useState(false);
+
 
   const hasIntake = !!intake;
   const hasAnalysis = !!analysis;
