@@ -154,17 +154,17 @@ async function callLlm(apiKey: string, model: string, user: string) {
       signal: ctrl.signal,
     });
     const ms = Date.now() - start;
-    if (!res.ok) return { parsed: null, input_tokens: 0, output_tokens: 0, ms, http_status: res.status };
+    if (!res.ok) return { raw: "", input_tokens: 0, output_tokens: 0, ms, http_status: res.status };
     const data = await res.json();
     const raw: string = data?.choices?.[0]?.message?.content ?? "";
     return {
-      parsed: extractJson(raw),
+      raw,
       input_tokens: data?.usage?.prompt_tokens ?? Math.ceil(user.length / 4),
       output_tokens: data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4),
       ms, http_status: res.status,
     };
   } catch (e) {
-    return { parsed: null, input_tokens: 0, output_tokens: 0, ms: Date.now() - start, http_status: (e as Error).name === "AbortError" ? 599 : 0 };
+    return { raw: "", input_tokens: 0, output_tokens: 0, ms: Date.now() - start, http_status: (e as Error).name === "AbortError" ? 599 : 0 };
   } finally { clearTimeout(timer); }
 }
 
