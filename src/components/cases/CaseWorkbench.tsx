@@ -12,10 +12,14 @@ import {
   FileSearch,
   FileSignature,
   FileText,
+  ListChecks,
   MessageSquare,
   PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useCurrentClaimMap } from "@/hooks/useCaseClaimMap";
+import { CLAIM_MAP_STATUS_LABEL } from "@/types/caseClaimMap";
 import { useCaseFiles, type CaseFileRow } from "@/hooks/useCaseFiles";
 import type { CaseDocument, CaseWithRelations } from "@/types/case";
 import CaseActionCard from "./CaseActionCard";
