@@ -825,7 +825,11 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       generation_depth: "professional_full",
       playbook_id: playbook?.id ?? null,
       playbook_snapshot: playbook ?? null,
-      playbook_compliance: playbook ? checkPlaybookCompliance(content, playbook) : null,
+      playbook_compliance: (() => {
+        if (!playbook) return null;
+        try { return checkPlaybookCompliance(content, playbook); }
+        catch (e) { console.warn("generate-legal-draft:compliance_failed", { stage: "compliance", error: (e as Error)?.message }); return null; }
+      })(),
     })
     .select("id,title,draft_type,created_at")
     .single();
