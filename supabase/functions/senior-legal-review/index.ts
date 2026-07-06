@@ -222,21 +222,37 @@ Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado, in
 
   try {
     const res = await callLlm(apiKey, taskChoice.model, prompt);
-    if (!res.parsed) {
-      await admin.from("case_drafts").update({ senior_review_status: "failed" }).eq("id", draftId);
-      return json({ status: "failed", error: "llm_invalid_response" }, 200);
+
+    // Falha real de rede / HTTP — sem conteúdo do LLM.
+    if (!res.raw && res.http_status !== 200) {
+      await admin.from("case_drafts").update({
+        senior_review_status: "failed",
+        senior_review_apply_error: `llm_http_${res.http_status}`,
+      }).eq("id", draftId);
+      return json({ status: "failed", error: "llm_unavailable", http_status: res.http_status }, 200);
     }
 
-    const suggestions = buildSuggestions(res.parsed);
+    const { parsed, parseMode } = parseSeniorReviewResponse(res.raw);
+    const structured = parsed ?? { senior_review: res.raw, suggestions: [] };
+    const suggestions = buildSuggestions(structured as Record<string, unknown>);
+    const parseFailed = parseMode === "prose_fallback" || parseMode === "empty";
+
+    if (parseFailed) {
+      console.warn("senior-legal-review:parse_failed", {
+        draft_id: draftId,
+        parse_mode: parseMode,
+        raw_length: res.raw.length,
+      });
+    }
 
     const now = new Date().toISOString();
     await admin.from("case_drafts").update({
-      senior_review: res.parsed,
+      senior_review: structured,
       senior_review_suggestions: suggestions,
       senior_review_status: "done",
       senior_review_at: now,
       senior_review_apply_status: null,
-      senior_review_apply_error: null,
+      senior_review_apply_error: parseFailed ? `parse_failed:${parseMode}` : null,
       tokens_input: (draft.tokens_input ?? 0) + res.input_tokens,
       tokens_output: (draft.tokens_output ?? 0) + res.output_tokens,
     }).eq("id", draftId);
@@ -254,14 +270,22 @@ Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado, in
       case_id: draft.case_id,
       prompt_summary: `senior:${draftId.slice(0, 8)}`,
       metadata: {
-        overall_score: typeof (res.parsed as { overall_score?: number }).overall_score === "number"
-          ? (res.parsed as { overall_score: number }).overall_score : null,
-        should_rewrite: (res.parsed as { should_rewrite?: boolean }).should_rewrite === true,
+        overall_score: typeof (structured as { overall_score?: number }).overall_score === "number"
+          ? (structured as { overall_score: number }).overall_score : null,
+        should_rewrite: (structured as { should_rewrite?: boolean }).should_rewrite === true,
         suggestions_count: suggestions.length,
+        parse_mode: parseMode,
       },
     });
 
-    return json({ status: "done", draft_id: draftId, senior_review: res.parsed, suggestions });
+    return json({
+      status: "done",
+      draft_id: draftId,
+      senior_review: structured,
+      suggestions,
+      parse_mode: parseMode,
+      structured_ok: !parseFailed,
+    });
   } catch (e) {
     console.error("senior-legal-review:error", (e as Error).message);
     await admin.from("case_drafts").update({ senior_review_status: "failed" }).eq("id", draftId);
