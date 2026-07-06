@@ -25,11 +25,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCaseDetail } from "@/hooks/useCaseDetail";
 import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
 import { useCaseFiles } from "@/hooks/useCaseFiles";
-import { useGenerateDraft } from "@/hooks/useCaseDrafts";
+import { useGenerateDraft, usePlanDraftChapters } from "@/hooks/useCaseDrafts";
+
 import { useMatchingTemplates } from "@/hooks/useMatchingTemplates";
 import {
   CASE_DRAFT_TYPE_OPTIONS,
