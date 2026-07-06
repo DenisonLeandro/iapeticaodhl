@@ -39,6 +39,8 @@ import PendingCountBadge from "@/components/cases/drafts/PendingCountBadge";
 import DraftContentPreview from "@/components/cases/drafts/DraftContentPreview";
 import { useQueryClient } from "@tanstack/react-query";
 import PlaybookCompliancePanel from "@/components/cases/drafts/PlaybookCompliancePanel";
+import SeniorReviewSuggestionsPanel from "@/components/cases/drafts/SeniorReviewSuggestionsPanel";
+import DraftVersionsPanel from "@/components/cases/drafts/DraftVersionsPanel";
 import { CASE_DRAFT_TYPE_LABEL, type CaseDraftType } from "@/types/caseDraft";
 
 
