@@ -174,7 +174,8 @@ export default function DraftDetailPage() {
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
           </Button>
           <Button variant="outline" size="sm" onClick={handleRegen}>
-            <Sparkles className="mr-1 h-4 w-4" /> Regenerar
+            <Sparkles className="mr-1 h-4 w-4" />
+            {draft.senior_review_status === "done" ? "Regenerar minuta (fluxo inicial)" : "Regenerar minuta"}
           </Button>
           {draft.status !== "archived" && (
             <Button variant="outline" size="sm" onClick={handleArchive}>
