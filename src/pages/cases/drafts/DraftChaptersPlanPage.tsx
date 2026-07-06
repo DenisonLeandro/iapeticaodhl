@@ -202,6 +202,23 @@ export default function DraftChaptersPlanPage() {
     );
   }
 
+  async function runAssemble() {
+    if (!draftId) return;
+    try {
+      const res = await assembleChapters.mutateAsync({ draft_id: draftId });
+      if (res.success === false) {
+        setBlockedList(res.pending_sections);
+        toast.error("Existem capítulos obrigatórios pendentes ou com falha.");
+        return;
+      }
+      toast.success("Petição final montada com sucesso.");
+      navigate(`/cases/${caseId}/drafts/${draftId}`);
+    } catch (e) {
+      toast.error(`Falha ao montar petição: ${(e as Error).message}`);
+    }
+  }
+
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
