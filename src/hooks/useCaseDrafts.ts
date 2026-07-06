@@ -84,3 +84,18 @@ export function useArchiveDraft() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }
+
+// PR-2 — Modo por capítulos: planeja o esqueleto.
+export function usePlanDraftChapters() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlanChaptersPayload) => planDraftChapters(payload),
+    onSuccess: (res, vars) => {
+      qc.invalidateQueries({ queryKey: [KEY, "list", vars.case_id] });
+      if (res.success && res.draft_id) {
+        qc.invalidateQueries({ queryKey: [KEY, "one", res.draft_id] });
+      }
+    },
+  });
+}
+
