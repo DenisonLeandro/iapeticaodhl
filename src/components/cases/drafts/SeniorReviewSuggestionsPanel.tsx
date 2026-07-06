@@ -183,7 +183,7 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
                 try {
                   const res = await applyReview.mutateAsync(acceptedIds);
                   if (res?.status === "done") {
-                    toast.success("Revisão sênior aplicada. Nova versão criada.");
+                    toast.success("Nova versão criada com a revisão sênior aplicada. A versão anterior foi preservada no histórico.");
                   } else {
                     toast.error("Não foi possível aplicar a revisão automaticamente.");
                   }
