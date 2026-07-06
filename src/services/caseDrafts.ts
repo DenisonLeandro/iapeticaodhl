@@ -7,7 +7,11 @@ import type {
   CaseDraftStatus,
   GenerateDraftPayload,
   GenerateDraftResponse,
+  PlanChaptersPayload,
+  PlanChaptersResponse,
+  PlanChaptersUnsupported,
 } from "@/types/caseDraft";
+
 
 // Types ainda não regenerados para a tabela case_drafts; usamos any localmente.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
