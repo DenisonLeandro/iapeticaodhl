@@ -266,5 +266,23 @@ export interface PlanChaptersUnsupported {
   message: string;
 }
 
+// PR-3 — Geração de conteúdo por seção
+export interface GenerateDraftSectionPayload {
+  draft_id: string;
+  section_id: string;
+  force_regenerate?: boolean;
+}
+
+export interface GenerateDraftSectionResponse {
+  success: true;
+  section_id: string;
+  status?: string;
+  skipped?: boolean;
+  reason?: string;
+  chars?: number;
+  alerts?: number;
+}
+
+
 
 

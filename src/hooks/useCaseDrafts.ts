@@ -2,13 +2,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   archiveCaseDraft,
   generateCaseDraft,
+  generateDraftSection,
   getCaseDraft,
   listCaseDrafts,
   planDraftChapters,
   triggerDraftReview,
   updateCaseDraft,
 } from "@/services/caseDrafts";
-import type { CaseDraft, GenerateDraftPayload, PlanChaptersPayload } from "@/types/caseDraft";
+import type {
+  CaseDraft,
+  GenerateDraftPayload,
+  GenerateDraftSectionPayload,
+  PlanChaptersPayload,
+} from "@/types/caseDraft";
+
 
 
 const KEY = "case_drafts";
@@ -99,3 +106,14 @@ export function usePlanDraftChapters() {
   });
 }
 
+
+// PR-3 — Gera conteúdo de UMA seção. Invalida a lista de sections do draft.
+export function useGenerateDraftSection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: GenerateDraftSectionPayload) => generateDraftSection(payload),
+    onSettled: (_res, _err, vars) => {
+      qc.invalidateQueries({ queryKey: ["case_draft_sections", "list", vars.draft_id] });
+    },
+  });
+}

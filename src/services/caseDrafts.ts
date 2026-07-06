@@ -7,10 +7,13 @@ import type {
   CaseDraftStatus,
   GenerateDraftPayload,
   GenerateDraftResponse,
+  GenerateDraftSectionPayload,
+  GenerateDraftSectionResponse,
   PlanChaptersPayload,
   PlanChaptersResponse,
   PlanChaptersUnsupported,
 } from "@/types/caseDraft";
+
 
 
 // Types ainda não regenerados para a tabela case_drafts; usamos any localmente.
@@ -175,4 +178,39 @@ export async function planDraftChapters(
 }
 
 
+
+
+// PR-3 — Gera o conteúdo de UMA seção (case_draft_sections.content)
+export async function generateDraftSection(
+  payload: GenerateDraftSectionPayload,
+): Promise<GenerateDraftSectionResponse> {
+  const FRIENDLY = "Não foi possível gerar este capítulo. Tente novamente.";
+  const { data, error } = await supabase.functions.invoke("generate-draft-section", { body: payload });
+
+  if (error) {
+    let status: number | undefined;
+    let code: string | undefined;
+    let message: string | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp: Response | undefined = (error as any)?.context?.response;
+      if (resp) {
+        status = resp.status;
+        const parsed = await resp.clone().json().catch(() => null);
+        if (parsed && typeof parsed === "object") {
+          code = parsed.code;
+          message = parsed.message;
+        }
+      }
+    } catch { /* ignore */ }
+    console.error("generateDraftSection:error", { status, code, message: message ?? error.message });
+    throw new Error(message ?? FRIENDLY);
+  }
+
+  if (data && data.success === false) {
+    console.error("generateDraftSection:soft_error", { code: data.code, message: data.message });
+    throw new Error(data.message ?? FRIENDLY);
+  }
+  return data as GenerateDraftSectionResponse;
+}
 
