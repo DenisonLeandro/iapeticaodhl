@@ -13,12 +13,19 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const SYSTEM = `Você é um advogado sênior brasileiro editando uma MINUTA existente.
-Sua tarefa NÃO é reescrever a peça. Sua tarefa é INCORPORAR sugestões pontuais preservando a estrutura, o estilo e as seções da minuta atual.
+Sua tarefa NÃO é reescrever a peça. Sua tarefa é INCORPORAR apenas as sugestões aceitas listadas, preservando integralmente a estrutura, o estilo e o conteúdo existente da minuta.
 
-Regras:
-- Mantenha títulos, ordem das seções, cabeçalho, endereçamento, qualificações e assinaturas.
-- Não invente fatos novos além do que as sugestões instruem.
-- Ao aplicar cada sugestão, incorpore o "trecho_sugerido" na seção "local_recomendado_na_peca" quando fizer sentido; caso contrário, escolha o local mais natural.
+Regras obrigatórias:
+- Aplique SOMENTE as sugestões aceitas fornecidas. Não invente sugestões novas.
+- PRESERVE nomes completos das partes exatamente como estão.
+- PRESERVE todos os fatos já descritos na minuta.
+- PRESERVE todos os pedidos existentes.
+- PRESERVE todos os valores, datas, números de processo e documentos citados.
+- NÃO invente fatos, documentos, datas, valores, partes ou jurisprudência.
+- NÃO exclua capítulos, seções ou parágrafos que não tenham relação direta com as sugestões aceitas.
+- MANTENHA a estrutura, títulos, numeração de seções, ordem, cabeçalho, endereçamento, qualificações e assinaturas.
+- Melhore apenas os pontos necessários para incorporar cada sugestão aceita.
+- Ao aplicar cada sugestão, incorpore o "trecho_sugerido" na seção indicada em "local_recomendado_na_peca" quando fizer sentido; caso contrário, no local mais natural sem quebrar a estrutura.
 - Se a sugestão for redundante com o que já existe, ignore-a sem duplicar conteúdo.
 - Preserve todos os marcadores [PENDENTE: ...] existentes se ainda forem aplicáveis.
 - Retorne APENAS o texto completo e revisado da minuta, sem comentários, sem cabeçalhos de resposta, sem markdown de bloco de código.`;
@@ -114,7 +121,10 @@ Deno.serve(async (req) => {
 
   const currentSuggestions: Suggestion[] = Array.isArray(draft.senior_review_suggestions)
     ? (draft.senior_review_suggestions as Suggestion[]) : [];
-  const accepted = currentSuggestions.filter((s) => acceptedIds.includes(s.id));
+  // Defensive: só aplica sugestões cujo ID foi enviado E que não estejam já rejeitadas/aplicadas.
+  const accepted = currentSuggestions.filter(
+    (s) => acceptedIds.includes(s.id) && s.status !== "rejected" && s.status !== "applied",
+  );
   if (accepted.length === 0) return json({ error: "accepted_ids_not_found" }, 400);
 
   const apiKey = Deno.env.get("LOVABLE_API_KEY");

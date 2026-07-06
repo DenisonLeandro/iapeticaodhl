@@ -75,7 +75,7 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
       <Card className="p-4">
         <h3 className="mb-1 text-sm font-semibold">Sugestões do revisor sênior</h3>
         <p className="text-xs text-muted-foreground">
-          A revisão sênior não gerou sugestões acionáveis automaticamente. Confira a análise em texto no painel acima.
+          A revisão foi concluída em texto, mas não gerou sugestões aplicáveis automaticamente.
         </p>
       </Card>
     );
@@ -128,10 +128,15 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
           {isApplying ? (
             <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Aplicando…</>
           ) : (
-            <><Sparkles className="mr-1 h-3 w-3" /> Aplicar sugestões aceitas na minuta ({acceptedIds.length})</>
+            <><Sparkles className="mr-1 h-3 w-3" /> Aplicar sugestões aceitas na minuta{acceptedIds.length > 0 ? ` (${acceptedIds.length})` : ""}</>
           )}
         </Button>
       </div>
+      {acceptedIds.length === 0 && !isApplying && (
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Selecione ao menos uma sugestão para aplicar.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {suggestions.map((s) => (
@@ -178,7 +183,7 @@ export default function SeniorReviewSuggestionsPanel({ draft }: Props) {
                 try {
                   const res = await applyReview.mutateAsync(acceptedIds);
                   if (res?.status === "done") {
-                    toast.success("Revisão sênior aplicada. Nova versão criada.");
+                    toast.success("Nova versão criada com a revisão sênior aplicada. A versão anterior foi preservada no histórico.");
                   } else {
                     toast.error("Não foi possível aplicar a revisão automaticamente.");
                   }

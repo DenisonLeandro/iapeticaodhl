@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Archive, Copy, Eye, Loader2, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Eye, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -59,6 +65,7 @@ export default function DraftDetailPage() {
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [confirmRegenAfterSenior, setConfirmRegenAfterSenior] = useState(false);
   const [reviewStartedAt, setReviewStartedAt] = useState<number | null>(null);
   const [reviewTimedOut, setReviewTimedOut] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
@@ -126,12 +133,18 @@ export default function DraftDetailPage() {
   };
 
   const handleRegen = () => {
+    if (draft.senior_review_status === "done") {
+      setConfirmRegenAfterSenior(true);
+      return;
+    }
     if (dirty) {
       setConfirmRegen(true);
     } else {
       navigate(`/cases/${caseId}/drafts/new`);
     }
   };
+
+  const seniorReviewDone = draft.senior_review_status === "done";
 
   const typeLabel =
     CASE_DRAFT_TYPE_LABEL[draft.draft_type as CaseDraftType] ?? draft.draft_type;
@@ -173,14 +186,29 @@ export default function DraftDetailPage() {
           <Button variant="outline" size="sm" onClick={handleCopy}>
             <Copy className="mr-1 h-4 w-4" /> Copiar minuta
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRegen}>
-            <Sparkles className="mr-1 h-4 w-4" />
-            {draft.senior_review_status === "done" ? "Regenerar minuta (fluxo inicial)" : "Regenerar minuta"}
-          </Button>
+          {!seniorReviewDone && (
+            <Button variant="outline" size="sm" onClick={handleRegen}>
+              <Sparkles className="mr-1 h-4 w-4" /> Regenerar minuta
+            </Button>
+          )}
           {draft.status !== "archived" && (
             <Button variant="outline" size="sm" onClick={handleArchive}>
               <Archive className="mr-1 h-4 w-4" /> Arquivar
             </Button>
+          )}
+          {seniorReviewDone && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" title="Mais opções">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleRegen} className="text-xs">
+                  <Sparkles className="mr-2 h-3 w-3" /> Regenerar minuta (fluxo inicial)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button size="sm" onClick={handleSave} disabled={update.isPending || !dirty}>
             {update.isPending ? (
@@ -294,6 +322,23 @@ export default function DraftDetailPage() {
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction onClick={() => navigate(`/cases/${caseId}/drafts/new`)}>
               Gerar nova minuta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRegenAfterSenior} onOpenChange={setConfirmRegenAfterSenior}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerar pelo fluxo inicial?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este comando iniciará uma nova geração pelo fluxo inicial e pode não incorporar a revisão sênior. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate(`/cases/${caseId}/drafts/new`)}>
+              Continuar mesmo assim
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
