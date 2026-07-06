@@ -134,6 +134,37 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3 text-sm">
+          <ListChecks className="h-4 w-4 text-primary" />
+          <div className="min-w-0">
+            <span className="font-medium">Mapa de Pedidos e Riscos:</span>{" "}
+            {claimMap ? (
+              <>
+                <Badge variant="outline" className="ml-1">
+                  v{claimMap.version} · {CLAIM_MAP_STATUS_LABEL[claimMap.status] ?? claimMap.status}
+                </Badge>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {claimMap.claims.length} claims
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Não gerado</span>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(`/cases/${caseData.id}/claim-map`)}
+        >
+          {claimMap ? "Abrir mapa" : "Gerar mapa"}
+          <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+
+
 
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
