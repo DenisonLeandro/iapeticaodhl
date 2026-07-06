@@ -32,9 +32,17 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
       const { data, error } = await supabase.functions.invoke("senior-legal-review", {
         body: { draft_id: draft.id },
       });
-      if (error) throw new Error(error.message);
-      if (data?.status === "failed") throw new Error(data?.error || "Falha na revisão sênior");
-      toast.success("Revisão sênior concluída.");
+      if (error) throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
+      if (data?.status === "failed") {
+        throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
+      }
+      if (data?.structured_ok === false) {
+        toast.warning(
+          "A revisão foi concluída, mas as sugestões automáticas não puderam ser estruturadas. A análise em texto continua disponível.",
+        );
+      } else {
+        toast.success("Revisão sênior concluída.");
+      }
       onRefresh();
     } catch (e) {
       toast.error((e as Error).message || "Não foi possível concluir a revisão sênior.");
@@ -80,6 +88,11 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
             <div className="text-sm">
               Nota geral: <strong>{review.overall_score}/10</strong>
               {review.should_rewrite && <span className="ml-2 rounded bg-red-500/10 px-1.5 py-0.5 text-red-700">recomenda reescrita</span>}
+            </div>
+          )}
+          {typeof (review as unknown as { senior_review?: unknown }).senior_review === "string" && (
+            <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-muted/30 p-2 text-xs leading-relaxed">
+              {(review as unknown as { senior_review: string }).senior_review}
             </div>
           )}
           <Section title="Pedidos faltantes" items={review.missing_requests} />
@@ -172,6 +185,8 @@ function Section({ title, items, tone = "warn" }: { title: string; items?: strin
 }
 
 interface SeniorReview {
+  senior_review?: string;
+  recommendation?: string;
   missing_requests?: string[];
   requests_without_documental_basis?: string[];
   outdated_grounds?: string[];
