@@ -1,11 +1,12 @@
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Users, Brain, DollarSign } from "lucide-react";
+import { User, Users, Brain, DollarSign, BookMarked } from "lucide-react";
 import UsersPage from "./UsersPage";
 import AISettingsPage from "./AISettingsPage";
 import ProfilePage from "./ProfilePage";
 import AICostsPage from "./AICostsPage";
+import PlaybooksListPage from "./PlaybooksListPage";
 
 interface TabDef {
   value: string;
@@ -20,6 +21,7 @@ const tabs: TabDef[] = [
   { value: "profile", label: "Meu Perfil", icon: User, component: <ProfilePage /> },
   { value: "users", label: "Usuários", icon: Users, adminOnly: true, component: <UsersPage /> },
   { value: "costs", label: "Custos IA", icon: DollarSign, adminOnly: true, component: <AICostsPage /> },
+  { value: "playbooks", label: "Playbooks Jurídicos", icon: BookMarked, adminOnly: true, component: <PlaybooksListPage /> },
 ];
 
 export default function SettingsPage() {

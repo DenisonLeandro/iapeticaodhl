@@ -448,6 +448,9 @@ export type Database = {
           model_used: string | null
           objective: string | null
           organization_id: string
+          playbook_compliance: Json | null
+          playbook_id: string | null
+          playbook_snapshot: Json | null
           quality_report: Json | null
           quality_status: string
           senior_review: Json | null
@@ -480,6 +483,9 @@ export type Database = {
           model_used?: string | null
           objective?: string | null
           organization_id: string
+          playbook_compliance?: Json | null
+          playbook_id?: string | null
+          playbook_snapshot?: Json | null
           quality_report?: Json | null
           quality_status?: string
           senior_review?: Json | null
@@ -512,6 +518,9 @@ export type Database = {
           model_used?: string | null
           objective?: string | null
           organization_id?: string
+          playbook_compliance?: Json | null
+          playbook_id?: string | null
+          playbook_snapshot?: Json | null
           quality_report?: Json | null
           quality_status?: string
           senior_review?: Json | null
@@ -548,6 +557,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_drafts_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "legal_playbooks"
             referencedColumns: ["id"]
           },
           {
@@ -1544,6 +1560,69 @@ export type Database = {
           results?: Json
         }
         Relationships: []
+      }
+      legal_playbooks: {
+        Row: {
+          case_subtype: string | null
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          document_type: string
+          id: string
+          is_active: boolean
+          legal_area: string
+          name: string
+          organization_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          case_subtype?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_type: string
+          id?: string
+          is_active?: boolean
+          legal_area: string
+          name: string
+          organization_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          case_subtype?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_type?: string
+          id?: string
+          is_active?: boolean
+          legal_area?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_playbooks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_playbooks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       legal_templates: {
         Row: {

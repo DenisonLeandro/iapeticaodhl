@@ -24,6 +24,9 @@ import {
   MOTORISTA_EXHIBITION_LIST,
   detectMotoristaProfile,
 } from "../_shared/legal-blocks.ts";
+import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
+import { loadApplicablePlaybook } from "../_shared/playbooks/load-playbook.ts";
+import type { LegalPlaybook } from "../_shared/playbooks/types.ts";
 
 // -----------------------------------------------------------------------
 // Post-checks determinísticos de qualidade da peça (PR-4.4B.2C)
@@ -541,6 +544,40 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
     const baseMissing = Array.isArray(draft.missing_information) ? (draft.missing_information as string[]) : [];
     const mergedMissing = Array.from(new Set([...(rewriteApplied ? rewriteMissing : baseMissing)])).slice(0, 30);
 
+    // PR-4.5A — Conformidade com Playbook (determinístico).
+    let playbookForCheck: LegalPlaybook | null =
+      (draft.playbook_snapshot as LegalPlaybook | null) ?? null;
+    if (!playbookForCheck && draft.playbook_id) {
+      const { data: pbRow } = await admin
+        .from("legal_playbooks").select("*").eq("id", draft.playbook_id).maybeSingle();
+      playbookForCheck = (pbRow as LegalPlaybook | null) ?? null;
+    }
+    if (!playbookForCheck && caseRow) {
+      const legalAreaR = String((caseRow as { legal_area?: string }).legal_area ?? "").toLowerCase();
+      playbookForCheck = await loadApplicablePlaybook(admin as never, {
+        organization_id: profile.organization_id,
+        legal_area: legalAreaR,
+        document_type: draft.draft_type === "initial_petition" ? "peticao_inicial" : String(draft.draft_type),
+        case_subtype: isMotorista ? "motorista_profissional" : null,
+      });
+    }
+    const playbookCompliance = playbookForCheck
+      ? checkPlaybookCompliance(finalContent, playbookForCheck)
+      : null;
+
+    // Adiciona findings de compliance ao quality_report
+    if (playbookCompliance) {
+      const pbFindings = [
+        ...playbookCompliance.missing_blocks.map((m) => ({ severidade: m.severity, topico: `Playbook — bloco: ${m.title}`, motivo: m.reason, sugestao: m.suggestion ?? "Ver playbook aplicado" })),
+        ...playbookCompliance.missing_requests.map((m) => ({ severidade: m.severity, topico: `Playbook — pedido: ${m.title}`, motivo: m.reason, sugestao: m.suggestion ?? "Incluir no pedido final" })),
+        ...playbookCompliance.missing_documents.map((m) => ({ severidade: m.severity, topico: `Playbook — documento: ${m.title}`, motivo: m.reason, sugestao: m.suggestion ?? "Incluir em exibição de documentos" })),
+        ...playbookCompliance.sensitive_alerts.map((m) => ({ severidade: m.severity, topico: `Playbook — tese sensível: ${m.title}`, motivo: m.reason, sugestao: m.suggestion ?? "Inserir marcador de revisão" })),
+      ];
+      const existing = Array.isArray((qualityReport as { findings?: unknown[] }).findings)
+        ? ((qualityReport as { findings: unknown[] }).findings) : [];
+      (qualityReport as Record<string, unknown>).findings = [...existing, ...pbFindings];
+    }
+
     // -----------------------------------------------------------------------
     // Persistência final
     // -----------------------------------------------------------------------
@@ -551,6 +588,7 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
       missing_information: mergedMissing,
       tokens_input: (draft.tokens_input ?? 0) + totalTokens.input,
       tokens_output: (draft.tokens_output ?? 0) + totalTokens.output,
+      playbook_compliance: playbookCompliance,
     };
     // O jurisprudence-validator pode ter alterado finalContent mesmo sem rewrite.
     if (rewriteApplied || jurisValidation.replacements > 0 || jurisValidation.vague_expressions > 0) {

@@ -129,6 +129,11 @@ export interface CaseDraft {
   senior_review_at?: string | null;
   calculation_id?: string | null;
 
+  // PR-4.5A — Playbook aplicado à geração
+  playbook_id?: string | null;
+  playbook_snapshot?: unknown | null;
+  playbook_compliance?: unknown | null;
+
   created_at: string;
   updated_at: string;
 }
