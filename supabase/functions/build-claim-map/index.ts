@@ -476,7 +476,10 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
 
     // deno-lint-ignore no-explicit-any
     let claims: any[] = (parsed as { claims: any[] }).claims;
-    if (requiredClaims.length > 0) claims = ensureRequiredClaims(claims, requiredClaims);
+    if (requiredClaims.length > 0) {
+      claims = normalizeClaimIds(claims, requiredClaims);
+      claims = ensureRequiredClaims(claims, requiredClaims);
+    }
     claims = applyDeterministicGuards(claims);
 
     const globalWarnings = Array.isArray((parsed as { global_warnings?: unknown }).global_warnings)
