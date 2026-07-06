@@ -471,6 +471,56 @@ export default function DraftChaptersPlanPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmAssemble} onOpenChange={setConfirmAssemble}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Montar petição final?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A petição final será montada a partir dos capítulos gerados. Depois disso, você poderá revisar como advogado sênior e exportar em Word/PDF. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmAssemble(false);
+                void runAssemble();
+              }}
+            >
+              Montar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!blockedList} onOpenChange={(open) => !open && setBlockedList(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Capítulos obrigatórios pendentes</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gere ou corrija os capítulos abaixo antes de montar a petição final:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-60 list-disc space-y-1 overflow-y-auto pl-6 text-sm">
+            {(blockedList ?? []).map((p) => (
+              <li key={p.section_key}>
+                <span className="font-medium">{p.section_label}</span>{" "}
+                <span className="text-xs text-muted-foreground">
+                  ({p.reason === "not_generated" ? "não gerado"
+                    : p.reason === "failed" ? "com falha"
+                    : p.reason === "empty_content" ? "sem conteúdo"
+                    : p.reason === "missing" ? "não planejado" : p.reason})
+                </span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setBlockedList(null)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
+
   );
 }
