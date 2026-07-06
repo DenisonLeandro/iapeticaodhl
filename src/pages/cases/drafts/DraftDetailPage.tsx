@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Archive, Copy, Eye, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Archive, Copy, Eye, FileDown, FileText, Loader2, MoreHorizontal, Pencil, RefreshCw, Save, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { exportDocumentToDOCX } from "@/lib/docx/export-document";
+import { exportDocumentToPDF } from "@/lib/pdf/export-document";
+import { downloadBlob } from "@/lib/document-parser";
+import { sanitizeStorageKey } from "@/lib/utils/sanitize-filename";
 import {
   DropdownMenu,
   DropdownMenuContent,
