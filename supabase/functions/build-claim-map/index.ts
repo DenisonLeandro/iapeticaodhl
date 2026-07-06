@@ -63,6 +63,7 @@ REGRAS OBRIGATÓRIAS:
 - Para "insalubridade" e "periculosidade": tipicamente uncertain (dependem de perícia).
 - Para "dano moral": geralmente exige confirmação do advogado (risk_level >= medium, requires_lawyer_confirmation=true).
 - lawyer_decision deve ser sempre "pending" nesta primeira versão.
+- Quando existir um CATÁLOGO OBRIGATÓRIO na entrada, o campo "id" DEVE ser EXATAMENTE um dos ids listados (em snake_case português, sem tradução para inglês). NÃO invente ids novos, NÃO traduza. Os títulos podem ser reescritos, mas o id precisa bater com o catálogo.
 
 FORMATO DA RESPOSTA — retorne EXCLUSIVAMENTE JSON válido:
 {
