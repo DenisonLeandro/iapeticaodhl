@@ -574,6 +574,19 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const requiredBlocksPrompt = renderRequiredBlocksForPrompt(requiredBlocks);
   const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
 
+  // PR-4.5A — Carrega playbook aplicável (área+tipo+subtipo). Não quebra se ausente.
+  const caseSubtypeHint = isMotorista
+    ? "motorista_profissional"
+    : String((intake as { ai_suggested_subtype?: string } | null)?.ai_suggested_subtype ?? "").toLowerCase() || null;
+  const playbookDocType = draftType === "initial_petition" ? "peticao_inicial" : draftType;
+  const playbook = await loadApplicablePlaybook(admin as never, {
+    organization_id: profile.organization_id,
+    legal_area: legalArea,
+    document_type: playbookDocType,
+    case_subtype: caseSubtypeHint,
+  });
+  const playbookPromptBlock = playbook ? renderPlaybookForPrompt(playbook) : "";
+
   // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt.
   // 1) Normaliza contexto a partir de todas as fontes disponíveis.
   const normalized = buildCalculationContext({
@@ -670,6 +683,8 @@ ${claimMapForPrompt}
 ${JSON.stringify(templateBlueprint)}
 
 ${requiredBlocksPrompt}
+
+${playbookPromptBlock}
 
 ${calcSummaryForPrompt}
 
