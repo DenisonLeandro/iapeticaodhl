@@ -73,12 +73,27 @@ function MissingList({ title, items }: { title: string; items: ComplianceMissing
 export default function PlaybookCompliancePanel({ draft }: Props) {
   const pb = draft?.playbook_snapshot ?? null;
   const compliance = draft?.playbook_compliance ?? null;
+  const rawStatus = (draft as unknown as { playbook_status?: string | null })?.playbook_status ?? null;
+
+  // Estado amigável para o advogado comum
+  const friendly = (() => {
+    if (rawStatus === "playbook_error") {
+      return "A peça foi gerada, mas recomenda-se revisão manual de alguns pontos.";
+    }
+    if (rawStatus === "playbook_partial") {
+      return "A peça foi gerada, mas recomenda-se revisão manual de alguns pontos.";
+    }
+    if (rawStatus === "playbook_applied" || pb) {
+      return "IA aplicou o padrão jurídico recomendado para este tipo de caso.";
+    }
+    return "Nenhum padrão jurídico específico foi encontrado. A IA gerou a peça com análise jurídica geral.";
+  })();
 
   if (!pb) {
     return (
       <Card className="p-4">
-        <h3 className="text-sm font-semibold">Conformidade com Playbook</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Nenhum playbook jurídico aplicado.</p>
+        <h3 className="text-sm font-semibold">Padrão jurídico</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{friendly}</p>
       </Card>
     );
   }
@@ -89,10 +104,10 @@ export default function PlaybookCompliancePanel({ draft }: Props) {
     "incompleto",
     "risco_alto",
   ];
-  const rawStatus = compliance?.status;
+  const rawComplianceStatus = compliance?.status;
   const status: PlaybookComplianceStatus =
-    rawStatus && KNOWN_STATUSES.includes(rawStatus as PlaybookComplianceStatus)
-      ? (rawStatus as PlaybookComplianceStatus)
+    rawComplianceStatus && KNOWN_STATUSES.includes(rawComplianceStatus as PlaybookComplianceStatus)
+      ? (rawComplianceStatus as PlaybookComplianceStatus)
       : "revisar_antes";
   const score = compliance?.score ?? 0;
   const missingBlocks = compliance?.missing_blocks ?? [];
