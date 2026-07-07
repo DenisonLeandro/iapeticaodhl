@@ -1,72 +1,25 @@
-## PR-6A.1 — Ajustes de robustez no `build-claim-map`
+## PR-6A.1 — Revalidação final (execução apenas)
 
-Escopo restrito a `supabase/functions/build-claim-map/index.ts` + reuso do helper `supabase/functions/_shared/pricing.ts`. Nenhum frontend, nenhuma migration, nenhum `case_drafts`, nenhum fluxo de geração/revisão/exportação tocado.
+Sem alteração de código, prompt, migration, frontend ou fluxos. Edge function `build-claim-map` já deployada com a versão final (incluindo `\brt\b` no detector trabalhista).
 
-### 1. Guard determinístico das 23 claims (reforço)
+### Passos
 
-`ensureRequiredClaims` já existe, mas os defaults e a ordem estão fracos. Ajustar para o padrão exigido:
+1. **Snapshot pré-execução** — `SELECT id, updated_at FROM case_drafts WHERE case_id IN (...)` para os 3 casos, para comparar depois e confirmar intocado.
+2. **Executar `build-claim-map` via `supabase--curl_edge_functions`** com `force_regenerate:true` para:
+   - `9c035db9-faf4-40b4-9339-c0341c075e5f` (contexto pobre, subject "RT")
+   - `74158d88-4733-4935-83c5-1f023a99141e` (contexto insuficiente)
+   - `9ca0912f-ca64-4a56-a4f4-0e5d1c64db4a` (Elvis, baseline rico)
+   - Se `curl_edge_functions` estourar timeout do wrapper, aguardar e conferir persistência via `read_query` (a função continua rodando no backend mesmo após o wrapper desistir).
+3. **Snapshot pós-execução** por caso:
+   - `version`, `is_current`, `jsonb_array_length(claims)`, `cost_estimate`, `tokens_input/output`, `missing_case_data`, `global_warnings`, `metadata->>'used_fallback'`.
+   - Contagem `applicable`/`uncertain`/`not_applicable`.
+   - Contagem `risk_level` high+critical.
+   - Contagem `requires_lawyer_confirmation=true`.
+   - Para Elvis: extrair claim `ferias_em_dobro` e checar `risk_level`, `recommended_action`, `requires_lawyer_confirmation`, warning ADPF 501; presença de `rescisao_indireta`, `horas_extras`, `intervalo_intrajornada`, `intervalo_interjornada`, `fgts_irregular`, `integracao_verbas_variaveis`.
+   - Presença única de `is_current=true` (`SELECT count(*) FILTER (WHERE is_current) GROUP BY case_id`).
+4. **Snapshot final `case_drafts`** — comparar com o snapshot inicial: `updated_at` inalterado.
+5. **Typecheck** — `bunx tsgo --noEmit`.
 
-- `risk_level: "medium"` (hoje: `"low"`)
-- `missing_documents: ["Contexto insuficiente para avaliar esta tese com segurança."]`
-- `warnings: ["Claim obrigatória não retornada pelo modelo; incluída por guarda determinística para revisão do advogado."]`
-- demais campos já corretos (`uncertain`, `confidence:"low"`, `recommended_action:"confirm"`, `requires_lawyer_confirmation:true`, flags de inclusão `false`, `lawyer_decision:"pending"`).
+### Relatório final (por caso)
 
-Endurecer contra "claims não-canônicas substituindo obrigatórias" no caso 9c03: após `normalizeClaimIds`, descartar entradas cujo `id` não é canônico E não conseguiu ser mapeado por alias (mantendo-as apenas se não colidirem com o catálogo). Em seguida `ensureRequiredClaims` preenche todas as 23.
-
-### 2. Fallback para contexto insuficiente (caso 74158d88)
-
-Introduzir função `buildMinimalMap(required, missingCaseDataDetectado)` que devolve os 23 claims no formato fallback acima + `missing_case_data` com bullets padrão:
-- "Ficha de atendimento (intake) ausente"
-- "Análise jurídica ausente"
-- "Documentos insuficientes ou não processados"
-- "Função, datas de admissão/rescisão, remuneração e modalidade de rescisão não identificadas"
-
-Trigger de uso:
-- Antes de chamar o LLM, detectar contexto pobre: `!intake && !analysis && (files?.length ?? 0) <= 1` e área trabalhista.
-- No path de erro do LLM (respostas 5xx, timeout, `ai_invalid_response`, ausência de `claims`): se área é trabalhista, gravar mapa mínimo em vez de 502. Retornar 200 com o mapa fallback (contendo aviso global explicando que foi fallback).
-
-Para 402 (créditos) e 429 (rate limit) manter o erro atual — são falhas operacionais reais, não contexto insuficiente.
-
-### 3. Guarda ADPF 501 / Súmula 450 (manter e endurecer)
-
-Regra atual já cobre. Ajuste pontual: quando `isFeriasDobro` for detectado e `applicability !== "not_applicable"`, garantir também que `requires_lawyer_confirmation=true` (já ok) e que o warning ADPF 501 é injetado. Sem mudança estrutural.
-
-### 4. `cost_estimate` populado
-
-Importar `estimateCost` de `../_shared/pricing.ts` (que já tem `google/gemini-2.5-pro`: input 1.25/M, output 5.00/M).
-
-- Calcular `const cost = estimateCost(model, inputTokens, outputTokens)`.
-- Persistir `cost_estimate: cost` (em vez de `null`) no insert.
-- Passar `cost_estimated: cost` para `logAiUsage` (hoje está zero).
-
-Para o path fallback (sem chamada LLM efetiva): `cost_estimate = 0`.
-
-### 5. Guardas conservadoras genéricas
-
-Adicionar passagem final em `applyDeterministicGuards`:
-- Se `applicability === "uncertain"` e `recommended_action` for `"include"` ou `"exclude"`: forçar `"confirm"` + `requires_lawyer_confirmation=true`.
-- Se `risk_level in {"high","critical"}` e `applicability !== "not_applicable"`: forçar `requires_lawyer_confirmation=true` (não mexer em `recommended_action` para não sobrescrever `warn_only` legítimo).
-
-### Revalidação (sem alteração de código)
-
-Rodar `build-claim-map` com `force_regenerate: true` via `supabase--curl_edge_functions` para:
-- **A. `9c035db9…`** — esperar 23 claims obrigatórias, sem entradas não-canônicas, `missing_case_data` populado.
-- **B. `74158d88…`** — esperar HTTP 200 com mapa mínimo de 23 claims (`uncertain`/`not_applicable`, `confidence:"low"`) e `missing_case_data` explicativo. Nenhum 502.
-- **C. Elvis `9ca0912f…`** — esperar 23 claims, `ferias_em_dobro` com warning ADPF 501, núcleo jurídico preservado, `cost_estimate` numérico > 0.
-
-Para cada caso, verificar por SQL: apenas um `is_current=true`, `version` incrementou, `cost_estimate` não-null (quando houve chamada LLM), `case_drafts` inalterado (comparar `updated_at` antes/depois).
-
-Rodar `bunx tsgo --noEmit` ao final.
-
-### Arquivos afetados
-
-- `supabase/functions/build-claim-map/index.ts` (única alteração de código real)
-- Reuso de `supabase/functions/_shared/pricing.ts` (import only)
-
-### Relatório final
-
-- Diff resumido do arquivo alterado
-- Tabela dos 3 casos: HTTP status, nº claims, `is_current`, `version`, `cost_estimate`, guarda ADPF 501, tempo total
-- Resultado do typecheck
-- Confirmação: `case_drafts` intocado, frontend intocado, migrations intocadas
-- Limitações conhecidas (ex.: oscilação de risk_level entre execuções continua existindo — não é objeto do PR-6A.1)
+Tabela com: `version`, `n_claims`, applicable/uncertain/not_applicable, high+critical, requires_lawyer_confirmation, `n_missing_case_data`, `cost_estimate`, ADPF 501 (apenas Elvis), `is_current` único, `case_drafts` intacto, typecheck.
