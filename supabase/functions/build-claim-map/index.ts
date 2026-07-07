@@ -619,7 +619,7 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
         model_used: model,
         tokens_input: inputTokens,
         tokens_output: outputTokens,
-        cost_estimate: null,
+        cost_estimate: costEstimate,
         created_by: user.id,
         updated_by: user.id,
       })
