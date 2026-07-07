@@ -454,7 +454,7 @@ ${docChunks.map((c) => `[${c.file_id.slice(0, 8)} p.${c.page_from ?? "?"}-${c.pa
       String(intake?.ai_suggested_area ?? "").toLowerCase(),
       String(caseRow.subject ?? "").toLowerCase(),
     ].join(" ");
-    const isTrabalhistaInicial = /trabalh/.test(areaSignals);
+    const isTrabalhistaInicial = /trabalh|\brt\b|reclama[cç][aã]o\s+trabalhista/.test(areaSignals);
 
     const requiredClaims = isTrabalhistaInicial ? TRABALHISTA_INICIAL_REQUIRED_CLAIMS : [];
     if (requiredClaims.length > 0) {
