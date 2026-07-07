@@ -230,6 +230,42 @@ function normalizeClaimIds(
   });
 }
 
+// Descarta claims não-canônicas (após normalização por alias) para evitar que
+// entradas inventadas pelo LLM substituam claims obrigatórias do catálogo.
+// deno-lint-ignore no-explicit-any
+function dropNonCanonicalClaims(claims: any[], required: typeof TRABALHISTA_INICIAL_REQUIRED_CLAIMS): any[] {
+  const requiredIds = new Set(required.map((r) => r.id));
+  return claims.filter((c) => c && typeof c.id === "string" && requiredIds.has(String(c.id).toLowerCase()));
+}
+
+// Constrói uma claim obrigatória no formato fallback padronizado.
+function buildFallbackClaim(req: { id: string; title: string; category: string }) {
+  return {
+    id: req.id,
+    title: req.title,
+    category: req.category,
+    applicability: "uncertain" as const,
+    confidence: "low" as const,
+    risk_level: "medium" as const,
+    recommended_action: "confirm" as const,
+    requires_lawyer_confirmation: true,
+    facts_supporting: [] as string[],
+    documents_supporting: [] as string[],
+    missing_documents: ["Contexto insuficiente para avaliar esta tese com segurança."],
+    legal_basis: [] as string[],
+    warnings: [
+      "Claim obrigatória não retornada pelo modelo; incluída por guarda determinística para revisão do advogado.",
+    ],
+    should_generate_merit_section: false,
+    should_include_in_prayer_list: false,
+    should_include_in_final_requests: false,
+    lawyer_decision: "pending" as const,
+    lawyer_decision_by: null,
+    lawyer_decision_at: null,
+    lawyer_notes: "",
+  };
+}
+
 // Completa claims obrigatórias que o LLM não retornou.
 // deno-lint-ignore no-explicit-any
 function ensureRequiredClaims(claims: any[], required: typeof TRABALHISTA_INICIAL_REQUIRED_CLAIMS): any[] {
@@ -239,33 +275,28 @@ function ensureRequiredClaims(claims: any[], required: typeof TRABALHISTA_INICIA
   }
   const merged = [...claims];
   for (const req of required) {
-    if (!byId.has(req.id)) {
-      merged.push({
-        id: req.id,
-        title: req.title,
-        category: req.category,
-        applicability: "uncertain",
-        confidence: "low",
-        risk_level: "low",
-        recommended_action: "confirm",
-        requires_lawyer_confirmation: true,
-        facts_supporting: [],
-        documents_supporting: [],
-        missing_documents: [],
-        legal_basis: [],
-        warnings: ["Claim obrigatória não avaliada pelo modelo — requer revisão manual."],
-        should_generate_merit_section: false,
-        should_include_in_prayer_list: false,
-        should_include_in_final_requests: false,
-        lawyer_decision: "pending",
-        lawyer_decision_by: null,
-        lawyer_decision_at: null,
-        lawyer_notes: "",
-      });
-    }
+    if (!byId.has(req.id)) merged.push(buildFallbackClaim(req));
   }
   return merged;
 }
+
+// Mapa mínimo estruturado para contexto insuficiente ou falha do LLM.
+function buildMinimalMap(required: typeof TRABALHISTA_INICIAL_REQUIRED_CLAIMS, extraMissing: string[] = []) {
+  const baseMissing = [
+    "Ficha de atendimento (intake) ausente ou incompleta.",
+    "Análise jurídica ainda não realizada.",
+    "Documentos processados insuficientes.",
+    "Função, datas de admissão/rescisão, remuneração e modalidade de rescisão não identificadas.",
+  ];
+  return {
+    claims: required.map(buildFallbackClaim),
+    global_warnings: [
+      "Mapa gerado em modo mínimo por contexto insuficiente. Todas as teses exigem revisão do advogado.",
+    ],
+    missing_case_data: [...baseMissing, ...extraMissing],
+  };
+}
+
 
 // ---------------------------------------------------------------------------
 // HANDLER
