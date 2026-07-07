@@ -313,7 +313,11 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
           },
         });
       } catch { /* noop */ }
-      return json({ success: false, code: "llm_http", stage: "llm", message: friendly, status: httpStatus }, httpStatus === 429 || httpStatus === 402 ? httpStatus : 502);
+      // Retorna 200 para 5xx/timeout/rede a fim de evitar blank screen no cliente
+      // (o service layer trata success:false e exibe mensagem amigável).
+      // 429 e 402 seguem com seu status original para sinalizar billing/rate-limit.
+      const httpOut = httpStatus === 429 || httpStatus === 402 ? httpStatus : 200;
+      return json({ success: false, code: "llm_http", stage: "llm", message: friendly, status: httpStatus, fallback: httpOut === 200 }, httpOut);
     }
 
     const rawText = (result.content ?? "").trim();
