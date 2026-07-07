@@ -640,7 +640,7 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
       model,
       tokens_input: inputTokens,
       tokens_output: outputTokens,
-      cost_estimated: 0,
+      cost_estimated: costEstimate,
       processing_time_ms: llmMs,
       case_id: caseId,
       prompt_summary: `build_claim_map:${caseId.slice(0, 8)}`,
@@ -650,6 +650,8 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
         http_status: httpStatus,
         area: legalArea || null,
         total_ms: Date.now() - startedAt,
+        used_fallback: usedFallback,
+        fallback_reason: fallbackReason || null,
       },
     });
 
