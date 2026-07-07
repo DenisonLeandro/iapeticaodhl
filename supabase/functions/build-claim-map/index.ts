@@ -468,8 +468,12 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
 
     const userPrompt = parts.join("\n\n");
 
+    // Detecta contexto pobre: sem intake, sem análise e no máximo 1 documento.
+    const filesCount = files?.length ?? 0;
+    const contextIsPoor = !intake && !analysis && filesCount <= 1;
+
     // -----------------------------------------------------------------------
-    // Chamada LLM
+    // Chamada LLM (pulada se contexto pobre em área trabalhista → fallback direto)
     // -----------------------------------------------------------------------
     const modelChoice = selectAIModelForTask("legal_draft_generation");
     const model = modelChoice.model;
@@ -478,61 +482,105 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
     let inputTokens = 0;
     let outputTokens = 0;
     let httpStatus = 0;
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 90_000);
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: { type: "json_object" },
-        }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-      httpStatus = res.status;
-      if (!res.ok) {
-        const detail = await res.text().catch(() => "");
-        console.error("build-claim-map:llm_error", res.status, detail.slice(0, 200));
-        if (res.status === 402) return err("llm", "Créditos da IA esgotados.", 402, "ai_credits_exhausted");
-        if (res.status === 429) return err("llm", "Limite de requisições atingido. Tente novamente em instantes.", 429, "ai_rate_limited");
-        return err("llm", "Falha ao gerar o mapa. Tente novamente.", 502, "ai_call_failed");
+    let usedFallback = false;
+    let fallbackReason = "";
+
+    if (contextIsPoor && isTrabalhistaInicial) {
+      usedFallback = true;
+      fallbackReason = "contexto insuficiente antes da chamada LLM";
+    } else {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 90_000);
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+          }),
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        httpStatus = res.status;
+        if (!res.ok) {
+          const detail = await res.text().catch(() => "");
+          console.error("build-claim-map:llm_error", res.status, detail.slice(0, 200));
+          // 402/429 são falhas operacionais reais — mantém erro cru.
+          if (res.status === 402) return err("llm", "Créditos da IA esgotados.", 402, "ai_credits_exhausted");
+          if (res.status === 429) return err("llm", "Limite de requisições atingido. Tente novamente em instantes.", 429, "ai_rate_limited");
+          if (isTrabalhistaInicial) {
+            usedFallback = true;
+            fallbackReason = `llm_http_${res.status}`;
+          } else {
+            return err("llm", "Falha ao gerar o mapa. Tente novamente.", 502, "ai_call_failed");
+          }
+        } else {
+          const data = await res.json();
+          raw = data?.choices?.[0]?.message?.content ?? "";
+          inputTokens = data?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
+          outputTokens = data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4);
+        }
+      } catch (e) {
+        const aborted = (e as Error).name === "AbortError";
+        console.error("build-claim-map:llm_exception", aborted ? "timeout" : (e as Error).message?.slice(0, 120));
+        if (isTrabalhistaInicial) {
+          usedFallback = true;
+          fallbackReason = aborted ? "llm_timeout" : "llm_exception";
+        } else {
+          return err("llm", aborted ? "Tempo esgotado ao gerar o mapa." : "Falha ao gerar o mapa.", 504, "ai_timeout");
+        }
       }
-      const data = await res.json();
-      raw = data?.choices?.[0]?.message?.content ?? "";
-      inputTokens = data?.usage?.prompt_tokens ?? Math.ceil(userPrompt.length / 4);
-      outputTokens = data?.usage?.completion_tokens ?? Math.ceil(raw.length / 4);
-    } catch (e) {
-      const aborted = (e as Error).name === "AbortError";
-      console.error("build-claim-map:llm_exception", aborted ? "timeout" : (e as Error).message?.slice(0, 120));
-      return err("llm", aborted ? "Tempo esgotado ao gerar o mapa." : "Falha ao gerar o mapa.", 504, "ai_timeout");
     }
     const llmMs = Date.now() - llmStart;
 
-    const parsed = extractJson(raw);
-    if (!parsed || !Array.isArray((parsed as { claims?: unknown }).claims)) {
-      return err("parse", "Resposta da IA inválida.", 502, "ai_invalid_response");
+    // deno-lint-ignore no-explicit-any
+    let claims: any[] = [];
+    let globalWarnings: unknown[] = [];
+    let missingCaseData: unknown[] = [];
+
+    if (!usedFallback) {
+      const parsed = extractJson(raw);
+      if (!parsed || !Array.isArray((parsed as { claims?: unknown }).claims)) {
+        if (isTrabalhistaInicial) {
+          usedFallback = true;
+          fallbackReason = "ai_invalid_response";
+        } else {
+          return err("parse", "Resposta da IA inválida.", 502, "ai_invalid_response");
+        }
+      } else {
+        // deno-lint-ignore no-explicit-any
+        claims = (parsed as { claims: any[] }).claims;
+        globalWarnings = Array.isArray((parsed as { global_warnings?: unknown }).global_warnings)
+          ? (parsed as { global_warnings: unknown[] }).global_warnings
+          : [];
+        missingCaseData = Array.isArray((parsed as { missing_case_data?: unknown }).missing_case_data)
+          ? (parsed as { missing_case_data: unknown[] }).missing_case_data
+          : [];
+      }
     }
 
-    // deno-lint-ignore no-explicit-any
-    let claims: any[] = (parsed as { claims: any[] }).claims;
-    if (requiredClaims.length > 0) {
+    if (usedFallback) {
+      const minimal = buildMinimalMap(TRABALHISTA_INICIAL_REQUIRED_CLAIMS);
+      claims = minimal.claims;
+      globalWarnings = [
+        ...minimal.global_warnings,
+        `Motivo do fallback: ${fallbackReason}.`,
+      ];
+      missingCaseData = minimal.missing_case_data;
+    } else if (requiredClaims.length > 0) {
       claims = normalizeClaimIds(claims, requiredClaims);
+      claims = dropNonCanonicalClaims(claims, requiredClaims);
       claims = ensureRequiredClaims(claims, requiredClaims);
     }
     claims = applyDeterministicGuards(claims);
 
-    const globalWarnings = Array.isArray((parsed as { global_warnings?: unknown }).global_warnings)
-      ? (parsed as { global_warnings: unknown[] }).global_warnings
-      : [];
-    const missingCaseData = Array.isArray((parsed as { missing_case_data?: unknown }).missing_case_data)
-      ? (parsed as { missing_case_data: unknown[] }).missing_case_data
-      : [];
+    const costEstimate = usedFallback ? 0 : estimateCost(model, inputTokens, outputTokens);
+
 
     // -----------------------------------------------------------------------
     // Persiste: nova versão, marca anteriores como not current.
