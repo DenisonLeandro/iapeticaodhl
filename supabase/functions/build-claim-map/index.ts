@@ -167,6 +167,18 @@ function applyDeterministicGuards(claims: any[]): any[] {
       claim.warnings = warnings;
     }
 
+    // Guardas conservadoras genéricas
+    const applic = String(claim.applicability ?? "");
+    const risk = String(claim.risk_level ?? "");
+    const action = String(claim.recommended_action ?? "");
+    if (applic === "uncertain" && (action === "include" || action === "exclude")) {
+      claim.recommended_action = "confirm";
+      claim.requires_lawyer_confirmation = true;
+    }
+    if ((risk === "high" || risk === "critical") && applic !== "not_applicable") {
+      claim.requires_lawyer_confirmation = true;
+    }
+
     // lawyer_decision sempre pending na primeira versão
     claim.lawyer_decision = "pending";
     claim.lawyer_decision_by = null;
@@ -176,6 +188,7 @@ function applyDeterministicGuards(claims: any[]): any[] {
     return claim;
   });
 }
+
 
 // Normaliza IDs quando o LLM inventar variações (ex.: em inglês) mapeando
 // para os ids canônicos por título/palavra-chave.
