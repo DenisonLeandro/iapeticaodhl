@@ -68,14 +68,13 @@ async function extractText(
     const mammoth = await import(
       "https://esm.sh/mammoth@1.7.2?target=deno&no-check"
     );
-    const result = await mammoth.extractRawText({
-      // deno-lint-ignore no-explicit-any
-      arrayBuffer: bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      ) as any,
-    });
+    // Copy into a fresh ArrayBuffer — mammoth's option detection fails on
+    // sliced/typed-array-backed buffers in Deno ("Could not find file in options").
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+    const result = await mammoth.extractRawText({ arrayBuffer: ab });
     return String(result?.value ?? "");
+
   }
 
   // PDF
