@@ -150,9 +150,33 @@ serve(async (req: Request) => {
       }),
     });
 
+    const logTelemetry = async (
+      status: "success" | "error",
+      tIn: number,
+      tOut: number,
+      extra?: Record<string, unknown>,
+    ) => {
+      if (!adminClient || !orgId || !userId) return;
+      const costEstimate = (tIn / 1_000_000) * 0.075 + (tOut / 1_000_000) * 0.30;
+      await logAiUsage(adminClient, {
+        organization_id: orgId,
+        profile_id: userId,
+        operation: "extraction",
+        provider: "lovable",
+        model: "google/gemini-2.5-flash",
+        tokens_input: tIn,
+        tokens_output: tOut,
+        cost_estimated: costEstimate,
+        processing_time_ms: Date.now() - startedAt,
+        prompt_summary: `ocr:${context}`,
+        metadata: { edge_function: "ocr-extract", status, ocr_context: context, ...(extra ?? {}) },
+      });
+    };
+
     if (!response.ok) {
       const errText = await response.text();
       console.error("AI Gateway error:", response.status, errText);
+      await logTelemetry("error", 0, 0, { http_status: response.status });
 
       if (response.status === 429) {
         return new Response(
@@ -175,18 +199,22 @@ serve(async (req: Request) => {
 
     const data = await response.json();
     const rawContent = data.choices?.[0]?.message?.content ?? "";
+    const tIn = Number(data?.usage?.prompt_tokens ?? 0);
+    const tOut = Number(data?.usage?.completion_tokens ?? Math.ceil(rawContent.length / 4));
 
     // Strip markdown fences
     const cleaned = rawContent.replace(/```json?\s*/gi, "").replace(/```/g, "").trim();
 
     try {
       const extracted = JSON.parse(cleaned);
+      await logTelemetry("success", tIn, tOut, { parse_ok: true });
       return new Response(
         JSON.stringify({ extracted }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch {
       console.error("Failed to parse AI response:", cleaned);
+      await logTelemetry("error", tIn, tOut, { parse_ok: false });
       return new Response(
         JSON.stringify({ error: "Não foi possível interpretar a resposta da IA.", raw: cleaned }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
