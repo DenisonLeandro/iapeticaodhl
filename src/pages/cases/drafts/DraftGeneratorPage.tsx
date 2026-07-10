@@ -259,6 +259,22 @@ export default function DraftGeneratorPage() {
           </p>
         </div>
 
+        <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={highPrecision}
+            onChange={(e) => setHighPrecision(e.target.checked)}
+          />
+          <div>
+            <div className="font-medium">Alta precisão (modelo forte)</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              Usa o modelo forte (mais caro) mesmo com modo econômico ativo. Recomendado
+              apenas para peças mais importantes ou complexas.
+            </div>
+          </div>
+        </label>
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Tipo de peça</Label>
