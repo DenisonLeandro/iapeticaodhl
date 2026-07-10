@@ -139,6 +139,7 @@ export default function DraftGeneratorPage() {
           use_analysis: useAnalysis && hasAnalysis,
           use_documents: useDocuments && hasDocuments,
           use_template: useTemplate && !!templateId,
+          high_precision: highPrecision,
         });
         if (res.success === false) {
           toast.warning(res.message);
@@ -167,6 +168,7 @@ export default function DraftGeneratorPage() {
         use_template: useTemplate && !!templateId,
         use_chat_history: useChatHistory,
         additional_instructions: additionalInstructions || undefined,
+        high_precision: highPrecision,
       });
       toast.success("Minuta gerada com sucesso.");
       navigate(`/cases/${caseId}/drafts/${res.draft_id}`);
