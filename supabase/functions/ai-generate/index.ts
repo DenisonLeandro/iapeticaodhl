@@ -4,6 +4,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
