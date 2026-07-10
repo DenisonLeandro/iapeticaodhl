@@ -307,6 +307,8 @@ serve(async (req) => {
         file_id: file.id,
         prompt_summary: summaryTag("extraction", file.id),
         metadata: {
+          edge_function: "extract-document-text",
+          status: "success",
           pages: totalPages,
           chars: extractedText.length,
           file_size: file.file_size,
@@ -355,7 +357,7 @@ serve(async (req) => {
       client_id: file.client_id ?? null,
       file_id: file.id,
       prompt_summary: summaryTag("extraction", file.id),
-      metadata: { chars: text.length, file_size: file.file_size, multimodal: false },
+      metadata: { edge_function: "extract-document-text", status: "success", chars: text.length, file_size: file.file_size, multimodal: false },
     });
 
     return json({ ok: true, pages: 1, chars: text.length });
