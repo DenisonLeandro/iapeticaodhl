@@ -56,6 +56,7 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startedAt = Date.now();
   try {
     const { image, context } = await req.json();
 
@@ -72,6 +73,33 @@ serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Fase 2 · Bloco 2 — telemetria best-effort (identifica usuário/org via JWT quando presente).
+    const authHeader = req.headers.get("Authorization");
+    let userId: string | null = null;
+    let orgId: string | null = null;
+    let adminClient: ReturnType<typeof createClient> | null = null;
+    try {
+      if (authHeader?.startsWith("Bearer ")) {
+        const userClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+        );
+        const { data: u } = await userClient.auth.getUser();
+        userId = u?.user?.id ?? null;
+        adminClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+          { auth: { persistSession: false } },
+        );
+        if (userId) {
+          const { data: p } = await adminClient.from("profiles").select("organization_id").eq("id", userId).maybeSingle();
+          orgId = (p?.organization_id as string | null) ?? null;
+        }
+      }
+    } catch { /* best-effort */ }
+
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
