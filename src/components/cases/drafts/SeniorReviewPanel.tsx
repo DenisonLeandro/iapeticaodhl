@@ -22,18 +22,20 @@ interface Props {
 
 export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
   const [running, setRunning] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const review = (draft as unknown as { senior_review?: SeniorReview | null }).senior_review;
   const status = (draft as unknown as { senior_review_status?: string | null }).senior_review_status;
   const qualityFindings: Finding[] = Array.isArray(draft.quality_report?.findings)
     ? (draft.quality_report!.findings as Finding[])
     : [];
 
-  const handleRun = async () => {
+  const doRun = async () => {
     setRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("senior-legal-review", {
-        body: { draft_id: draft.id },
+      const result = await withInflight(`senior-legal-review:${draft.id}`, async () => {
+        return supabase.functions.invoke("senior-legal-review", { body: { draft_id: draft.id } });
       });
+      const { data, error } = result;
       if (error) throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
       if (data?.status === "failed") {
         throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
@@ -52,6 +54,8 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
       setRunning(false);
     }
   };
+
+  const handleRun = () => setConfirmOpen(true);
 
   return (
     <Card className="p-4">
