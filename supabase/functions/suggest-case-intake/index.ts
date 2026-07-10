@@ -233,6 +233,8 @@ Deno.serve(async (req) => {
       client_id: caseRow.client_id ?? null,
       prompt_summary: summaryTag("case_analysis", `intake-${caseId}`),
       metadata: {
+        edge_function: "suggest-case-intake",
+        status: "success",
         subop: "intake_suggestion",
         has_intake: !!intake,
         has_story: !!(intake?.client_story && intake.client_story.length > 0),

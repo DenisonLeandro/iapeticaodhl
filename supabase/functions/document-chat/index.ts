@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logAiUsage } from "../_shared/usage-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -258,6 +259,35 @@ Deno.serve(async (req: Request) => {
       })
       .select("id")
       .single();
+
+    // 7.1 Telemetria best-effort — usa service role para bypass de RLS.
+    try {
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { auth: { persistSession: false } },
+      );
+      const cost = (usage.input / 1_000_000) * 0.075 + (usage.output / 1_000_000) * 0.30;
+      await logAiUsage(admin, {
+        organization_id: doc.organization_id,
+        profile_id: userId,
+        operation: "chat",
+        provider: "lovable",
+        model: MODEL,
+        tokens_input: usage.input,
+        tokens_output: usage.output,
+        cost_estimated: cost,
+        case_id: doc.case_id ?? null,
+        client_id: doc.client_id ?? null,
+        document_id: doc.id,
+        prompt_summary: `doc_chat:${doc.id.slice(0, 8)}`,
+        metadata: {
+          edge_function: "document-chat",
+          status: "success",
+          patch_type: reply.suggested_patch?.type ?? "none",
+        },
+      });
+    } catch (e) { console.error("document-chat:log_err", (e as Error).message); }
 
     return new Response(
       JSON.stringify({

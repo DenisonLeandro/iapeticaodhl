@@ -197,6 +197,8 @@ serve(async (req) => {
       file_id: file.id,
       prompt_summary: summaryTag("embedding", file.id),
       metadata: {
+        edge_function: "embed-document-chunks",
+        status: "success",
         chunks_inserted: inserted,
         total_chunks: chunks.length,
         batch_size: EMBEDDING_BATCH_SIZE,

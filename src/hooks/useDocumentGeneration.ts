@@ -24,7 +24,9 @@ interface GenerateDocumentParams {
   provider?: LLMProviderId;
   model?: string;
   processAnalysisIds?: string[];
+  highPrecision?: boolean;
 }
+
 
 type GenerationStatus = "idle" | "generating" | "success" | "error";
 
@@ -54,6 +56,7 @@ export function useDocumentGeneration() {
         prompt: userPrompt,
         systemPrompt,
         processAnalysisIds: params.processAnalysisIds ?? [],
+        high_precision: params.highPrecision === true,
       };
 
       let result: GeneratedDocument;

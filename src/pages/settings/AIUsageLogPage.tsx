@@ -1,7 +1,9 @@
 // =============================================================================
-// Fase 2 · Bloco 1 — Página "Consumo de IA" (admin only)
+// Fase 2 · Bloco 2 — Página "Consumo de IA" (admin only)
 // =============================================================================
-// Tabela + filtros básicos + cards de resumo. Sem gráficos complexos.
+// Tabela + filtros (inclui edge_function) + cards de resumo + rankings simples.
+// Compatível com logs antigos: status/cost_level/edge_function/model ausentes
+// aparecem como "—" sem quebrar a tela.
 // =============================================================================
 
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +26,7 @@ import {
 
 import { useAuth } from "@/hooks/useAuth";
 import {
+  computeRankings,
   listAIUsageLog,
   loadFilterOptions,
   summarizeUsage,
@@ -56,6 +59,7 @@ function costBadge(level: CostLevel | null | undefined) {
     level === "Muito Alto" ? "destructive"
     : level === "Alto" ? "default"
     : level === "Médio" ? "secondary"
+    : level === "Baixo" ? "outline"
     : "outline";
   return <Badge variant={variant as never}>{level ?? "—"}</Badge>;
 }
@@ -64,6 +68,11 @@ function statusBadge(status: UsageStatus | null | undefined) {
   if (status === "error") return <Badge variant="destructive">erro</Badge>;
   if (status === "success") return <Badge variant="secondary">ok</Badge>;
   return <Badge variant="outline">—</Badge>;
+}
+
+function orDash(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "—";
+  return String(v);
 }
 
 export default function AIUsageLogPage() {
@@ -77,6 +86,7 @@ export default function AIUsageLogPage() {
   const [profileId, setProfileId] = useState<string>(ANY);
   const [operation, setOperation] = useState<string>(ANY);
   const [model, setModel] = useState<string>(ANY);
+  const [edgeFn, setEdgeFn] = useState<string>(ANY);
   const [costLevel, setCostLevel] = useState<string>(ANY);
   const [status, setStatus] = useState<string>(ANY);
 
@@ -90,7 +100,8 @@ export default function AIUsageLogPage() {
     users: Array<{ id: string; label: string }>;
     operations: string[];
     models: string[];
-  }>({ users: [], operations: [], models: [] });
+    edge_functions: string[];
+  }>({ users: [], operations: [], models: [], edge_functions: [] });
 
   useEffect(() => {
     loadFilterOptions().then(setFilterOpts).catch(() => {});
@@ -102,9 +113,10 @@ export default function AIUsageLogPage() {
     profile_id: profileId === ANY ? null : profileId,
     operation: operation === ANY ? null : operation,
     model: model === ANY ? null : model,
+    edge_function: edgeFn === ANY ? null : edgeFn,
     cost_level: costLevel === ANY ? null : (costLevel as CostLevel),
     status: status === ANY ? null : (status as UsageStatus),
-  }), [fromIso, toIso, profileId, operation, model, costLevel, status]);
+  }), [fromIso, toIso, profileId, operation, model, edgeFn, costLevel, status]);
 
   const runQuery = async (nextPage = 0, append = false) => {
     setLoading(true);
@@ -124,9 +136,10 @@ export default function AIUsageLogPage() {
   useEffect(() => {
     void runQuery(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromIso, toIso, profileId, operation, model, costLevel, status]);
+  }, [fromIso, toIso, profileId, operation, model, edgeFn, costLevel, status]);
 
   const summary: UsageSummary = useMemo(() => summarizeUsage(rows), [rows]);
+  const rankings = useMemo(() => computeRankings(rows), [rows]);
 
   return (
     <div className="space-y-6">
@@ -180,6 +193,16 @@ export default function AIUsageLogPage() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label>Edge function</Label>
+            <Select value={edgeFn} onValueChange={setEdgeFn}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>Todas</SelectItem>
+                {filterOpts.edge_functions.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label>Modelo</Label>
             <Select value={model} onValueChange={setModel}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -216,6 +239,28 @@ export default function AIUsageLogPage() {
         </CardContent>
       </Card>
 
+      {/* Rankings simples */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <RankCard title="Top Edge Functions" items={rankings.top_edge_functions} suffix="chamadas" />
+        <RankCard title="Top Operations" items={rankings.top_operations} suffix="chamadas" />
+        <RankCard title="Top Modelos" items={rankings.top_models.map((r) => ({ ...r, key: r.key.split("/").pop() ?? r.key }))} suffix="chamadas" />
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Top 10 registros (maior custo)</CardTitle></CardHeader>
+          <CardContent className="space-y-1.5">
+            {rankings.top_cost.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sem custo estimado disponível.</p>
+            ) : rankings.top_cost.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate" title={`${r.edge_function} · ${r.operation}`}>
+                  {r.edge_function} · {r.operation}
+                </span>
+                <span className="font-mono text-muted-foreground">{fmtUSD(r.cost)}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Tabela */}
       <Card>
         <CardHeader><CardTitle className="text-base">Registros ({rows.length})</CardTitle></CardHeader>
@@ -233,28 +278,32 @@ export default function AIUsageLogPage() {
                     <th className="py-2 pr-2 font-normal">Data</th>
                     <th className="py-2 pr-2 font-normal">Usuário</th>
                     <th className="py-2 pr-2 font-normal">Processo</th>
+                    <th className="py-2 pr-2 font-normal">Edge function</th>
                     <th className="py-2 pr-2 font-normal">Operation</th>
-                    <th className="py-2 pr-2 font-normal">Edge/fonte</th>
                     <th className="py-2 pr-2 font-normal">Modelo</th>
                     <th className="py-2 pr-2 font-normal">Status</th>
                     <th className="py-2 pr-2 font-normal text-right">ms</th>
                     <th className="py-2 pr-2 font-normal">Nível</th>
                     <th className="py-2 pr-2 font-normal text-right">USD</th>
+                    <th className="py-2 pr-2 font-normal">Arquivo/Draft</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-border/40">
                       <td className="py-1.5 pr-2 whitespace-nowrap">{fmtDate(r.created_at)}</td>
-                      <td className="py-1.5 pr-2">{r.user_name ?? r.profile_id?.slice(0, 8) ?? "—"}</td>
-                      <td className="py-1.5 pr-2">{r.case_number ?? (r.case_id ? r.case_id.slice(0, 8) : "—")}</td>
-                      <td className="py-1.5 pr-2">{r.operation}</td>
-                      <td className="py-1.5 pr-2">{r.edge_function ?? "—"}</td>
-                      <td className="py-1.5 pr-2 whitespace-nowrap">{r.provider}/{r.model.split("/").pop()}</td>
+                      <td className="py-1.5 pr-2">{orDash(r.user_name ?? r.profile_id?.slice(0, 8))}</td>
+                      <td className="py-1.5 pr-2">{orDash(r.case_number ?? r.case_id?.slice(0, 8))}</td>
+                      <td className="py-1.5 pr-2">{orDash(r.edge_function)}</td>
+                      <td className="py-1.5 pr-2">{orDash(r.operation)}</td>
+                      <td className="py-1.5 pr-2 whitespace-nowrap">{orDash(r.model ? `${r.provider}/${r.model.split("/").pop()}` : null)}</td>
                       <td className="py-1.5 pr-2">{statusBadge(r.status)}</td>
-                      <td className="py-1.5 pr-2 text-right">{r.processing_time_ms ?? "—"}</td>
+                      <td className="py-1.5 pr-2 text-right">{orDash(r.processing_time_ms)}</td>
                       <td className="py-1.5 pr-2">{costBadge(r.cost_level)}</td>
                       <td className="py-1.5 pr-2 text-right font-mono">{fmtUSD(r.cost_estimated)}</td>
+                      <td className="py-1.5 pr-2 text-muted-foreground">
+                        {r.file_id ? `f:${r.file_id.slice(0, 6)}` : r.document_id ? `d:${r.document_id.slice(0, 6)}` : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -282,6 +331,24 @@ function SummaryCard({ label, value, sub }: { label: string; value: number | str
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-lg font-semibold mt-1 truncate">{value}</p>
         {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RankCard({ title, items, suffix }: { title: string; items: Array<{ key: string; count: number }>; suffix: string }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm">{title}</CardTitle></CardHeader>
+      <CardContent className="space-y-1.5">
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sem dados no período.</p>
+        ) : items.map((i, idx) => (
+          <div key={`${i.key}-${idx}`} className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="truncate">{idx + 1}. {i.key}</span>
+            <span className="text-muted-foreground">{i.count} {suffix}</span>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

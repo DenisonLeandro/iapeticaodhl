@@ -348,6 +348,7 @@ export default function CaseChatPanel({ caseId }: Props) {
   }, [feedback]);
 
   const [input, setInput] = useState("");
+  const [highPrecision, setHighPrecision] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
@@ -402,11 +403,11 @@ export default function CaseChatPanel({ caseId }: Props) {
       ccdLog("panel", "handleSend_skip", { empty: !text, isSending, sendingRef: sendingRef.current });
       return;
     }
-    ccdLog("panel", "handleSend_start", { text_len: text.length });
+    ccdLog("panel", "handleSend_start", { text_len: text.length, high_precision: highPrecision });
     sendingRef.current = true;
     setInput("");
     try {
-      await sendMessage(text);
+      await sendMessage(text, { highPrecision });
       ccdLog("panel", "handleSend_done", {});
     } finally {
       sendingRef.current = false;
@@ -655,6 +656,18 @@ export default function CaseChatPanel({ caseId }: Props) {
           </ScrollArea>
 
           <div className="border-t p-3">
+            <div className="mb-2 flex items-center justify-end gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3"
+                  checked={highPrecision}
+                  onChange={(e) => setHighPrecision(e.target.checked)}
+                  disabled={isSending}
+                />
+                Alta precisão (modelo forte)
+              </label>
+            </div>
             <div className="flex gap-2 items-end">
               <Textarea
                 ref={textareaRef}

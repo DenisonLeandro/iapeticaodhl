@@ -56,6 +56,7 @@ export default function DocumentWizard() {
   const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [selectedJurisprudence, setSelectedJurisprudence] = useState<JurisprudenceResult[]>([]);
   const [selectedAnalysisFileIds, setSelectedAnalysisFileIds] = useState<string[]>([]);
+  const [highPrecision, setHighPrecision] = useState(false);
   const autoSaveAttemptedRef = useRef(false);
 
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -122,6 +123,7 @@ export default function DocumentWizard() {
           documentType: data.documentType,
           context,
           processAnalysisIds: analysisIds,
+          highPrecision,
         });
 
         if (organization?.id && user?.id) {
@@ -142,7 +144,7 @@ export default function DocumentWizard() {
         // Error handled by generation hook
       }
     },
-    [generate, organization, user, logUsageMutation, selectedJurisprudence],
+    [generate, organization, user, logUsageMutation, selectedJurisprudence, highPrecision],
   );
 
   const handleFormSubmit = useCallback(
@@ -308,14 +310,27 @@ export default function DocumentWizard() {
           />
         )}
         {step === 4 && documentType && formData && (
-          <StepReview
-            documentType={documentType}
-            formData={formData}
-            selectedJurisprudence={selectedJurisprudence}
-            selectedAnalysisFileIds={selectedAnalysisFileIds}
-            onEditStep={(s) => setStep(s)}
-            onConfirm={handleNext}
-          />
+          <div className="space-y-4">
+            <StepReview
+              documentType={documentType}
+              formData={formData}
+              selectedJurisprudence={selectedJurisprudence}
+              selectedAnalysisFileIds={selectedAnalysisFileIds}
+              onEditStep={(s) => setStep(s)}
+              onConfirm={handleNext}
+            />
+            <div className="flex items-center justify-end gap-2 rounded-md border bg-muted/30 px-3 py-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5"
+                  checked={highPrecision}
+                  onChange={(e) => setHighPrecision(e.target.checked)}
+                />
+                Alta precisão (modelo forte — consome mais créditos)
+              </label>
+            </div>
+          </div>
         )}
         {step === 5 && (
           <StepDocumentResult
