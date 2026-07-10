@@ -221,6 +221,8 @@ export interface GenerateDraftPayload {
   use_template: boolean;
   use_chat_history: boolean;
   additional_instructions?: string;
+  /** Fase 2 · Bloco 1 — força modelo forte na minuta principal. */
+  high_precision?: boolean;
 }
 
 export interface GenerateDraftResponse {
