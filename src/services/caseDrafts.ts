@@ -184,6 +184,7 @@ export async function planDraftChapters(
     throw new Error(FRIENDLY);
   }
   return data as PlanChaptersResponse;
+  });
 }
 
 
