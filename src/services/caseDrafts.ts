@@ -2,6 +2,7 @@
 // PR-4.4B — Serviço de minutas do caso (case_drafts)
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
 import type {
   AssembleChaptersBlocked,
   AssembleChaptersPayload,
