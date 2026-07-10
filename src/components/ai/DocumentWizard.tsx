@@ -56,6 +56,7 @@ export default function DocumentWizard() {
   const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [selectedJurisprudence, setSelectedJurisprudence] = useState<JurisprudenceResult[]>([]);
   const [selectedAnalysisFileIds, setSelectedAnalysisFileIds] = useState<string[]>([]);
+  const [highPrecision, setHighPrecision] = useState(false);
   const autoSaveAttemptedRef = useRef(false);
 
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -122,6 +123,7 @@ export default function DocumentWizard() {
           documentType: data.documentType,
           context,
           processAnalysisIds: analysisIds,
+          highPrecision,
         });
 
         if (organization?.id && user?.id) {
@@ -142,7 +144,7 @@ export default function DocumentWizard() {
         // Error handled by generation hook
       }
     },
-    [generate, organization, user, logUsageMutation, selectedJurisprudence],
+    [generate, organization, user, logUsageMutation, selectedJurisprudence, highPrecision],
   );
 
   const handleFormSubmit = useCallback(
