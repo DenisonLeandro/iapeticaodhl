@@ -184,7 +184,7 @@ export function useCaseChat(caseId: string | undefined) {
   }, [visible]);
 
   const sendMessage = useCallback(
-    async (message: string): Promise<SendCaseChatResponse | null> => {
+    async (message: string, opts?: { highPrecision?: boolean }): Promise<SendCaseChatResponse | null> => {
       if (!caseId) throw new Error("caseId ausente");
       ccdLog("hook", "sendMessage_start", { caseId, message_len: message.length });
       setChatError(null);
@@ -213,7 +213,7 @@ export function useCaseChat(caseId: string | undefined) {
         finalResp = await streamCaseChatMessage(caseId, message, {
           onMeta: (cit) => setStreamingCitations(cit),
           onDelta: (t) => setStreamingText((prev) => prev + t),
-        });
+        }, { highPrecision: opts?.highPrecision === true });
         ccdLog("hook", "service_resolved", {
           assistantMessageId: finalResp.assistantMessageId,
           content_len: finalResp.content.length,

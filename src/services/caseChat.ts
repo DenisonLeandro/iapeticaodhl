@@ -88,6 +88,7 @@ export async function streamCaseChatMessage(
     onDone?: (resp: SendCaseChatResponse) => void;
     onError?: (err: string) => void;
   },
+  opts: { highPrecision?: boolean } = {},
 ): Promise<SendCaseChatResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -102,7 +103,7 @@ export async function streamCaseChatMessage(
       Authorization: `Bearer ${token}`,
       apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
     },
-    body: JSON.stringify({ caseId, message }),
+    body: JSON.stringify({ caseId, message, highPrecision: opts.highPrecision === true }),
   });
 
   ccdLog("service", "POST_response", { status: res.status, ok: res.ok, hasBody: !!res.body });
