@@ -85,6 +85,7 @@ export async function triggerDraftReview(draftId: string): Promise<void> {
 export async function generateCaseDraft(
   payload: GenerateDraftPayload,
 ): Promise<GenerateDraftResponse> {
+  return withInflight(`generate-legal-draft:${payload.case_id}:${payload.draft_type}`, async () => {
   const FRIENDLY = "Não foi possível gerar a minuta. Verifique os dados do caso/modelo ou tente novamente.";
   const { data, error } = await supabase.functions.invoke(
     "generate-legal-draft",
