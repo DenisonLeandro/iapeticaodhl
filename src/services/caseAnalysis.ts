@@ -2,6 +2,7 @@
 // PR-4.1A — Serviço de análise de casos
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
 
 export interface CaseAnalysisContent {
   summary: string;
