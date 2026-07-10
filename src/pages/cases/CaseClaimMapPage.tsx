@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, ListChecks, RefreshCw, Sparkles } from "lucide-react";
