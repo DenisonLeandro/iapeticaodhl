@@ -44,6 +44,7 @@ export interface AIUsageFilters {
   model?: string | null;
   cost_level?: CostLevel | null;
   status?: UsageStatus | null;
+  edge_function?: string | null;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -93,6 +94,7 @@ export async function listAIUsageLog(
   // Filtros client-side (metadata jsonb)
   if (filters.cost_level) rows = rows.filter((r) => r.cost_level === filters.cost_level);
   if (filters.status) rows = rows.filter((r) => r.status === filters.status);
+  if (filters.edge_function) rows = rows.filter((r) => (r.edge_function ?? "") === filters.edge_function);
 
   // Nomes / número do processo
   const profileIds = [...new Set(rows.map((r) => r.profile_id).filter(Boolean))] as string[];
