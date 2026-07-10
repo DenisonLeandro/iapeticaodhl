@@ -348,6 +348,7 @@ export default function CaseChatPanel({ caseId }: Props) {
   }, [feedback]);
 
   const [input, setInput] = useState("");
+  const [highPrecision, setHighPrecision] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const sendingRef = useRef(false);
@@ -402,11 +403,11 @@ export default function CaseChatPanel({ caseId }: Props) {
       ccdLog("panel", "handleSend_skip", { empty: !text, isSending, sendingRef: sendingRef.current });
       return;
     }
-    ccdLog("panel", "handleSend_start", { text_len: text.length });
+    ccdLog("panel", "handleSend_start", { text_len: text.length, high_precision: highPrecision });
     sendingRef.current = true;
     setInput("");
     try {
-      await sendMessage(text);
+      await sendMessage(text, { highPrecision });
       ccdLog("panel", "handleSend_done", {});
     } finally {
       sendingRef.current = false;
