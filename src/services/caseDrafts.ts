@@ -148,6 +148,7 @@ export async function generateCaseDraft(
 export async function planDraftChapters(
   payload: PlanChaptersPayload,
 ): Promise<PlanChaptersResponse | PlanChaptersUnsupported> {
+  return withInflight(`plan-draft-chapters:${payload.case_id}`, async () => {
   const FRIENDLY = "Não foi possível planejar os capítulos. Verifique os dados do caso e tente novamente.";
   const { data, error } = await supabase.functions.invoke("plan-draft-chapters", { body: payload });
 
