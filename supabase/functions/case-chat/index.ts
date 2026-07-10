@@ -517,6 +517,11 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
         let usageOut = 0;
         let buffer = "";
 
+        // Fase 2 · Bloco 2 — telemetria correta de stream (success vs error).
+        let streamCompleted = false;
+        let streamErrorMessage: string | null = null;
+        let sawGatewayError = false;
+
         const reader = upstream.body!.getReader();
         try {
           while (true) {
@@ -527,11 +532,19 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             buffer = lines.pop() ?? "";
             for (const raw of lines) {
               const line = raw.trim();
-              if (!line || !line.startsWith("data:")) continue;
+              if (!line || !line.startsWith("data:")) {
+                // SSE "event: error" também pode aparecer como linha sem "data:"
+                if (line.startsWith("event:") && /error/i.test(line)) sawGatewayError = true;
+                continue;
+              }
               const payload = line.slice(5).trim();
               if (payload === "[DONE]") continue;
               try {
                 const obj = JSON.parse(payload);
+                if (obj?.error) {
+                  sawGatewayError = true;
+                  streamErrorMessage = String(obj.error?.message ?? obj.error).slice(0, 240);
+                }
                 const delta = obj?.choices?.[0]?.delta?.content;
                 if (typeof delta === "string" && delta.length) {
                   assistantText += delta;
@@ -546,10 +559,12 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
               }
             }
           }
+          streamCompleted = !sawGatewayError;
         } catch (err) {
-          send({ type: "error", error: err instanceof Error ? err.message : String(err) });
-          controller.close();
-          return;
+          streamCompleted = false;
+          streamErrorMessage = err instanceof Error ? err.message : String(err);
+          send({ type: "error", error: streamErrorMessage });
+          // não retorna aqui — ainda logamos telemetria e fechamos o controller.
         }
 
         const responseTimeMs = Date.now() - startedAt;
@@ -570,38 +585,49 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           response_time_ms: responseTimeMs,
           embedding_time_ms: embedMs,
           estimated_cost_usd: estimatedCostUsd,
+          stream_completed: streamCompleted,
+          stream_error: streamErrorMessage,
         };
 
-        // Persiste resposta
-        const { data: inserted, error: asstErr } = await supabase
-          .from("case_chat_messages")
-          .insert({
-            organization_id: caseRow.organization_id,
-            case_id: caseRow.id,
-            role: "assistant",
-            content: assistantText || "(resposta vazia)",
-            metadata,
-            created_by: userId,
-          })
-          .select("id, created_at")
-          .single();
+        // Persiste resposta apenas quando o stream completou com algum texto.
+        let insertedId: string | null = null;
+        let insertedCreatedAt: string | null = null;
+        if (streamCompleted && assistantText) {
+          const { data: inserted, error: asstErr } = await supabase
+            .from("case_chat_messages")
+            .insert({
+              organization_id: caseRow.organization_id,
+              case_id: caseRow.id,
+              role: "assistant",
+              content: assistantText,
+              metadata,
+              created_by: userId,
+            })
+            .select("id, created_at")
+            .single();
 
-        if (asstErr) {
-          send({ type: "error", error: `persist assistant: ${asstErr.message}` });
-        } else {
-          send({
-            type: "done",
-            assistantMessageId: inserted.id,
-            created_at: inserted.created_at,
-            content: assistantText,
-            citations,
-            tokens: { input: usageIn, output: usageOut },
-            response_time_ms: responseTimeMs,
-            estimated_cost_usd: estimatedCostUsd,
-          });
+          if (asstErr) {
+            send({ type: "error", error: `persist assistant: ${asstErr.message}` });
+            streamErrorMessage = streamErrorMessage ?? `persist_assistant:${asstErr.message}`.slice(0, 240);
+          } else {
+            insertedId = inserted.id;
+            insertedCreatedAt = inserted.created_at;
+            send({
+              type: "done",
+              assistantMessageId: inserted.id,
+              created_at: inserted.created_at,
+              content: assistantText,
+              citations,
+              tokens: { input: usageIn, output: usageOut },
+              response_time_ms: responseTimeMs,
+              estimated_cost_usd: estimatedCostUsd,
+            });
+          }
         }
 
-        // PR-3.7: registra custo (best-effort; nunca quebra a operação)
+        // Fase 2 · Bloco 2 — telemetria consciente de erro de stream.
+        const finalStatus: "success" | "error" =
+          streamCompleted && insertedId ? "success" : "error";
         await logAiUsage(adminSupabase, {
           organization_id: caseRow.organization_id,
           profile_id: userId,
@@ -617,7 +643,11 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           prompt_summary: summaryTag("chat", caseRow.id),
           metadata: {
             edge_function: "case-chat",
-            status: "success",
+            status: finalStatus,
+            stream_completed: streamCompleted,
+            stream_error: streamErrorMessage,
+            assistant_message_id: insertedId,
+            assistant_created_at: insertedCreatedAt,
             high_precision: highPrecision,
             economy_mode: economyMode,
             embedding_model: EMBEDDING_MODEL,
@@ -638,7 +668,6 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             fallback_used: fallbackUsed,
             integral_section_present: integralSectionPresent ?? null,
           },
-
         });
 
         controller.close();
