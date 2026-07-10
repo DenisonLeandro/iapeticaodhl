@@ -252,6 +252,8 @@ export interface PlanChaptersPayload {
   use_analysis: boolean;
   use_documents: boolean;
   use_template: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte no planejamento. */
+  high_precision?: boolean;
 }
 
 export interface PlanChaptersResponse {
