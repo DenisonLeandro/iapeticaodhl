@@ -137,6 +137,7 @@ export async function generateCaseDraft(
     throw new Error(FRIENDLY);
   }
   return data as GenerateDraftResponse;
+  });
 }
 
 // =============================================================================
