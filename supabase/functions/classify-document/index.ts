@@ -137,7 +137,7 @@ ${sample}`;
       client_id: file.client_id ?? null,
       file_id: file.id,
       prompt_summary: summaryTag("classification", file.id),
-      metadata: { classification, confidence, sample_chars: sample.length },
+      metadata: { edge_function: "classify-document", status: "success", classification, confidence, sample_chars: sample.length },
     });
 
     return json({ ok: true, classification, confidence });
