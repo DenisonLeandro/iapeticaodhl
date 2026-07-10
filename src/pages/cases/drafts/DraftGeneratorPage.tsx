@@ -174,6 +174,8 @@ export default function DraftGeneratorPage() {
     }
   };
 
+  const handleGenerate = () => setConfirmOpen(true);
+
 
 
   if (caseLoading || !caseData) {
