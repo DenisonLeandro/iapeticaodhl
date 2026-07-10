@@ -645,6 +645,8 @@ Nenhum catálogo obrigatório para esta área. Gere claims relevantes para a ár
       case_id: caseId,
       prompt_summary: `build_claim_map:${caseId.slice(0, 8)}`,
       metadata: {
+        edge_function: "build-claim-map",
+        status: httpStatus >= 200 && httpStatus < 300 && !usedFallback ? "success" : usedFallback ? "success" : "error",
         version: nextVersion,
         claims_count: claims.length,
         http_status: httpStatus,
