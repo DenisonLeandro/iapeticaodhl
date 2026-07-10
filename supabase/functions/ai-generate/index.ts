@@ -340,8 +340,13 @@ Deno.serve(async (req: Request) => {
         cost_estimated: estimateCost(provider, result.tokensUsed.input, result.tokensUsed.output),
         prompt_summary: summaryTag("generation", "ai-generate"),
         metadata: {
+          edge_function: "ai-generate",
           document_type: safeDocumentType ?? null,
           tribunal: safeTribunal ?? null,
+          status: "success",
+          high_precision: highPrecision,
+          economy_mode: economyMode,
+          model_effective: effectiveModel,
         },
       });
     } catch { /* best-effort logging */ }
