@@ -310,10 +310,12 @@ Deno.serve(async (req) => {
       model: taskChoice.model,
       tokens_input: inputTokens,
       tokens_output: outputTokens,
-      cost_estimated: 0,
+      cost_estimated: estimateCostSafe(taskChoice.model, inputTokens, outputTokens),
       processing_time_ms: totalMs,
       prompt_summary: summaryTag("chat", tpl.id).replace("chat", "tpl"),
       metadata: {
+        edge_function: "analyze-legal-template",
+        status: "success",
         template_id: tpl.id,
         file_mime_type: tpl.file_mime_type,
         extracted_chars: extracted.length,
