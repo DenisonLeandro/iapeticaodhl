@@ -275,6 +275,8 @@ export interface GenerateDraftSectionPayload {
   draft_id: string;
   section_id: string;
   force_regenerate?: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte nesta seção. */
+  high_precision?: boolean;
 }
 
 export interface GenerateDraftSectionResponse {
