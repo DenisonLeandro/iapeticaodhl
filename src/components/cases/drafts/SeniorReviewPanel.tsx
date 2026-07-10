@@ -137,8 +137,8 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
         title="Executar Revisão Sênior?"
         description="A Revisão Sênior faz uma análise crítica da minuta com IA. Deseja continuar?"
         estimatedCalls={1}
-        model="gemini-2.5-pro"
-        costLevel="Alto"
+        model={highPrecision ? "gemini-2.5-pro (alta precisão)" : "gemini-2.5-pro"}
+        costLevel={highPrecision ? "Muito Alto" : "Alto"}
         confirmLabel="Executar revisão"
         onConfirm={() => { setConfirmOpen(false); void doRun(); }}
       />
