@@ -2,6 +2,7 @@
 // PR-4.4B — Serviço de minutas do caso (case_drafts)
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
 import type {
   AssembleChaptersBlocked,
   AssembleChaptersPayload,
@@ -68,20 +69,23 @@ export async function archiveCaseDraft(id: string): Promise<void> {
 }
 
 export async function triggerDraftReview(draftId: string): Promise<void> {
-  try {
-    await supabase.functions.invoke("review-legal-draft", {
-      body: { draft_id: draftId },
-    });
-  } catch (e) {
-    // Fire-and-forget — falha silenciosa; UI mostrará status via polling.
-    console.warn("triggerDraftReview failed", (e as Error).message);
-  }
+  const { withInflight } = await import("@/lib/ai/inflight-guard");
+  await withInflight(`review-legal-draft:${draftId}`, async () => {
+    try {
+      await supabase.functions.invoke("review-legal-draft", {
+        body: { draft_id: draftId },
+      });
+    } catch (e) {
+      console.warn("triggerDraftReview failed", (e as Error).message);
+    }
+  });
 }
 
 
 export async function generateCaseDraft(
   payload: GenerateDraftPayload,
 ): Promise<GenerateDraftResponse> {
+  return withInflight(`generate-legal-draft:${payload.case_id}:${payload.draft_type}`, async () => {
   const FRIENDLY = "Não foi possível gerar a minuta. Verifique os dados do caso/modelo ou tente novamente.";
   const { data, error } = await supabase.functions.invoke(
     "generate-legal-draft",
@@ -133,6 +137,7 @@ export async function generateCaseDraft(
     throw new Error(FRIENDLY);
   }
   return data as GenerateDraftResponse;
+  });
 }
 
 // =============================================================================
@@ -143,6 +148,7 @@ export async function generateCaseDraft(
 export async function planDraftChapters(
   payload: PlanChaptersPayload,
 ): Promise<PlanChaptersResponse | PlanChaptersUnsupported> {
+  return withInflight(`plan-draft-chapters:${payload.case_id}`, async () => {
   const FRIENDLY = "Não foi possível planejar os capítulos. Verifique os dados do caso e tente novamente.";
   const { data, error } = await supabase.functions.invoke("plan-draft-chapters", { body: payload });
 
@@ -178,6 +184,7 @@ export async function planDraftChapters(
     throw new Error(FRIENDLY);
   }
   return data as PlanChaptersResponse;
+  });
 }
 
 
@@ -187,6 +194,7 @@ export async function planDraftChapters(
 export async function generateDraftSection(
   payload: GenerateDraftSectionPayload,
 ): Promise<GenerateDraftSectionResponse> {
+  return withInflight(`generate-draft-section:${payload.draft_id}:${payload.section_id}`, async () => {
   const FRIENDLY = "Não foi possível gerar este capítulo. Tente novamente.";
   const { data, error } = await supabase.functions.invoke("generate-draft-section", { body: payload });
 
@@ -215,6 +223,7 @@ export async function generateDraftSection(
     throw new Error(data.message ?? FRIENDLY);
   }
   return data as GenerateDraftSectionResponse;
+  });
 }
 
 // PR-4 — Montagem determinística da petição final a partir dos capítulos.

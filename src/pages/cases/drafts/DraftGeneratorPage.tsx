@@ -31,6 +31,7 @@ import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
 import { useCaseFiles } from "@/hooks/useCaseFiles";
 import { useGenerateDraft, usePlanDraftChapters } from "@/hooks/useCaseDrafts";
+import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
 
 import { useMatchingTemplates } from "@/hooks/useMatchingTemplates";
 import {
@@ -119,7 +120,9 @@ export default function DraftGeneratorPage() {
 
   const planChapters = usePlanDraftChapters();
 
-  const handleGenerate = async () => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const doGenerate = async () => {
     if (!caseId) return;
     // PR-2 — Modo por capítulos: planeja o esqueleto e navega para a tela dedicada.
     if (mode === "chapters") {
@@ -170,6 +173,8 @@ export default function DraftGeneratorPage() {
       toast.error((e as Error).message || "Falha ao gerar minuta.");
     }
   };
+
+  const handleGenerate = () => setConfirmOpen(true);
 
 
 
@@ -406,6 +411,19 @@ export default function DraftGeneratorPage() {
           </div>
         </div>
       </Card>
+      <ConfirmAICostDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={mode === "chapters" ? "Gerar minuta por capítulos?" : "Gerar minuta?"}
+        description={mode === "chapters"
+          ? "O modo por capítulos executa múltiplas chamadas de IA (uma por seção) e pode consumir muitos créditos."
+          : "A geração processa contexto do caso, análise e documentos com IA."}
+        estimatedCalls={mode === "chapters" ? "8 a 14" : 1}
+        model="gemini-2.5-pro"
+        costLevel={mode === "chapters" ? "Muito Alto" : "Alto"}
+        confirmLabel="Gerar minuta"
+        onConfirm={() => { setConfirmOpen(false); void doGenerate(); }}
+      />
     </div>
   );
 }

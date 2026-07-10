@@ -84,3 +84,12 @@ export function summaryTag(op: AiOperation, id: string | null | undefined): stri
   if (!id) return `${op}:-`;
   return `${op}:${id.slice(0, 8)}`;
 }
+
+/** Classifica o custo estimado (USD) em um dos níveis usados pela UI. */
+export type CostLevel = "Baixo" | "Médio" | "Alto" | "Muito Alto";
+export function costLevelFromUsd(costUsd: number): CostLevel {
+  if (costUsd < 0.001) return "Baixo";
+  if (costUsd < 0.01) return "Médio";
+  if (costUsd < 0.05) return "Alto";
+  return "Muito Alto";
+}

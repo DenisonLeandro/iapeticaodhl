@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   archiveCaseDraft,
   assembleDraftChapters,
@@ -50,10 +51,13 @@ export function useGenerateDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: GenerateDraftPayload) => generateCaseDraft(payload),
-    onSuccess: (res, vars) => {
+    onSuccess: (_res, vars) => {
       qc.invalidateQueries({ queryKey: [KEY, "list", vars.case_id] });
-      // Dispara revisão automática em segundo plano (fire-and-forget).
-      if (res?.draft_id) void triggerDraftReview(res.draft_id);
+      // Otimização de créditos: revisão sênior NÃO é mais disparada automaticamente.
+      // Usuário deve clicar em "Revisar como advogado sênior" no painel do draft.
+      toast.success(
+        "Minuta gerada. Solicite a Revisão Sênior no painel do draft se desejar avaliação com IA.",
+      );
     },
   });
 }

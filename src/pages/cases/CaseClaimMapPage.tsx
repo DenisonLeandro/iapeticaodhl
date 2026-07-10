@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, ListChecks, RefreshCw, Sparkles } from "lucide-react";
@@ -23,6 +24,7 @@ export default function CaseClaimMapPage() {
   const { caseData } = useCaseDetail(caseId);
   const { data: map, isLoading } = useCurrentClaimMap(caseId);
   const build = useBuildClaimMap();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, ClaimMapClaim[]>();
@@ -34,7 +36,7 @@ export default function CaseClaimMapPage() {
     return Array.from(groups.entries());
   }, [map?.claims]);
 
-  const handleBuild = async () => {
+  const doBuild = async () => {
     if (!caseId) return;
     try {
       await build.mutateAsync(caseId);
@@ -43,6 +45,8 @@ export default function CaseClaimMapPage() {
       toast.error((e as Error).message);
     }
   };
+
+  const handleBuild = () => setConfirmOpen(true);
 
   const headerTitle = caseData?.case_number || caseData?.subject || "Caso";
 
@@ -174,6 +178,17 @@ export default function CaseClaimMapPage() {
           ))}
         </div>
       )}
+      <ConfirmAICostDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={map ? "Regerar Mapa de Pedidos e Riscos?" : "Gerar Mapa de Pedidos e Riscos?"}
+        description="Esta ação processa todo o contexto do caso com IA e pode consumir créditos. Deseja continuar?"
+        estimatedCalls={1}
+        model="gemini-2.5-pro"
+        costLevel="Muito Alto"
+        confirmLabel={map ? "Regerar mapa" : "Gerar mapa"}
+        onConfirm={() => { setConfirmOpen(false); void doBuild(); }}
+      />
     </div>
   );
 }

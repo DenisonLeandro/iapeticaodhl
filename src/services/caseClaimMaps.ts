@@ -2,6 +2,7 @@
 // PR-6A — Serviço do Mapa de Pedidos e Riscos
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
 import type {
   BuildClaimMapPayload,
   BuildClaimMapResponse,
@@ -33,6 +34,7 @@ export async function listClaimMapVersions(caseId: string): Promise<CaseClaimMap
 }
 
 export async function buildClaimMap(payload: BuildClaimMapPayload): Promise<CaseClaimMap> {
+  return withInflight(`build-claim-map:${payload.case_id}`, async () => {
   const FRIENDLY = "Não foi possível gerar o Mapa de Pedidos e Riscos. Tente novamente.";
   const { data, error } = await supabase.functions.invoke("build-claim-map", { body: payload });
 
@@ -65,4 +67,5 @@ export async function buildClaimMap(payload: BuildClaimMapPayload): Promise<Case
   const result = data as BuildClaimMapResponse;
   if (!result?.claim_map) throw new Error(FRIENDLY);
   return result.claim_map;
+  });
 }
