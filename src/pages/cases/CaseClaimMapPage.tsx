@@ -178,6 +178,17 @@ export default function CaseClaimMapPage() {
           ))}
         </div>
       )}
+      <ConfirmAICostDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={map ? "Regerar Mapa de Pedidos e Riscos?" : "Gerar Mapa de Pedidos e Riscos?"}
+        description="Esta ação processa todo o contexto do caso com IA e pode consumir créditos. Deseja continuar?"
+        estimatedCalls={1}
+        model="gemini-2.5-pro"
+        costLevel="Muito Alto"
+        confirmLabel={map ? "Regerar mapa" : "Gerar mapa"}
+        onConfirm={() => { setConfirmOpen(false); void doBuild(); }}
+      />
     </div>
   );
 }
