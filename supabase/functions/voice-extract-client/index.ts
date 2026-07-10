@@ -44,6 +44,7 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startedAt = Date.now();
   try {
     const { transcript } = await req.json();
 
@@ -62,6 +63,50 @@ serve(async (req: Request) => {
       );
     }
 
+    // Telemetria best-effort — depende de Authorization Bearer válido.
+    let userId: string | null = null;
+    let orgId: string | null = null;
+    let adminClient: ReturnType<typeof createClient> | null = null;
+    const authHeader = req.headers.get("Authorization");
+    try {
+      if (authHeader?.startsWith("Bearer ")) {
+        const uc = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+        );
+        const { data: u } = await uc.auth.getUser();
+        userId = u?.user?.id ?? null;
+        adminClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+          { auth: { persistSession: false } },
+        );
+        if (userId) {
+          const { data: p } = await adminClient.from("profiles").select("organization_id").eq("id", userId).maybeSingle();
+          orgId = (p?.organization_id as string | null) ?? null;
+        }
+      }
+    } catch { /* best-effort */ }
+
+    const logT = async (status: "success" | "error", tIn: number, tOut: number, extra?: Record<string, unknown>) => {
+      if (!adminClient || !orgId || !userId) return;
+      const cost = (tIn / 1_000_000) * 0.075 + (tOut / 1_000_000) * 0.30;
+      await logAiUsage(adminClient, {
+        organization_id: orgId,
+        profile_id: userId,
+        operation: "extraction",
+        provider: "lovable",
+        model: "google/gemini-3-flash-preview",
+        tokens_input: tIn,
+        tokens_output: tOut,
+        cost_estimated: cost,
+        processing_time_ms: Date.now() - startedAt,
+        prompt_summary: "voice_extract_client",
+        metadata: { edge_function: "voice-extract-client", status, ...(extra ?? {}) },
+      });
+    };
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -78,6 +123,7 @@ serve(async (req: Request) => {
     });
 
     if (!response.ok) {
+      await logT("error", 0, 0, { http_status: response.status });
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em instantes." }),
@@ -100,25 +146,29 @@ serve(async (req: Request) => {
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
+    const tIn = Number(data?.usage?.prompt_tokens ?? Math.ceil(transcript.length / 4));
+    const tOut = Number(data?.usage?.completion_tokens ?? Math.ceil((content ?? "").length / 4));
 
     if (!content) {
+      await logT("error", tIn, tOut, { empty_response: true });
       return new Response(
         JSON.stringify({ error: "Resposta vazia da IA." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Strip markdown fences
     const cleaned = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
 
     try {
       const extracted = JSON.parse(cleaned);
+      await logT("success", tIn, tOut, { parse_ok: true });
       return new Response(
         JSON.stringify({ extracted }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     } catch {
       console.error("Failed to parse AI response:", cleaned);
+      await logT("error", tIn, tOut, { parse_ok: false });
       return new Response(
         JSON.stringify({ error: "IA retornou formato inválido.", raw: cleaned }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
