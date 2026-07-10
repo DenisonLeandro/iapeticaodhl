@@ -6,7 +6,10 @@
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
-import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
+import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -27,6 +30,8 @@ interface Payload {
   use_analysis?: boolean;
   use_documents?: boolean;
   use_template?: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte para esta chamada. */
+  high_precision?: boolean;
 }
 
 interface SectionPlan {
@@ -111,14 +116,17 @@ async function callLlm(apiKey: string, model: string, system: string, user: stri
     });
     if (!res.ok) {
       console.warn("plan-draft-chapters:llm_http", res.status);
-      return null;
+      return { parsed: null as Record<string, unknown> | null, usage: null as { input: number; output: number } | null };
     }
     const data = await res.json();
     const raw: string = data?.choices?.[0]?.message?.content ?? "";
-    return extractJson(raw);
+    const usage = data?.usage
+      ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
+      : null;
+    return { parsed: extractJson(raw), usage };
   } catch (e) {
     console.warn("plan-draft-chapters:llm_exception", (e as Error).message);
-    return null;
+    return { parsed: null, usage: null };
   } finally {
     clearTimeout(timer);
   }
@@ -200,9 +208,14 @@ Deno.serve(async (req) => {
 
     // --- LLM: seleciona quais méritos incluir + notas curtas ---
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    const meritoChoiceModel = selectAIModelForTask("legal_intent_classification");
+    const economyMode = await getEconomyMode(admin, profile.organization_id);
+    const highPrecision = body.high_precision === true;
+    const meritoChoiceModel = selectModelForTask("plan_draft_chapters", { economyMode, highPrecision });
     let chosenMeritoKeys: string[] = [];
     let meritoNotes: Record<string, string> = {};
+    let llmUsage: { input: number; output: number } | null = null;
+    const llmStartAt = Date.now();
+    let llmStatus: "success" | "error" | "skipped" = "skipped";
 
     if (apiKey) {
       const catalogList = Object.entries(MERITO_CATALOG)
@@ -230,7 +243,9 @@ Resumo da análise: ${truncate((analysis as { content_json?: { summary?: string 
 
 Retorne JSON:
 { "merito_keys": string[], "notes": { "<merito_key>": "<nota curta em uma linha>" } }`;
-      const parsed = await callLlm(apiKey, meritoChoiceModel.model, sys, usr, 45000);
+      const { parsed, usage } = await callLlm(apiKey, meritoChoiceModel.model, sys, usr, 45000);
+      llmUsage = usage;
+      llmStatus = parsed ? "success" : "error";
       if (parsed && Array.isArray((parsed as { merito_keys?: unknown }).merito_keys)) {
         const arr = ((parsed as { merito_keys: unknown[] }).merito_keys)
           .filter((x): x is string => typeof x === "string")
@@ -245,6 +260,34 @@ Retorne JSON:
         }
       }
     }
+
+    // Telemetria da chamada LLM do plan (best-effort).
+    try {
+      const tIn = llmUsage?.input ?? 0;
+      const tOut = llmUsage?.output ?? 0;
+      const cost = estimateCost(meritoChoiceModel.model, tIn, tOut);
+      await logAiUsage(admin, {
+        organization_id: profile.organization_id,
+        profile_id: user.id,
+        operation: "legal_draft_generation",
+        provider: meritoChoiceModel.provider,
+        model: meritoChoiceModel.model,
+        tokens_input: tIn,
+        tokens_output: tOut,
+        cost_estimated: cost,
+        processing_time_ms: Date.now() - llmStartAt,
+        case_id: caseId,
+        prompt_summary: summaryTag("legal_draft_generation", caseId),
+        metadata: {
+          edge_function: "plan-draft-chapters",
+          source: "plan-draft-chapters",
+          status: llmStatus,
+          high_precision: highPrecision,
+          economy_mode: economyMode,
+          chosen_merito_count: chosenMeritoKeys.length,
+        },
+      });
+    } catch { /* best-effort */ }
 
     if (chosenMeritoKeys.length === 0) {
       chosenMeritoKeys = [...DEFAULT_MERITO_KEYS];

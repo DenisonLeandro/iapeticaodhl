@@ -5,6 +5,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
 import {
   hasProcessualFiles as hasProcessualFilesFn,
   resolveIntent,
@@ -19,7 +21,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const CHAT_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_CHAT_MODEL = "google/gemini-2.5-flash";
+const STRONG_CHAT_MODEL = "google/gemini-2.5-pro";
 const EMBEDDING_MODEL = "google/gemini-embedding-001";
 const EMBEDDING_VERSION = "gemini-embedding-001@v1";
 const EMBEDDING_DIMS = 1536;
@@ -77,6 +80,9 @@ interface ReqBody {
   caseId: string;
   message: string;
   topK?: number;
+  /** Fase 2 · Bloco 1 — força modelo forte no chat do processo. */
+  highPrecision?: boolean;
+  high_precision?: boolean;
 }
 
 interface Chunk {
@@ -190,6 +196,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false } },
     );
+
+    // Fase 2 · Bloco 1 — escolha consciente do modelo
+    const economyMode = await getEconomyMode(adminSupabase, caseRow.organization_id);
+    const highPrecision = body.highPrecision === true || body.high_precision === true;
+    const chatChoice = selectModelForTask("case_chat", { economyMode, highPrecision });
+    const CHAT_MODEL = chatChoice.model;
 
     // 2. Arquivos
     const { data: files } = await supabase

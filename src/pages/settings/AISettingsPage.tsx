@@ -27,9 +27,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 
 import ProviderCard from "@/components/settings/ProviderCard";
 import { useAISettings } from "@/hooks/useAISettings";
+import { useEconomyMode } from "@/hooks/useEconomyMode";
 import { maskApiKey } from "@/services/aiSettings";
 import { AI_PROVIDERS, getProviderOption } from "@/lib/ai/pricing";
 import type { LLMProviderId } from "@/types/ai";
@@ -191,6 +193,8 @@ export default function AISettingsPage() {
           Configure o provedor de inteligência artificial da sua organização
         </p>
       </div>
+
+      <EconomyModeCard />
 
       {/* Provider Selection */}
       <Card>
@@ -438,5 +442,56 @@ function StatCard({
         {value}
       </p>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EconomyModeCard — Fase 2 · Bloco 1
+// ---------------------------------------------------------------------------
+
+function EconomyModeCard() {
+  const { economyMode, setEconomyMode, isLoading, isSaving } = useEconomyMode();
+
+  const handleToggle = async (value: boolean) => {
+    try {
+      await setEconomyMode(value);
+      toast.success(
+        value
+          ? "Modo econômico ativado. Ações críticas continuam no modelo forte."
+          : "Modo econômico desativado. Todas as ações usarão o modelo forte por padrão.",
+      );
+    } catch (e) {
+      toast.error(`Não foi possível salvar: ${(e as Error).message}`);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Modo econômico de IA</CardTitle>
+        <CardDescription>
+          Usa modelos mais rápidos e econômicos para tarefas simples. Ações
+          críticas continuam usando modelo forte ou podem ser executadas em
+          alta precisão pelo advogado.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between gap-4">
+        <div className="text-sm">
+          <p className="font-medium">
+            {isLoading ? "Carregando…" : economyMode ? "Ativado" : "Desativado"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Padrão recomendado: ativado. O modo econômico não afeta revisão
+            sênior, análise de template e outras tarefas críticas.
+          </p>
+        </div>
+        <Switch
+          checked={economyMode}
+          onCheckedChange={handleToggle}
+          disabled={isLoading || isSaving}
+          aria-label="Modo econômico de IA"
+        />
+      </CardContent>
+    </Card>
   );
 }

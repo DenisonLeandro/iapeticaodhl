@@ -1,7 +1,8 @@
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Users, Brain, DollarSign, BookMarked } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { User, Users, Brain, DollarSign, BookMarked, Activity } from "lucide-react";
 import UsersPage from "./UsersPage";
 import AISettingsPage from "./AISettingsPage";
 import ProfilePage from "./ProfilePage";
@@ -38,10 +39,21 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
-        <p className="text-muted-foreground">Gerencie as configurações do sistema</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
+          <p className="text-muted-foreground">Gerencie as configurações do sistema</p>
+        </div>
+        {isAdmin && (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/settings/ai-usage" className="gap-2">
+              <Activity className="h-4 w-4" />
+              Consumo de IA
+            </Link>
+          </Button>
+        )}
       </div>
+
 
       <Tabs value={currentTab} onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap h-auto gap-1">

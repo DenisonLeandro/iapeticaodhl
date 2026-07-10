@@ -1,24 +1,10 @@
 // =============================================================================
 // PR-4.1A — Roteador de modelos por tarefa
+// Fase 2 · Bloco 1 — adiciona selectModelForTask(task, {economyMode, highPrecision})
 // =============================================================================
-// Centraliza a escolha do modelo por tipo de tarefa. Permite trocar de modelo
-// futuramente sem alterar as edge functions. A UI NUNCA deve consumir este
-// mapa — apenas o backend.
-//
-// Tarefas futuras já catalogadas (resolvendo hoje para o modelo estável):
-//   - analyze_case            (PR-4.1A)
-//   - summarize_documents
-//   - identify_risks
-//   - suggest_next_action
-//   - premium_review_future
-//   - draft_petition_future
-//   - review_petition_future
-//   - transcribe_audio_future
-//   - audio_transcription_future
-//   - speaker_diarization_future
-//   - analyze_meeting_transcript_future
-//   - hearing_analysis_future
-//   - video_understanding_future
+// selectAIModelForTask(task) permanece intacto para compat. Novas edge functions
+// devem preferir selectModelForTask, que respeita o "modo econômico" da org e
+// o pedido explícito do usuário por "alta precisão".
 // =============================================================================
 
 export type AITaskType =
@@ -37,7 +23,12 @@ export type AITaskType =
   | "video_understanding_future"
   | "legal_template_analysis"
   | "legal_draft_generation"
-  | "legal_intent_classification";
+  | "legal_intent_classification"
+  // Fase 2 · Bloco 1
+  | "case_chat"
+  | "ai_generate"
+  | "plan_draft_chapters"
+  | "generate_draft_section";
 
 export interface AIModelChoice {
   provider: "lovable-ai";
@@ -65,8 +56,78 @@ const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   legal_template_analysis: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
   legal_draft_generation: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
   legal_intent_classification: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  case_chat: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  ai_generate: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  plan_draft_chapters: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  generate_draft_section: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
 };
 
 export function selectAIModelForTask(task: AITaskType): AIModelChoice {
   return TASK_MAP[task] ?? { provider: "lovable-ai", model: STABLE_TEXT_MODEL };
+}
+
+// -----------------------------------------------------------------------------
+// Fase 2 · Bloco 1 — selectModelForTask consciente de custo
+// -----------------------------------------------------------------------------
+// Regras:
+//   - highPrecision=true       => sempre modelo forte (STRONG_TEXT_MODEL)
+//   - economyMode=true         => modelo econômico (STABLE_TEXT_MODEL) para
+//                                 tarefas simples/intermediárias listadas em
+//                                 ECONOMY_OVERRIDES. Tarefas críticas mantêm
+//                                 o modelo mapeado em TASK_MAP.
+//   - economyMode=false        => usa o modelo mapeado em TASK_MAP.
+// -----------------------------------------------------------------------------
+
+/**
+ * Tarefas onde o "modo econômico" força FLASH mesmo quando o TASK_MAP escolhe
+ * pro. Mantido pequeno de propósito nesta fase — só o que já foi validado.
+ */
+const ECONOMY_OVERRIDES: Set<AITaskType> = new Set<AITaskType>([
+  "plan_draft_chapters",
+  "generate_draft_section",
+  "analyze_case",
+  "case_chat",
+  "ai_generate",
+  "legal_intent_classification",
+  "summarize_documents",
+  "identify_risks",
+  "suggest_next_action",
+]);
+
+/**
+ * Tarefas críticas: NUNCA rebaixadas pelo modo econômico. Alta precisão
+ * também as mantém no modelo forte (que já é o default).
+ */
+const ALWAYS_STRONG: Set<AITaskType> = new Set<AITaskType>([
+  "legal_template_analysis",
+]);
+
+export interface SelectModelOptions {
+  economyMode: boolean;
+  highPrecision?: boolean;
+}
+
+export function selectModelForTask(
+  task: AITaskType,
+  opts: SelectModelOptions,
+): AIModelChoice {
+  const base = selectAIModelForTask(task);
+
+  // Precedência 1: highPrecision explícito → forte.
+  if (opts.highPrecision) {
+    return { provider: "lovable-ai", model: STRONG_TEXT_MODEL };
+  }
+
+  // Precedência 2: tarefas críticas sempre fortes.
+  if (ALWAYS_STRONG.has(task)) {
+    return { provider: "lovable-ai", model: STRONG_TEXT_MODEL };
+  }
+
+  // Precedência 3: modo econômico rebaixa tarefas listadas.
+  if (opts.economyMode && ECONOMY_OVERRIDES.has(task)) {
+    return { provider: "lovable-ai", model: STABLE_TEXT_MODEL };
+  }
+
+  // Default: modelo mapeado em TASK_MAP.
+  return base;
 }

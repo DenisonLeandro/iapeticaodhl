@@ -5,7 +5,8 @@
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
-import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
 import { logAiUsage } from "../_shared/usage-log.ts";
 import { estimateCost } from "../_shared/pricing.ts";
 
@@ -19,6 +20,8 @@ interface Payload {
   draft_id?: string;
   section_id?: string;
   force_regenerate?: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte para esta seção. */
+  high_precision?: boolean;
 }
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -274,7 +277,9 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
       return err("llm", "Configuração de IA indisponível.", "no_api_key", 500);
     }
 
-    const modelChoice = selectAIModelForTask("legal_draft_generation");
+    const economyMode = await getEconomyMode(admin, profile.organization_id);
+    const highPrecision = body.high_precision === true;
+    const modelChoice = selectModelForTask("generate_draft_section", { economyMode, highPrecision });
     const result = await callLlm(apiKey, modelChoice.model, system, userMsg, 90000);
 
     if (!result.ok) {
@@ -303,6 +308,7 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
           case_id: draft.case_id,
           prompt_summary: `draft_section:${sectionId.slice(0, 8)}`,
           metadata: {
+            edge_function: "generate-draft-section",
             source: "generate_draft_section",
             draft_id: draftId,
             section_id: sectionId,
@@ -310,6 +316,8 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
             status: "error",
             http_status: httpStatus,
             force_regenerate: !!body.force_regenerate,
+            high_precision: highPrecision,
+            economy_mode: economyMode,
           },
         });
       } catch { /* noop */ }
@@ -389,6 +397,7 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
         case_id: draft.case_id,
         prompt_summary: `draft_section:${sectionId.slice(0, 8)}`,
         metadata: {
+          edge_function: "generate-draft-section",
           source: "generate_draft_section",
           draft_id: draftId,
           section_id: sectionId,
@@ -400,6 +409,8 @@ Agora redija SOMENTE o texto da seção "${section.section_label}".`;
           used_intake: !!intake,
           used_analysis: !!analysis,
           force_regenerate: !!body.force_regenerate,
+          high_precision: highPrecision,
+          economy_mode: economyMode,
           content_chars: finalContent.length,
           alerts: alerts.length,
           has_placeholders: !!nextNotes.has_placeholders,
