@@ -128,6 +128,11 @@ const ECONOMY_OVERRIDES: Set<AITaskType> = new Set<AITaskType>([
  */
 const ALWAYS_STRONG: Set<AITaskType> = new Set<AITaskType>([
   "legal_template_analysis",
+  // Fase 2 · Bloco 2 — críticas jurídicas nunca rebaixadas.
+  "review_draft",
+  "senior_review",
+  "apply_senior_review",
+  "build_claim_map",
 ]);
 
 export interface SelectModelOptions {
