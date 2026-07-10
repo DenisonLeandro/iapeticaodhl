@@ -68,14 +68,16 @@ export async function archiveCaseDraft(id: string): Promise<void> {
 }
 
 export async function triggerDraftReview(draftId: string): Promise<void> {
-  try {
-    await supabase.functions.invoke("review-legal-draft", {
-      body: { draft_id: draftId },
-    });
-  } catch (e) {
-    // Fire-and-forget — falha silenciosa; UI mostrará status via polling.
-    console.warn("triggerDraftReview failed", (e as Error).message);
-  }
+  const { withInflight } = await import("@/lib/ai/inflight-guard");
+  await withInflight(`review-legal-draft:${draftId}`, async () => {
+    try {
+      await supabase.functions.invoke("review-legal-draft", {
+        body: { draft_id: draftId },
+      });
+    } catch (e) {
+      console.warn("triggerDraftReview failed", (e as Error).message);
+    }
+  });
 }
 
 
