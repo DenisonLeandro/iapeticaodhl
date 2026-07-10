@@ -23,6 +23,7 @@ interface Props {
 export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
   const [running, setRunning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [highPrecision, setHighPrecision] = useState(false);
   const review = (draft as unknown as { senior_review?: SeniorReview | null }).senior_review;
   const status = (draft as unknown as { senior_review_status?: string | null }).senior_review_status;
   const qualityFindings: Finding[] = Array.isArray(draft.quality_report?.findings)
@@ -33,7 +34,9 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
     setRunning(true);
     try {
       const result = await withInflight(`senior-legal-review:${draft.id}`, async () => {
-        return supabase.functions.invoke("senior-legal-review", { body: { draft_id: draft.id } });
+        return supabase.functions.invoke("senior-legal-review", {
+          body: { draft_id: draft.id, high_precision: highPrecision },
+        });
       });
       const { data, error } = result;
       if (error) throw new Error("Não foi possível concluir a revisão sênior. Tente novamente em instantes.");
@@ -64,13 +67,25 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
           <ShieldAlert className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Revisor jurídico sênior</h3>
         </div>
-        <Button size="sm" variant="outline" onClick={handleRun} disabled={running}>
-          {running || status === "running" ? (
-            <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Revisando…</>
-          ) : (
-            <><Sparkles className="mr-1 h-3 w-3" /> Revisar como advogado sênior</>
-          )}
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              className="h-3 w-3"
+              checked={highPrecision}
+              onChange={(e) => setHighPrecision(e.target.checked)}
+              disabled={running}
+            />
+            Alta precisão (modelo forte)
+          </label>
+          <Button size="sm" variant="outline" onClick={handleRun} disabled={running}>
+            {running || status === "running" ? (
+              <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Revisando…</>
+            ) : (
+              <><Sparkles className="mr-1 h-3 w-3" /> Revisar como advogado sênior</>
+            )}
+          </Button>
+        </div>
       </div>
 
       {qualityFindings.length > 0 && (
