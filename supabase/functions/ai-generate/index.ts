@@ -22,6 +22,8 @@ interface AIGenerateBody {
   context?: Record<string, string>;
   systemPrompt?: string;
   processAnalysisIds?: string[];
+  /** Fase 2 · Bloco 1 — força modelo forte quando provider=lovable. */
+  high_precision?: boolean;
 }
 
 interface LLMResult {
