@@ -223,6 +223,7 @@ export async function generateDraftSection(
     throw new Error(data.message ?? FRIENDLY);
   }
   return data as GenerateDraftSectionResponse;
+  });
 }
 
 // PR-4 — Montagem determinística da petição final a partir dos capítulos.
