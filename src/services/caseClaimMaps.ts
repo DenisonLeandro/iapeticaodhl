@@ -67,4 +67,5 @@ export async function buildClaimMap(payload: BuildClaimMapPayload): Promise<Case
   const result = data as BuildClaimMapResponse;
   if (!result?.claim_map) throw new Error(FRIENDLY);
   return result.claim_map;
+  });
 }
