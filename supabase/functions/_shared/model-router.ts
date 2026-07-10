@@ -28,7 +28,21 @@ export type AITaskType =
   | "case_chat"
   | "ai_generate"
   | "plan_draft_chapters"
-  | "generate_draft_section";
+  | "generate_draft_section"
+  // Fase 2 · Bloco 2 — chaves novas para logging padronizado
+  | "review_draft"
+  | "senior_review"
+  | "apply_senior_review"
+  | "build_claim_map"
+  | "classify_document"
+  | "suggest_case_intake"
+  | "document_chat"
+  | "pdf_analyze"
+  | "ocr_extract"
+  | "voice_extract"
+  | "voice_extract_client"
+  | "embed_chunks"
+  | "extract_text_multimodal";
 
 export interface AIModelChoice {
   provider: "lovable-ai";
