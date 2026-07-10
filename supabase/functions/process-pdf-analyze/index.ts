@@ -447,24 +447,35 @@ Deno.serve(async (req) => {
     error?: string;
   }) => {
     try {
+      // Fase 2 · Bloco 2 — enriquece metadata para o painel de Consumo de IA.
+      const costEstimate = (params.tokensIn / 1_000_000) * 0.075 + (params.tokensOut / 1_000_000) * 0.30;
+      const costLevel =
+        costEstimate < 0.001 ? "Baixo"
+        : costEstimate < 0.01 ? "Médio"
+        : costEstimate < 0.05 ? "Alto"
+        : "Muito Alto";
+      const finalStatus: "success" | "error" = params.status === "success" ? "success" : "error";
       await admin.from("ai_usage_log").insert({
         organization_id: userOrgId,
         profile_id: userId,
+        operation: "pdf_analyze",
         provider: "lovable",
         model: MODEL,
         tokens_input: params.tokensIn,
         tokens_output: params.tokensOut,
-        cost_estimated: 0,
-        prompt_summary: JSON.stringify({
-          kind: "pdf_analyze",
-          file_id: fileId,
-          client_id: fileRec.client_id,
-          case_id: fileRec.case_id,
+        cost_estimated: Number(costEstimate.toFixed(6)),
+        case_id: fileRec.case_id ?? null,
+        client_id: fileRec.client_id ?? null,
+        file_id: fileId,
+        prompt_summary: `pdf_analyze:${fileId.slice(0, 8)}`,
+        metadata: {
+          edge_function: "process-pdf-analyze",
+          status: finalStatus,
+          cost_level: costLevel,
           represented_party: resolvedParty,
           chars: params.chars,
-          status: params.status,
           error: params.error,
-        }).slice(0, 2000),
+        },
       });
     } catch (e) {
       console.error("ai_usage_log insert failed", e);
