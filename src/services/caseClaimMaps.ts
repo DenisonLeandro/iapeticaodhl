@@ -2,6 +2,7 @@
 // PR-6A — Serviço do Mapa de Pedidos e Riscos
 // =============================================================================
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
 import type {
   BuildClaimMapPayload,
   BuildClaimMapResponse,
