@@ -2,6 +2,8 @@
 // Edge Function: voice-extract — Extract structured form data from voice text
 // Uses Lovable AI Gateway
 // =============================================================================
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { logAiUsage } from "../_shared/usage-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
