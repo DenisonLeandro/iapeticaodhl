@@ -194,6 +194,7 @@ export async function planDraftChapters(
 export async function generateDraftSection(
   payload: GenerateDraftSectionPayload,
 ): Promise<GenerateDraftSectionResponse> {
+  return withInflight(`generate-draft-section:${payload.draft_id}:${payload.section_id}`, async () => {
   const FRIENDLY = "Não foi possível gerar este capítulo. Tente novamente.";
   const { data, error } = await supabase.functions.invoke("generate-draft-section", { body: payload });
 
