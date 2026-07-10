@@ -234,14 +234,16 @@ function FileRow({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reprocessar análise</AlertDialogTitle>
+                  <AlertDialogTitle>Reprocessar análise com IA?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Deseja reprocessar este documento? A análise anterior será substituída.
+                    Este documento já foi processado. Reprocessar consome créditos de IA
+                    novamente (nível estimado: <strong className="text-orange-600">Alto</strong>,
+                    modelo gemini-2.5-flash). A análise anterior será substituída.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={runAnalyze}>Reprocessar</AlertDialogAction>
+                  <AlertDialogAction onClick={runAnalyze}>Reprocessar mesmo assim</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
