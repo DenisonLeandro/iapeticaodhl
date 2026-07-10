@@ -74,6 +74,20 @@ const TASK_MAP: Record<AITaskType, AIModelChoice> = {
   ai_generate: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   plan_draft_chapters: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
   generate_draft_section: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  // Fase 2 · Bloco 2 — críticas jurídicas mantêm modelo forte por padrão.
+  review_draft: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  senior_review: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  apply_senior_review: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  build_claim_map: { provider: "lovable-ai", model: STRONG_TEXT_MODEL },
+  classify_document: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  suggest_case_intake: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  document_chat: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  pdf_analyze: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  ocr_extract: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  voice_extract: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  voice_extract_client: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  embed_chunks: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
+  extract_text_multimodal: { provider: "lovable-ai", model: STABLE_TEXT_MODEL },
 };
 
 export function selectAIModelForTask(task: AITaskType): AIModelChoice {
