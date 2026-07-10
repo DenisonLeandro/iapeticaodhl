@@ -7,6 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { logAiUsage } from "../_shared/usage-log.ts";
 import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -265,11 +266,13 @@ Avalie a minuta como advogado sênior e retorne o relatório JSON solicitado, in
       model: taskChoice.model,
       tokens_input: res.input_tokens,
       tokens_output: res.output_tokens,
-      cost_estimated: 0,
+      cost_estimated: estimateCost(taskChoice.model, res.input_tokens, res.output_tokens),
       processing_time_ms: Date.now() - startedAt,
       case_id: draft.case_id,
       prompt_summary: `senior:${draftId.slice(0, 8)}`,
       metadata: {
+        edge_function: "senior-legal-review",
+        status: parseFailed ? "error" : "success",
         overall_score: typeof (structured as { overall_score?: number }).overall_score === "number"
           ? (structured as { overall_score: number }).overall_score : null,
         should_rewrite: (structured as { should_rewrite?: boolean }).should_rewrite === true,
