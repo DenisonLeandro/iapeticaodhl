@@ -61,6 +61,7 @@ export default function DraftGeneratorPage() {
   const [useDocuments, setUseDocuments] = useState(true);
   const [useTemplate, setUseTemplate] = useState(true);
   const [useChatHistory, setUseChatHistory] = useState(false);
+  const [highPrecision, setHighPrecision] = useState(false);
 
 
   const hasIntake = !!intake;
