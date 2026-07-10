@@ -616,6 +616,10 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
           client_id: caseRow.client_id ?? null,
           prompt_summary: summaryTag("chat", caseRow.id),
           metadata: {
+            edge_function: "case-chat",
+            status: streamErrored ? "error" : "success",
+            high_precision: highPrecision,
+            economy_mode: economyMode,
             embedding_model: EMBEDDING_MODEL,
             embedding_tokens_approx: embedTokensApprox,
             top_k: detectedIntent ? detectedIntent.topKFinal : TOP_K_FINAL,
