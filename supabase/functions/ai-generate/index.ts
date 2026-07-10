@@ -287,14 +287,30 @@ Deno.serve(async (req: Request) => {
     const enrichedPrompt = analysisBlock ? `${prompt}${analysisBlock}` : prompt;
     let result: LLMResult;
 
+    // Fase 2 · Bloco 1 — quando provider=lovable e o front não amarra o modelo
+    // a um id explícito (fluxos internos), respeitamos economy_mode/high_precision.
+    const economyMode = await getEconomyMode(serviceSupabase, organizationId);
+    const highPrecision = body.high_precision === true;
+    let effectiveModel = model;
     if (provider === "lovable") {
-      result = await callLovableAI(enrichedPrompt, model, sysPrompt);
+      const choice = selectModelForTask("ai_generate", { economyMode, highPrecision });
+      // Se o front enviou o default genérico, aplicamos a escolha do roteador.
+      // Se o usuário/organização escolheu um modelo específico, respeitamos.
+      const isDefaultGeneric =
+        model === "google/gemini-3-flash-preview" ||
+        model === "google/gemini-2.5-flash" ||
+        model === "google/gemini-2.5-pro";
+      if (isDefaultGeneric) effectiveModel = choice.model;
+    }
+
+    if (provider === "lovable") {
+      result = await callLovableAI(enrichedPrompt, effectiveModel, sysPrompt);
     } else {
       const apiKey = await getOrgApiKey(organizationId, provider);
       switch (provider) {
-        case "openai": result = await callOpenAI(enrichedPrompt, model, apiKey, sysPrompt); break;
-        case "gemini": result = await callGemini(enrichedPrompt, model, apiKey, sysPrompt); break;
-        case "claude": result = await callClaude(enrichedPrompt, model, apiKey, sysPrompt); break;
+        case "openai": result = await callOpenAI(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
+        case "gemini": result = await callGemini(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
+        case "claude": result = await callClaude(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
         default:
           return new Response(JSON.stringify({ error: `Unsupported provider: ${provider}` }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
