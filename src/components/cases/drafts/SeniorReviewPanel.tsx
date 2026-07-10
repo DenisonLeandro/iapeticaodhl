@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/lib/backend/client";
+import { withInflight } from "@/lib/ai/inflight-guard";
+import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
 import type { CaseDraft } from "@/types/caseDraft";
 
 interface Finding {
