@@ -656,6 +656,18 @@ export default function CaseChatPanel({ caseId }: Props) {
           </ScrollArea>
 
           <div className="border-t p-3">
+            <div className="mb-2 flex items-center justify-end gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3"
+                  checked={highPrecision}
+                  onChange={(e) => setHighPrecision(e.target.checked)}
+                  disabled={isSending}
+                />
+                Alta precisão (modelo forte)
+              </label>
+            </div>
             <div className="flex gap-2 items-end">
               <Textarea
                 ref={textareaRef}
