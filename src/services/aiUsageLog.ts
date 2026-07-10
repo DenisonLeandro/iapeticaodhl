@@ -18,6 +18,8 @@ export interface AIUsageLogRow {
   organization_id: string;
   case_id: string | null;
   client_id: string | null;
+  file_id: string | null;
+  document_id: string | null;
   operation: string;
   provider: string;
   model: string;
@@ -65,7 +67,7 @@ export async function listAIUsageLog(
   let q = supabase
     .from("ai_usage_log")
     .select(
-      "id, created_at, profile_id, organization_id, case_id, client_id, operation, provider, model, tokens_input, tokens_output, cost_estimated, processing_time_ms, prompt_summary, metadata",
+      "id, created_at, profile_id, organization_id, case_id, client_id, file_id, document_id, operation, provider, model, tokens_input, tokens_output, cost_estimated, processing_time_ms, prompt_summary, metadata",
     )
     .order("created_at", { ascending: false })
     .range(from, to);
