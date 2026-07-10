@@ -4,6 +4,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +22,8 @@ interface AIGenerateBody {
   context?: Record<string, string>;
   systemPrompt?: string;
   processAnalysisIds?: string[];
+  /** Fase 2 · Bloco 1 — força modelo forte quando provider=lovable. */
+  high_precision?: boolean;
 }
 
 interface LLMResult {
@@ -283,14 +287,30 @@ Deno.serve(async (req: Request) => {
     const enrichedPrompt = analysisBlock ? `${prompt}${analysisBlock}` : prompt;
     let result: LLMResult;
 
+    // Fase 2 · Bloco 1 — quando provider=lovable e o front não amarra o modelo
+    // a um id explícito (fluxos internos), respeitamos economy_mode/high_precision.
+    const economyMode = await getEconomyMode(serviceSupabase, organizationId);
+    const highPrecision = body.high_precision === true;
+    let effectiveModel = model;
     if (provider === "lovable") {
-      result = await callLovableAI(enrichedPrompt, model, sysPrompt);
+      const choice = selectModelForTask("ai_generate", { economyMode, highPrecision });
+      // Se o front enviou o default genérico, aplicamos a escolha do roteador.
+      // Se o usuário/organização escolheu um modelo específico, respeitamos.
+      const isDefaultGeneric =
+        model === "google/gemini-3-flash-preview" ||
+        model === "google/gemini-2.5-flash" ||
+        model === "google/gemini-2.5-pro";
+      if (isDefaultGeneric) effectiveModel = choice.model;
+    }
+
+    if (provider === "lovable") {
+      result = await callLovableAI(enrichedPrompt, effectiveModel, sysPrompt);
     } else {
       const apiKey = await getOrgApiKey(organizationId, provider);
       switch (provider) {
-        case "openai": result = await callOpenAI(enrichedPrompt, model, apiKey, sysPrompt); break;
-        case "gemini": result = await callGemini(enrichedPrompt, model, apiKey, sysPrompt); break;
-        case "claude": result = await callClaude(enrichedPrompt, model, apiKey, sysPrompt); break;
+        case "openai": result = await callOpenAI(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
+        case "gemini": result = await callGemini(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
+        case "claude": result = await callClaude(enrichedPrompt, effectiveModel, apiKey, sysPrompt); break;
         default:
           return new Response(JSON.stringify({ error: `Unsupported provider: ${provider}` }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -320,8 +340,13 @@ Deno.serve(async (req: Request) => {
         cost_estimated: estimateCost(provider, result.tokensUsed.input, result.tokensUsed.output),
         prompt_summary: summaryTag("generation", "ai-generate"),
         metadata: {
+          edge_function: "ai-generate",
           document_type: safeDocumentType ?? null,
           tribunal: safeTribunal ?? null,
+          status: "success",
+          high_precision: highPrecision,
+          economy_mode: economyMode,
+          model_effective: effectiveModel,
         },
       });
     } catch { /* best-effort logging */ }

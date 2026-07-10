@@ -20,6 +20,12 @@ export interface LLMConfig {
   model: string;
   api_key: string;
   max_docs_per_month?: number;
+  /**
+   * Fase 2 · Bloco 1 — Modo econômico de IA.
+   * Default true. Prioriza modelos rápidos/baratos para tarefas simples.
+   * Ações críticas continuam usando modelo forte, salvo se `high_precision`.
+   */
+  economy_mode?: boolean;
 }
 
 export interface UsageStatsRow {

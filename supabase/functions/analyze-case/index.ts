@@ -9,7 +9,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
-import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { selectModelForTask } from "../_shared/model-router.ts";
+import { getEconomyMode } from "../_shared/economy-mode.ts";
 import { estimateCost } from "../_shared/pricing.ts";
 
 const corsHeaders = {
@@ -66,6 +67,9 @@ ${STRUCTURE}`;
 interface ReqBody {
   caseId: string;
   force?: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte para esta análise. */
+  highPrecision?: boolean;
+  high_precision?: boolean;
 }
 
 interface ChunkLite {
@@ -220,7 +224,9 @@ Deno.serve(async (req) => {
     }
 
     // 2. Cria linha running
-    const taskChoice = selectAIModelForTask("analyze_case");
+    const economyMode = await getEconomyMode(adminSupabase, caseRow.organization_id);
+    const highPrecision = body.highPrecision === true || body.high_precision === true;
+    const taskChoice = selectModelForTask("analyze_case", { economyMode, highPrecision });
     const { data: createdRow, error: createErr } = await adminSupabase
       .from("case_analyses")
       .insert({
@@ -550,10 +556,14 @@ Deno.serve(async (req) => {
       client_id: caseRow.client_id ?? null,
       prompt_summary: summaryTag("case_analysis", analysisId),
       metadata: {
+        edge_function: "analyze-case",
         strategy,
         chunks_used: contextBlocks.length,
         files_done: filesDone.length,
         parse_ok: parseOk,
+        status: parseOk ? "success" : "error",
+        high_precision: highPrecision,
+        economy_mode: economyMode,
       },
     });
 

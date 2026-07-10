@@ -221,6 +221,8 @@ export interface GenerateDraftPayload {
   use_template: boolean;
   use_chat_history: boolean;
   additional_instructions?: string;
+  /** Fase 2 · Bloco 1 — força modelo forte na minuta principal. */
+  high_precision?: boolean;
 }
 
 export interface GenerateDraftResponse {
@@ -250,6 +252,8 @@ export interface PlanChaptersPayload {
   use_analysis: boolean;
   use_documents: boolean;
   use_template: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte no planejamento. */
+  high_precision?: boolean;
 }
 
 export interface PlanChaptersResponse {
@@ -271,6 +275,8 @@ export interface GenerateDraftSectionPayload {
   draft_id: string;
   section_id: string;
   force_regenerate?: boolean;
+  /** Fase 2 · Bloco 1 — força modelo forte nesta seção. */
+  high_precision?: boolean;
 }
 
 export interface GenerateDraftSectionResponse {

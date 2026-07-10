@@ -61,6 +61,7 @@ export default function DraftGeneratorPage() {
   const [useDocuments, setUseDocuments] = useState(true);
   const [useTemplate, setUseTemplate] = useState(true);
   const [useChatHistory, setUseChatHistory] = useState(false);
+  const [highPrecision, setHighPrecision] = useState(false);
 
 
   const hasIntake = !!intake;
@@ -138,6 +139,7 @@ export default function DraftGeneratorPage() {
           use_analysis: useAnalysis && hasAnalysis,
           use_documents: useDocuments && hasDocuments,
           use_template: useTemplate && !!templateId,
+          high_precision: highPrecision,
         });
         if (res.success === false) {
           toast.warning(res.message);
@@ -166,6 +168,7 @@ export default function DraftGeneratorPage() {
         use_template: useTemplate && !!templateId,
         use_chat_history: useChatHistory,
         additional_instructions: additionalInstructions || undefined,
+        high_precision: highPrecision,
       });
       toast.success("Minuta gerada com sucesso.");
       navigate(`/cases/${caseId}/drafts/${res.draft_id}`);
@@ -255,6 +258,22 @@ export default function DraftGeneratorPage() {
             O advogado deverá revisar fundamentos, jurisprudência e valores antes do protocolo.
           </p>
         </div>
+
+        <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={highPrecision}
+            onChange={(e) => setHighPrecision(e.target.checked)}
+          />
+          <div>
+            <div className="font-medium">Alta precisão (modelo forte)</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              Usa o modelo forte (mais caro) mesmo com modo econômico ativo. Recomendado
+              apenas para peças mais importantes ou complexas.
+            </div>
+          </div>
+        </label>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -419,7 +438,7 @@ export default function DraftGeneratorPage() {
           ? "O modo por capítulos executa múltiplas chamadas de IA (uma por seção) e pode consumir muitos créditos."
           : "A geração processa contexto do caso, análise e documentos com IA."}
         estimatedCalls={mode === "chapters" ? "8 a 14" : 1}
-        model="gemini-2.5-pro"
+        model={highPrecision ? "gemini-2.5-pro" : "gemini-2.5-flash"}
         costLevel={mode === "chapters" ? "Muito Alto" : "Alto"}
         confirmLabel="Gerar minuta"
         onConfirm={() => { setConfirmOpen(false); void doGenerate(); }}

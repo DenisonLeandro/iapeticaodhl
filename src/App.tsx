@@ -13,6 +13,7 @@ import AuthPanel from "./components/auth/AuthPanel";
 import Dashboard from "./pages/Dashboard.tsx";
 import UsersPage from "./pages/settings/UsersPage.tsx";
 import AISettingsPage from "./pages/settings/AISettingsPage.tsx";
+import AIUsageLogPage from "./pages/settings/AIUsageLogPage.tsx";
 import HelpPage from "./pages/HelpPage.tsx";
 
 import CasesPage from "./pages/cases/CasesPage.tsx";
@@ -81,9 +82,9 @@ const App = () => (
                 <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/templates/:id" element={<TemplateDetailPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/ai-usage" element={<AIUsageLogPage />} />
                 <Route path="/settings/profile" element={<Navigate to="/settings?tab=profile" replace />} />
                 <Route path="/settings/users" element={<Navigate to="/settings?tab=users" replace />} />
-                <Route path="/settings/ai" element={<Navigate to="/settings?tab=ai" replace />} />
                 <Route path="/settings/ai" element={<Navigate to="/settings?tab=ai" replace />} />
                 <Route path="/settings/integrations" element={<Navigate to="/settings?tab=ai" replace />} />
                 <Route path="/help" element={<HelpPage />} />
