@@ -31,6 +31,7 @@ import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
 import { useCaseFiles } from "@/hooks/useCaseFiles";
 import { useGenerateDraft, usePlanDraftChapters } from "@/hooks/useCaseDrafts";
+import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
 
 import { useMatchingTemplates } from "@/hooks/useMatchingTemplates";
 import {
