@@ -24,8 +24,6 @@ export default function CaseClaimMapPage() {
   const { caseData } = useCaseDetail(caseId);
   const { data: map, isLoading } = useCurrentClaimMap(caseId);
   const build = useBuildClaimMap();
-
-  const build = useBuildClaimMap();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const grouped = useMemo(() => {
