@@ -120,7 +120,9 @@ export default function DraftGeneratorPage() {
 
   const planChapters = usePlanDraftChapters();
 
-  const handleGenerate = async () => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const doGenerate = async () => {
     if (!caseId) return;
     // PR-2 — Modo por capítulos: planeja o esqueleto e navega para a tela dedicada.
     if (mode === "chapters") {
