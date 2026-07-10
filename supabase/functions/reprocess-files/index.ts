@@ -102,5 +102,5 @@ serve(async (req) => {
     body: JSON.stringify({ source: "reprocess" }),
   }).catch(() => {});
 
-  return json({ ok: true, enqueued: rows.length, stage, target_version: target });
+  return json({ ok: true, enqueued: rows.length, stage, target_version: target, force, skipped });
 });
