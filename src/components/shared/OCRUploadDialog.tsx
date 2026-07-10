@@ -184,6 +184,12 @@ export default function OCRUploadDialog({
           )}
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          A extração usa IA multimodal (gemini-2.5-flash). Consumo estimado: <strong className="text-orange-600">Médio-Alto</strong>.
+        </p>
+
+
+
         <DialogFooter>
           <Button
             type="button"
