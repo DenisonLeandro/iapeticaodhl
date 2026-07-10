@@ -34,6 +34,7 @@ export async function listClaimMapVersions(caseId: string): Promise<CaseClaimMap
 }
 
 export async function buildClaimMap(payload: BuildClaimMapPayload): Promise<CaseClaimMap> {
+  return withInflight(`build-claim-map:${payload.case_id}`, async () => {
   const FRIENDLY = "Não foi possível gerar o Mapa de Pedidos e Riscos. Tente novamente.";
   const { data, error } = await supabase.functions.invoke("build-claim-map", { body: payload });
 
