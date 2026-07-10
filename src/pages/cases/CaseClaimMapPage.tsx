@@ -25,6 +25,9 @@ export default function CaseClaimMapPage() {
   const { data: map, isLoading } = useCurrentClaimMap(caseId);
   const build = useBuildClaimMap();
 
+  const build = useBuildClaimMap();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const grouped = useMemo(() => {
     const groups = new Map<string, ClaimMapClaim[]>();
     for (const c of map?.claims ?? []) {
@@ -35,7 +38,7 @@ export default function CaseClaimMapPage() {
     return Array.from(groups.entries());
   }, [map?.claims]);
 
-  const handleBuild = async () => {
+  const doBuild = async () => {
     if (!caseId) return;
     try {
       await build.mutateAsync(caseId);
@@ -44,6 +47,8 @@ export default function CaseClaimMapPage() {
       toast.error((e as Error).message);
     }
   };
+
+  const handleBuild = () => setConfirmOpen(true);
 
   const headerTitle = caseData?.case_number || caseData?.subject || "Caso";
 
