@@ -411,6 +411,19 @@ export default function DraftGeneratorPage() {
           </div>
         </div>
       </Card>
+      <ConfirmAICostDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={mode === "chapters" ? "Gerar minuta por capítulos?" : "Gerar minuta?"}
+        description={mode === "chapters"
+          ? "O modo por capítulos executa múltiplas chamadas de IA (uma por seção) e pode consumir muitos créditos."
+          : "A geração processa contexto do caso, análise e documentos com IA."}
+        estimatedCalls={mode === "chapters" ? "8 a 14" : 1}
+        model="gemini-2.5-pro"
+        costLevel={mode === "chapters" ? "Muito Alto" : "Alto"}
+        confirmLabel="Gerar minuta"
+        onConfirm={() => { setConfirmOpen(false); void doGenerate(); }}
+      />
     </div>
   );
 }
