@@ -158,21 +158,25 @@ export async function loadFilterOptions(): Promise<{
   users: Array<{ id: string; label: string }>;
   operations: string[];
   models: string[];
+  edge_functions: string[];
 }> {
   const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
   const { data } = await supabase
     .from("ai_usage_log")
-    .select("profile_id, operation, model")
+    .select("profile_id, operation, model, metadata")
     .gte("created_at", since)
     .limit(5000);
-  const rows = (data ?? []) as Array<{ profile_id: string | null; operation: string; model: string }>;
+  const rows = (data ?? []) as Array<{ profile_id: string | null; operation: string; model: string; metadata: Record<string, unknown> | null }>;
   const uSet = new Set<string>();
   const opSet = new Set<string>();
   const mSet = new Set<string>();
+  const efSet = new Set<string>();
   for (const r of rows) {
     if (r.profile_id) uSet.add(r.profile_id);
     if (r.operation) opSet.add(r.operation);
     if (r.model) mSet.add(r.model);
+    const ef = (r.metadata?.edge_function as string | undefined) ?? (r.metadata?.source as string | undefined);
+    if (ef) efSet.add(ef);
   }
   const ids = [...uSet];
   let users: Array<{ id: string; label: string }> = ids.map((id) => ({ id, label: id.slice(0, 8) }));
@@ -182,5 +186,45 @@ export async function loadFilterOptions(): Promise<{
     const nm = new Map((profiles ?? []).map((p) => [p.id as string, (p.full_name ?? p.id) as string]));
     users = ids.map((id) => ({ id, label: nm.get(id) ?? id.slice(0, 8) }));
   }
-  return { users, operations: [...opSet].sort(), models: [...mSet].sort() };
+  return { users, operations: [...opSet].sort(), models: [...mSet].sort(), edge_functions: [...efSet].sort() };
+}
+
+// ---------------------------------------------------------------------------
+// Rankings (Fase 2 · Bloco 2) — computados sobre o dataset já carregado.
+// ---------------------------------------------------------------------------
+export interface RankItem { key: string; count: number }
+export interface CostRankItem { id: string; edge_function: string; operation: string; model: string; cost: number; created_at: string }
+
+function topByKey(rows: AIUsageLogRow[], keyFn: (r: AIUsageLogRow) => string | null | undefined, limit = 10): RankItem[] {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const k = keyFn(r);
+    if (!k) continue;
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return [...m.entries()]
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+export function computeRankings(rows: AIUsageLogRow[]) {
+  return {
+    top_edge_functions: topByKey(rows, (r) => r.edge_function ?? "—"),
+    top_operations: topByKey(rows, (r) => r.operation),
+    top_models: topByKey(rows, (r) => r.model),
+    top_cost: [...rows]
+      .filter((r) => typeof r.cost_estimated === "number" && (r.cost_estimated ?? 0) > 0)
+      .sort((a, b) => (b.cost_estimated ?? 0) - (a.cost_estimated ?? 0))
+      .slice(0, 10)
+      .map<CostRankItem>((r) => ({
+        id: r.id,
+        edge_function: r.edge_function ?? "—",
+        operation: r.operation,
+        model: r.model,
+        cost: r.cost_estimated ?? 0,
+        created_at: r.created_at,
+      })),
+  };
+}
 }
