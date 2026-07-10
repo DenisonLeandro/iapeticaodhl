@@ -116,6 +116,17 @@ export default function SeniorReviewPanel({ draft, onRefresh }: Props) {
           </p>
         </div>
       )}
+      <ConfirmAICostDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Executar Revisão Sênior?"
+        description="A Revisão Sênior faz uma análise crítica da minuta com IA. Deseja continuar?"
+        estimatedCalls={1}
+        model="gemini-2.5-pro"
+        costLevel="Alto"
+        confirmLabel="Executar revisão"
+        onConfirm={() => { setConfirmOpen(false); void doRun(); }}
+      />
     </Card>
   );
 }
