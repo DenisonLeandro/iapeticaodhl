@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { logAiUsage } from "../_shared/usage-log.ts";
 import { selectAIModelForTask } from "../_shared/model-router.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 import { validateJurisprudence } from "../_shared/jurisprudence-validator.ts";
 import { detectSensitiveAlerts } from "../_shared/sensitive-theses.ts";
 import {
@@ -636,7 +637,7 @@ Reescreva a peça expandindo/aprofundando tudo. NÃO reduza. Continue proibida a
       model: taskChoice.model,
       tokens_input: totalTokens.input,
       tokens_output: totalTokens.output,
-      cost_estimated: estimateCostSafe(taskChoice.model, totalTokens.input, totalTokens.output),
+      cost_estimated: estimateCost(taskChoice.model, totalTokens.input, totalTokens.output),
       processing_time_ms: Date.now() - startedAt,
       case_id: draft.case_id,
       prompt_summary: `review:${draftId.slice(0, 8)}`,
