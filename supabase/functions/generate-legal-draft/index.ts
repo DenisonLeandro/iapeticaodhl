@@ -1002,6 +1002,36 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   // Telemetria (metadados apenas — sem conteúdo, sem claim_map, sem relato)
   // -------------------------------------------------------------------------
   try {
+    const costEstimated = estimateCost(taskChoice.model, totalTokens.input, totalTokens.output);
+
+    // Baseline: última geração do mesmo caso (para comparação de custo/tokens).
+    let baseline: {
+      tokens_input: number | null;
+      tokens_output: number | null;
+      cost_estimated: number | null;
+      created_at: string | null;
+    } | null = null;
+    try {
+      const { data: prev } = await admin
+        .from("ai_usage_log")
+        .select("tokens_input,tokens_output,cost_estimated,created_at")
+        .eq("case_id", caseId)
+        .eq("operation", "legal_draft_generation")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (prev) {
+        baseline = {
+          tokens_input: (prev.tokens_input as number | null) ?? null,
+          tokens_output: (prev.tokens_output as number | null) ?? null,
+          cost_estimated: (prev.cost_estimated as number | null) ?? null,
+          created_at: (prev.created_at as string | null) ?? null,
+        };
+      }
+    } catch (_e) {
+      baseline = null;
+    }
+
     await logAiUsage(admin, {
       organization_id: profile.organization_id,
       profile_id: user.id,
@@ -1010,13 +1040,15 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       model: taskChoice.model,
       tokens_input: totalTokens.input,
       tokens_output: totalTokens.output,
-      cost_estimated: 0,
+      cost_estimated: costEstimated,
       processing_time_ms: Date.now() - startedAt,
       case_id: caseId,
       prompt_summary: `draft:${inserted.id.slice(0, 8)}`,
       metadata: {
+        edge_function: "generate-legal-draft",
         draft_type: draftType,
         template_id: sourcesUsed.template ? body.template_id : null,
+        template_name: sourcesUsed.template ? ((template?.name as string) ?? null) : null,
         legal_area: (intake?.legal_area as string) ?? null,
         use_intake: sourcesUsed.intake,
         use_analysis: sourcesUsed.analysis,
@@ -1028,11 +1060,30 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
         claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
         quality_status: "pending",
         content_chars: content.length,
+        // PR-Q1A — controle de uso do template e custo
+        extracted_text_available: !!(template && (template.extracted_text as string | null)),
+        template_excerpt_total_chars: templateExcerpt.total_chars,
+        template_excerpt_opening_chars: templateExcerpt.opening.length,
+        template_excerpt_style_chars: templateExcerpt.style.length,
+        template_excerpt_requests_chars: templateExcerpt.requests.length,
+        template_excerpt_found_via: templateExcerpt.found_via,
+        template_uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+        template_has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+        template_compatible: templateCompatible,
+        light_audit_placeholder_count: lightAudit.placeholder_total,
+        light_audit_has_pedidos: lightAudit.has_pedidos_section,
+        light_audit_missing_dados_funcionais: lightAudit.missing_dados_funcionais,
+        light_audit_roman_numerals: lightAudit.uses_roman_numerals_predominantly,
+        light_audit_final_bullets: lightAudit.final_requests_use_bullets,
+        cost_baseline_case: baseline ?? "sem baseline comparável",
+        cost_delta_tokens_input: baseline?.tokens_input != null ? totalTokens.input - baseline.tokens_input : null,
+        cost_delta_estimated_usd: baseline?.cost_estimated != null ? costEstimated - baseline.cost_estimated : null,
       },
     });
   } catch (_e) {
     console.error("generate-legal-draft:telemetry_failed");
   }
+
 
   return ok({
     draft_id: inserted.id,
