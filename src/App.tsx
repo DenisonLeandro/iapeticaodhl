@@ -64,6 +64,7 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/ai/new" element={<NewDocument />} />
                 <Route path="/ai/documents" element={<DocumentsPage />} />
+                <Route path="/ai/documents/:id" element={<DocumentEditPage />} />
                 <Route path="/ai/documents/:id/edit" element={<DocumentEditPage />} />
                 <Route path="/ai" element={<Navigate to="/ai/new" replace />} />
                 <Route path="/clients" element={<ClientsPage />} />
