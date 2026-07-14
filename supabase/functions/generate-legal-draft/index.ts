@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
   if (body.use_template !== false && body.template_id) {
     const { data } = await admin
       .from("legal_templates")
-      .select("id,organization_id,name,legal_area,piece_type,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines")
+      .select("id,organization_id,name,legal_area,piece_type,main_topic,represented_party,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines,extracted_text")
       .eq("id", body.template_id).maybeSingle();
     if (data && (data as Record<string, unknown>).organization_id === profile.organization_id) {
       template = data;
