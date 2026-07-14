@@ -855,12 +855,43 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   warnings.push("A revisão automática de qualidade ainda não foi executada.");
   if (isTrabalhistaInicial) warnings.push(NON_LIMITATION_WARNING);
 
-  const qualityReport: Record<string, unknown> | null = null;
+  // PR-Q1A — Auditoria leve determinística (sem IA)
+  const lightAudit = runLightDraftAudit(content, templateExcerpt);
+  if (lightAudit.placeholder_total > 0) {
+    const labels = lightAudit.placeholder_hits.map((h) => `${h.label}×${h.count}`).join(", ");
+    warnings.push(`Placeholders críticos detectados na minuta: ${labels}. Revisar antes do protocolo.`);
+  }
+  if (!lightAudit.has_pedidos_section) {
+    warnings.push("A minuta não parece conter uma seção clara de PEDIDOS. Revisar estrutura.");
+  }
+  if (lightAudit.missing_dados_funcionais) {
+    warnings.push("O modelo do escritório contém bloco \"DADOS FUNCIONAIS\" e a minuta não. Considere ajustar.");
+  }
+  if (lightAudit.uses_roman_numerals_predominantly) {
+    warnings.push("O modelo do escritório usa numeração arábica (1.-, 2.-) e a minuta usa romanos (I, II). Revisar numeração.");
+  }
+  if (lightAudit.final_requests_use_bullets) {
+    warnings.push("O rol final usa bullets, mas o modelo do escritório usa itens numerados. Revisar formatação do pedido final.");
+  }
+
+  const qualityReport: Record<string, unknown> = {
+    light_audit: lightAudit,
+    template_excerpt: {
+      total_chars: templateExcerpt.total_chars,
+      opening_chars: templateExcerpt.opening.length,
+      style_chars: templateExcerpt.style.length,
+      requests_chars: templateExcerpt.requests.length,
+      found_via: templateExcerpt.found_via,
+      has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+      uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+    },
+  };
 
   const mergedWarningsSet = new Set<string>();
   for (const w of warnings) mergedWarningsSet.add(w);
   for (const w of draftWarnings) mergedWarningsSet.add(w);
   const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
+
 
 
   // -------------------------------------------------------------------------
