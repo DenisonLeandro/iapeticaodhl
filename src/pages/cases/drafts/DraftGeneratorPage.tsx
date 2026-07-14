@@ -235,19 +235,26 @@ export default function DraftGeneratorPage() {
               <div>
                 <div className="text-sm font-medium">Gerar petição completa — modo rápido</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  Gera a minuta inteira de uma vez. Indicado para casos simples ou urgentes.
+                  Gera a minuta inteira de uma vez. Modo padrão recomendado.
                 </div>
               </div>
             </label>
-            <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "chapters" ? "border-primary/60 bg-primary/5" : ""}`}>
-              <RadioGroupItem value="chapters" className="mt-1" />
-              <div>
-                <div className="text-sm font-medium">Gerar por capítulos — qualidade máxima</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  A IA monta primeiro a estrutura da peça, separando fatos, fundamentos, pedidos individuais, rol de pedidos com valores e requerimentos finais. Indicado para peças mais importantes ou complexas.
+            {isAdmin && (
+              <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${mode === "chapters" ? "border-primary/60 bg-primary/5" : ""}`}>
+                <RadioGroupItem value="chapters" className="mt-1" />
+                <div>
+                  <div className="text-sm font-medium">
+                    Gerar por capítulos
+                    <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600">
+                      Experimental — apenas admin/testes
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Modo em avaliação. Temporariamente oculto para usuários comuns enquanto a qualidade é validada.
+                  </div>
                 </div>
-              </div>
-            </label>
+              </label>
+            )}
           </RadioGroup>
         </div>
 
