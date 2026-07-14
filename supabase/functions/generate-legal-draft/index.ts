@@ -30,6 +30,9 @@ import { buildCalculationContext } from "../_shared/calc-engine/normalize-contex
 import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 import { loadApplicablePlaybook, renderPlaybookForPrompt } from "../_shared/playbooks/load-playbook.ts";
 import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
+import { buildTemplateExcerpt, runLightDraftAudit } from "../_shared/template-excerpt.ts";
+import { buildOfficeStyleGuide } from "../_shared/style-guide.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 
 
