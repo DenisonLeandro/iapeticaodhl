@@ -766,6 +766,13 @@ ${claimMapForPrompt}
 # TEMPLATE_BLUEPRINT (régua mínima estrutural)
 ${JSON.stringify(templateBlueprint)}
 
+${templateExcerptPromptBlock}
+
+${styleGuidePromptBlock}
+
+${officeRulesPromptBlock}
+
+
 ${requiredBlocksPrompt}
 
 ${playbookPromptBlock}
