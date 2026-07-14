@@ -32,6 +32,7 @@ import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
 import { useCaseFiles } from "@/hooks/useCaseFiles";
 import { useGenerateDraft, usePlanDraftChapters } from "@/hooks/useCaseDrafts";
 import ConfirmAICostDialog from "@/components/ai/ConfirmAICostDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 import { useMatchingTemplates } from "@/hooks/useMatchingTemplates";
 import {
@@ -44,6 +45,8 @@ import MatchingTemplatePicker from "@/components/cases/drafts/MatchingTemplatePi
 export default function DraftGeneratorPage() {
   const { id: caseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const { caseData, isLoading: caseLoading } = useCaseDetail(caseId);
   const { intake } = useCaseIntake(caseId, caseData?.client_id);
   const { analysis } = useCaseAnalysis(caseId);
