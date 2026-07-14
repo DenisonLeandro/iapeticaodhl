@@ -30,6 +30,9 @@ import { buildCalculationContext } from "../_shared/calc-engine/normalize-contex
 import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 import { loadApplicablePlaybook, renderPlaybookForPrompt } from "../_shared/playbooks/load-playbook.ts";
 import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
+import { buildTemplateExcerpt, runLightDraftAudit } from "../_shared/template-excerpt.ts";
+import { buildOfficeStyleGuide } from "../_shared/style-guide.ts";
+import { estimateCost } from "../_shared/pricing.ts";
 
 
 
@@ -460,7 +463,7 @@ Deno.serve(async (req) => {
   if (body.use_template !== false && body.template_id) {
     const { data } = await admin
       .from("legal_templates")
-      .select("id,organization_id,name,legal_area,piece_type,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines")
+      .select("id,organization_id,name,legal_area,piece_type,main_topic,represented_party,structure_summary,style_summary,standard_sections,topic_structure,writing_patterns,request_patterns,risk_notes,usage_guidelines,extracted_text")
       .eq("id", body.template_id).maybeSingle();
     if (data && (data as Record<string, unknown>).organization_id === profile.organization_id) {
       template = data;
@@ -573,6 +576,64 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const requiredBlocks = getRequiredBlocks(legalArea, draftType, isMotorista);
   const requiredBlocksPrompt = renderRequiredBlocksForPrompt(requiredBlocks);
   const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
+
+  // ---------------------------------------------------------------------------
+  // PR-Q1A — Excerpt curto e style guide do escritório
+  // Teto hard: 6.000 chars totais de texto literal do modelo no prompt.
+  // ---------------------------------------------------------------------------
+  const templateExcerpt = template
+    ? buildTemplateExcerpt(
+        (template.extracted_text as string | null) ?? null,
+        {
+          main_topic: (template.main_topic as string | null) ?? (intake?.ai_suggested_subtype as string | null) ?? null,
+          piece_type: (template.piece_type as string | null) ?? null,
+          legal_area: (template.legal_area as string | null) ?? null,
+        },
+      )
+    : buildTemplateExcerpt(null);
+
+  const templateExcerptHasContent = templateExcerpt.total_chars > 0;
+  const templateCompatible =
+    !!template &&
+    templateExcerpt.uses_arabic_numbering; // aplica style guide forte só quando o modelo usa arábico
+
+  const officeStyleGuide = template
+    ? buildOfficeStyleGuide({
+        uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+        has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+        is_trabalhista_inicial: isTrabalhistaInicial,
+      })
+    : "";
+
+  const templateExcerptPromptBlock = templateExcerptHasContent
+    ? `# [MODELO DO ESCRITÓRIO — TRECHOS LITERAIS (fonte dominante de estrutura, numeração, linguagem, forma de pedir e fechamento)]
+REGRA: use estes trechos como referência DOMINANTE de estilo e forma. NÃO copie fatos, partes, valores, datas, endereços, CPFs/CNPJs nem fundamentos específicos — esses dados pertencem a outro caso.
+
+[ABERTURA DO MODELO]
+${templateExcerpt.opening || "(sem trecho de abertura identificado)"}
+
+[ESTILO / MÉRITO DO MODELO]
+${templateExcerpt.style || "(sem trecho de mérito identificado)"}
+
+[FORMA DE PEDIR / PEDIDO FINAL DO MODELO]
+${templateExcerpt.requests || "(sem trecho de pedidos identificado)"}
+`
+    : "";
+
+  const styleGuidePromptBlock = officeStyleGuide
+    ? `# ${officeStyleGuide}`
+    : "";
+
+  // Regras adicionais obrigatórias do PR-Q1A quando há template compatível
+  const officeRulesPromptBlock = template
+    ? `# REGRAS OBRIGATÓRIAS (MODELO DOMINANTE)
+- Quando houver modelo do escritório selecionado, o modelo é fonte dominante de estrutura, linguagem, numeração, forma de pedir e fechamento. Não substitua por estrutura genérica de IA.
+- Não resuma excessivamente a petição se o modelo-base for robusto. A peça deve ter densidade proporcional ao modelo, respeitando os fatos e documentos disponíveis.
+- Todos os pedidos tratados nos tópicos de mérito devem aparecer no rol final de pedidos.
+- Todo item do rol final deve ter correspondência no corpo da peça, salvo pedidos processuais padrão.
+- Se faltar dado essencial, sinalize de forma controlada em seção final "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" ou em missing_information — NÃO INVENTAR e NÃO deixar placeholders crus como [NOME], [CPF], [ENDEREÇO], [INSERIR VALOR], NOME DO ADVOGADO, OAB/[UF].`
+    : "";
+
 
   // PR-4.5A — Carrega playbook aplicável (área+tipo+subtipo). Não quebra se ausente.
   const caseSubtypeHint = isMotorista
@@ -705,6 +766,13 @@ ${claimMapForPrompt}
 # TEMPLATE_BLUEPRINT (régua mínima estrutural)
 ${JSON.stringify(templateBlueprint)}
 
+${templateExcerptPromptBlock}
+
+${styleGuidePromptBlock}
+
+${officeRulesPromptBlock}
+
+
 ${requiredBlocksPrompt}
 
 ${playbookPromptBlock}
@@ -787,12 +855,43 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   warnings.push("A revisão automática de qualidade ainda não foi executada.");
   if (isTrabalhistaInicial) warnings.push(NON_LIMITATION_WARNING);
 
-  const qualityReport: Record<string, unknown> | null = null;
+  // PR-Q1A — Auditoria leve determinística (sem IA)
+  const lightAudit = runLightDraftAudit(content, templateExcerpt);
+  if (lightAudit.placeholder_total > 0) {
+    const labels = lightAudit.placeholder_hits.map((h) => `${h.label}×${h.count}`).join(", ");
+    warnings.push(`Placeholders críticos detectados na minuta: ${labels}. Revisar antes do protocolo.`);
+  }
+  if (!lightAudit.has_pedidos_section) {
+    warnings.push("A minuta não parece conter uma seção clara de PEDIDOS. Revisar estrutura.");
+  }
+  if (lightAudit.missing_dados_funcionais) {
+    warnings.push("O modelo do escritório contém bloco \"DADOS FUNCIONAIS\" e a minuta não. Considere ajustar.");
+  }
+  if (lightAudit.uses_roman_numerals_predominantly) {
+    warnings.push("O modelo do escritório usa numeração arábica (1.-, 2.-) e a minuta usa romanos (I, II). Revisar numeração.");
+  }
+  if (lightAudit.final_requests_use_bullets) {
+    warnings.push("O rol final usa bullets, mas o modelo do escritório usa itens numerados. Revisar formatação do pedido final.");
+  }
+
+  const qualityReport: Record<string, unknown> = {
+    light_audit: lightAudit,
+    template_excerpt: {
+      total_chars: templateExcerpt.total_chars,
+      opening_chars: templateExcerpt.opening.length,
+      style_chars: templateExcerpt.style.length,
+      requests_chars: templateExcerpt.requests.length,
+      found_via: templateExcerpt.found_via,
+      has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+      uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+    },
+  };
 
   const mergedWarningsSet = new Set<string>();
   for (const w of warnings) mergedWarningsSet.add(w);
   for (const w of draftWarnings) mergedWarningsSet.add(w);
   const finalWarnings = Array.from(mergedWarningsSet).slice(0, 50);
+
 
 
   // -------------------------------------------------------------------------
@@ -903,6 +1002,36 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   // Telemetria (metadados apenas — sem conteúdo, sem claim_map, sem relato)
   // -------------------------------------------------------------------------
   try {
+    const costEstimated = estimateCost(taskChoice.model, totalTokens.input, totalTokens.output);
+
+    // Baseline: última geração do mesmo caso (para comparação de custo/tokens).
+    let baseline: {
+      tokens_input: number | null;
+      tokens_output: number | null;
+      cost_estimated: number | null;
+      created_at: string | null;
+    } | null = null;
+    try {
+      const { data: prev } = await admin
+        .from("ai_usage_log")
+        .select("tokens_input,tokens_output,cost_estimated,created_at")
+        .eq("case_id", caseId)
+        .eq("operation", "legal_draft_generation")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (prev) {
+        baseline = {
+          tokens_input: (prev.tokens_input as number | null) ?? null,
+          tokens_output: (prev.tokens_output as number | null) ?? null,
+          cost_estimated: (prev.cost_estimated as number | null) ?? null,
+          created_at: (prev.created_at as string | null) ?? null,
+        };
+      }
+    } catch (_e) {
+      baseline = null;
+    }
+
     await logAiUsage(admin, {
       organization_id: profile.organization_id,
       profile_id: user.id,
@@ -911,13 +1040,15 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       model: taskChoice.model,
       tokens_input: totalTokens.input,
       tokens_output: totalTokens.output,
-      cost_estimated: 0,
+      cost_estimated: costEstimated,
       processing_time_ms: Date.now() - startedAt,
       case_id: caseId,
       prompt_summary: `draft:${inserted.id.slice(0, 8)}`,
       metadata: {
+        edge_function: "generate-legal-draft",
         draft_type: draftType,
         template_id: sourcesUsed.template ? body.template_id : null,
+        template_name: sourcesUsed.template ? ((template?.name as string) ?? null) : null,
         legal_area: (intake?.legal_area as string) ?? null,
         use_intake: sourcesUsed.intake,
         use_analysis: sourcesUsed.analysis,
@@ -929,11 +1060,30 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
         claim_map_topics: Array.isArray((claimMap as { topics?: unknown[] }).topics) ? (claimMap as { topics: unknown[] }).topics.length : 0,
         quality_status: "pending",
         content_chars: content.length,
+        // PR-Q1A — controle de uso do template e custo
+        extracted_text_available: !!(template && (template.extracted_text as string | null)),
+        template_excerpt_total_chars: templateExcerpt.total_chars,
+        template_excerpt_opening_chars: templateExcerpt.opening.length,
+        template_excerpt_style_chars: templateExcerpt.style.length,
+        template_excerpt_requests_chars: templateExcerpt.requests.length,
+        template_excerpt_found_via: templateExcerpt.found_via,
+        template_uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+        template_has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+        template_compatible: templateCompatible,
+        light_audit_placeholder_count: lightAudit.placeholder_total,
+        light_audit_has_pedidos: lightAudit.has_pedidos_section,
+        light_audit_missing_dados_funcionais: lightAudit.missing_dados_funcionais,
+        light_audit_roman_numerals: lightAudit.uses_roman_numerals_predominantly,
+        light_audit_final_bullets: lightAudit.final_requests_use_bullets,
+        cost_baseline_case: baseline ?? "sem baseline comparável",
+        cost_delta_tokens_input: baseline?.tokens_input != null ? totalTokens.input - baseline.tokens_input : null,
+        cost_delta_estimated_usd: baseline?.cost_estimated != null ? costEstimated - baseline.cost_estimated : null,
       },
     });
   } catch (_e) {
     console.error("generate-legal-draft:telemetry_failed");
   }
+
 
   return ok({
     draft_id: inserted.id,
