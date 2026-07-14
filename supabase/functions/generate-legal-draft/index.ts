@@ -577,6 +577,64 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const requiredBlocksPrompt = renderRequiredBlocksForPrompt(requiredBlocks);
   const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
 
+  // ---------------------------------------------------------------------------
+  // PR-Q1A — Excerpt curto e style guide do escritório
+  // Teto hard: 6.000 chars totais de texto literal do modelo no prompt.
+  // ---------------------------------------------------------------------------
+  const templateExcerpt = template
+    ? buildTemplateExcerpt(
+        (template.extracted_text as string | null) ?? null,
+        {
+          main_topic: (template.main_topic as string | null) ?? (intake?.ai_suggested_subtype as string | null) ?? null,
+          piece_type: (template.piece_type as string | null) ?? null,
+          legal_area: (template.legal_area as string | null) ?? null,
+        },
+      )
+    : buildTemplateExcerpt(null);
+
+  const templateExcerptHasContent = templateExcerpt.total_chars > 0;
+  const templateCompatible =
+    !!template &&
+    templateExcerpt.uses_arabic_numbering; // aplica style guide forte só quando o modelo usa arábico
+
+  const officeStyleGuide = template
+    ? buildOfficeStyleGuide({
+        uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
+        has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+        is_trabalhista_inicial: isTrabalhistaInicial,
+      })
+    : "";
+
+  const templateExcerptPromptBlock = templateExcerptHasContent
+    ? `# [MODELO DO ESCRITÓRIO — TRECHOS LITERAIS (fonte dominante de estrutura, numeração, linguagem, forma de pedir e fechamento)]
+REGRA: use estes trechos como referência DOMINANTE de estilo e forma. NÃO copie fatos, partes, valores, datas, endereços, CPFs/CNPJs nem fundamentos específicos — esses dados pertencem a outro caso.
+
+[ABERTURA DO MODELO]
+${templateExcerpt.opening || "(sem trecho de abertura identificado)"}
+
+[ESTILO / MÉRITO DO MODELO]
+${templateExcerpt.style || "(sem trecho de mérito identificado)"}
+
+[FORMA DE PEDIR / PEDIDO FINAL DO MODELO]
+${templateExcerpt.requests || "(sem trecho de pedidos identificado)"}
+`
+    : "";
+
+  const styleGuidePromptBlock = officeStyleGuide
+    ? `# ${officeStyleGuide}`
+    : "";
+
+  // Regras adicionais obrigatórias do PR-Q1A quando há template compatível
+  const officeRulesPromptBlock = template
+    ? `# REGRAS OBRIGATÓRIAS (MODELO DOMINANTE)
+- Quando houver modelo do escritório selecionado, o modelo é fonte dominante de estrutura, linguagem, numeração, forma de pedir e fechamento. Não substitua por estrutura genérica de IA.
+- Não resuma excessivamente a petição se o modelo-base for robusto. A peça deve ter densidade proporcional ao modelo, respeitando os fatos e documentos disponíveis.
+- Todos os pedidos tratados nos tópicos de mérito devem aparecer no rol final de pedidos.
+- Todo item do rol final deve ter correspondência no corpo da peça, salvo pedidos processuais padrão.
+- Se faltar dado essencial, sinalize de forma controlada em seção final "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" ou em missing_information — NÃO INVENTAR e NÃO deixar placeholders crus como [NOME], [CPF], [ENDEREÇO], [INSERIR VALOR], NOME DO ADVOGADO, OAB/[UF].`
+    : "";
+
+
   // PR-4.5A — Carrega playbook aplicável (área+tipo+subtipo). Não quebra se ausente.
   const caseSubtypeHint = isMotorista
     ? "motorista_profissional"
