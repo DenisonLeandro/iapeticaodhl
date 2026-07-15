@@ -492,7 +492,7 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
     const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: CHAT_MODEL, messages, stream: true }),
+      body: JSON.stringify({ model: CHAT_MODEL, messages, stream: true, max_tokens: 4096 }),
     });
 
     if (upstream.status === 429) return json({ error: "429: limite de requisições — tente novamente em instantes." }, 429);
@@ -521,6 +521,7 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
         let streamCompleted = false;
         let streamErrorMessage: string | null = null;
         let sawGatewayError = false;
+        let finishReason: string | null = null;
 
         const reader = upstream.body!.getReader();
         try {
@@ -545,10 +546,14 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
                   sawGatewayError = true;
                   streamErrorMessage = String(obj.error?.message ?? obj.error).slice(0, 240);
                 }
-                const delta = obj?.choices?.[0]?.delta?.content;
+                const choice = obj?.choices?.[0];
+                const delta = choice?.delta?.content;
                 if (typeof delta === "string" && delta.length) {
                   assistantText += delta;
                   send({ type: "delta", text: delta });
+                }
+                if (choice?.finish_reason) {
+                  finishReason = String(choice.finish_reason);
                 }
                 if (obj?.usage) {
                   usageIn = obj.usage.prompt_tokens ?? usageIn;
@@ -592,6 +597,8 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
         // Persiste resposta apenas quando o stream completou com algum texto.
         let insertedId: string | null = null;
         let insertedCreatedAt: string | null = null;
+        let terminalSent = false;
+
         if (streamCompleted && assistantText) {
           const { data: inserted, error: asstErr } = await supabase
             .from("case_chat_messages")
@@ -607,8 +614,9 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             .single();
 
           if (asstErr) {
-            send({ type: "error", error: `persist assistant: ${asstErr.message}` });
+            send({ type: "error", error: `Falha ao salvar a resposta: ${asstErr.message}` });
             streamErrorMessage = streamErrorMessage ?? `persist_assistant:${asstErr.message}`.slice(0, 240);
+            terminalSent = true;
           } else {
             insertedId = inserted.id;
             insertedCreatedAt = inserted.created_at;
@@ -622,7 +630,26 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
               response_time_ms: responseTimeMs,
               estimated_cost_usd: estimatedCostUsd,
             });
+            terminalSent = true;
           }
+        }
+
+        // Garante evento terminal em qualquer cenário (resposta vazia, filtro, erro de gateway).
+        if (!terminalSent) {
+          let friendly: string;
+          if (finishReason === "length" || finishReason === "max_tokens") {
+            friendly = "A resposta foi interrompida por limite de tokens. Refaça a pergunta pedindo uma versão mais curta ou mais objetiva.";
+          } else if (finishReason === "content_filter" || finishReason === "safety") {
+            friendly = "A resposta foi bloqueada pelo filtro de segurança do modelo. Reformule a pergunta evitando termos que possam ter sido interpretados como sensíveis.";
+          } else if (sawGatewayError) {
+            friendly = streamErrorMessage ?? "Falha no provedor de IA. Tente novamente em instantes.";
+          } else if (!assistantText) {
+            friendly = "O modelo não retornou conteúdo. Tente novamente em instantes.";
+          } else {
+            friendly = streamErrorMessage ?? "Não foi possível concluir a resposta.";
+          }
+          send({ type: "error", error: friendly });
+          streamErrorMessage = streamErrorMessage ?? friendly;
         }
 
         // Fase 2 · Bloco 2 — telemetria consciente de erro de stream.
@@ -646,6 +673,9 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             status: finalStatus,
             stream_completed: streamCompleted,
             stream_error: streamErrorMessage,
+            finish_reason: finishReason,
+            assistant_empty: assistantText.length === 0,
+            saw_gateway_error: sawGatewayError,
             assistant_message_id: insertedId,
             assistant_created_at: insertedCreatedAt,
             high_precision: highPrecision,
@@ -669,6 +699,7 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
             integral_section_present: integralSectionPresent ?? null,
           },
         });
+
 
         controller.close();
       },
