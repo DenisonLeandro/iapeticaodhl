@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
   if (draft.quality_status === "done") {
     return json({ status: "already_done" }, 200);
   }
-  if (draft.quality_status !== "pending" && draft.quality_status !== "failed") {
+  if (!["pending", "failed", "not_requested"].includes(String(draft.quality_status))) {
     return json({ status: "not_applicable", quality_status: draft.quality_status }, 200);
   }
 
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
     .from("case_drafts")
     .update({ quality_status: "running" })
     .eq("id", draftId)
-    .in("quality_status", ["pending", "failed"])
+    .in("quality_status", ["pending", "failed", "not_requested"])
     .select("id")
     .maybeSingle();
   if (claimErr) return json({ error: "claim_failed", detail: claimErr.message }, 500);
