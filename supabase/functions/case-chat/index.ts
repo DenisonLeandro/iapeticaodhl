@@ -492,7 +492,7 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
     const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: CHAT_MODEL, messages, stream: true }),
+      body: JSON.stringify({ model: CHAT_MODEL, messages, stream: true, max_tokens: 4096 }),
     });
 
     if (upstream.status === 429) return json({ error: "429: limite de requisições — tente novamente em instantes." }, 429);
