@@ -521,6 +521,7 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
         let streamCompleted = false;
         let streamErrorMessage: string | null = null;
         let sawGatewayError = false;
+        let finishReason: string | null = null;
 
         const reader = upstream.body!.getReader();
         try {
@@ -545,10 +546,14 @@ Use APENAS os trechos acima como fonte de fatos dos autos. Cite no formato [<Tip
                   sawGatewayError = true;
                   streamErrorMessage = String(obj.error?.message ?? obj.error).slice(0, 240);
                 }
-                const delta = obj?.choices?.[0]?.delta?.content;
+                const choice = obj?.choices?.[0];
+                const delta = choice?.delta?.content;
                 if (typeof delta === "string" && delta.length) {
                   assistantText += delta;
                   send({ type: "delta", text: delta });
+                }
+                if (choice?.finish_reason) {
+                  finishReason = String(choice.finish_reason);
                 }
                 if (obj?.usage) {
                   usageIn = obj.usage.prompt_tokens ?? usageIn;
