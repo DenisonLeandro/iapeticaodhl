@@ -18,7 +18,11 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-  { value: "ai", label: "Integrações IA", icon: Brain, component: <AISettingsPage /> },
+  // PR-SEC-1: restrito a admin. A tela lê organizations.llm_config, que hoje
+  // carrega a credencial de IA no jsonb. O gate reduz exposição acidental —
+  // NÃO fecha o P0: o RLS (organizations_select) ainda permite que qualquer
+  // membro autenticado leia a linha via client. Fechamento só no PR-SEC-2A.
+  { value: "ai", label: "Integrações IA", icon: Brain, adminOnly: true, component: <AISettingsPage /> },
   { value: "profile", label: "Meu Perfil", icon: User, component: <ProfilePage /> },
   { value: "users", label: "Usuários", icon: Users, adminOnly: true, component: <UsersPage /> },
   { value: "costs", label: "Custos IA", icon: DollarSign, adminOnly: true, component: <AICostsPage /> },
@@ -31,7 +35,16 @@ export default function SettingsPage() {
   const isAdmin = profile?.role === "admin";
 
   const visibleTabs = tabs.filter((t) => !t.adminOnly || isAdmin);
-  const currentTab = searchParams.get("tab") || visibleTabs[0]?.value || "ai";
+
+  // A aba pedida via query string precisa ser validada contra as abas visíveis.
+  // App.tsx redireciona /settings/ai e /settings/integrations para ?tab=ai; sem
+  // esta checagem, um não-admin nessas rotas ficaria com ?tab=ai sem TabsContent
+  // correspondente — resultando em área de conteúdo em branco.
+  const requestedTab = searchParams.get("tab");
+  const fallbackTab = visibleTabs[0]?.value ?? "profile";
+  const currentTab = visibleTabs.some((t) => t.value === requestedTab)
+    ? (requestedTab as string)
+    : fallbackTab;
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value }, { replace: true });

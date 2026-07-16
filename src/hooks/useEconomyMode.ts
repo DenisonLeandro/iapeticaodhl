@@ -2,29 +2,27 @@
 // Fase 2 · Bloco 1 — Hook do "Modo econômico de IA" (organization scoped)
 // =============================================================================
 // Wrapper fino sobre useAISettings. Default true quando não configurado.
-// Salva atualizando o JSONB organizations.llm_config preservando os demais
-// campos existentes (provider, model, api_key, max_docs_per_month).
+//
+// PR-SEC-1: envia APENAS `economy_mode`. Antes, este hook reenviava o objeto
+// inteiro — incluindo a credencial — só para alterar um booleano. O merge
+// parcial agora acontece no servidor, via RPC `update_llm_config_partial`.
+// Este arquivo não deve voltar a referenciar a credencial; há guarda estática
+// em src/test/security/llm-key-exposure.test.tsx.
 // =============================================================================
 
 import { useCallback } from "react";
 import { useAISettings } from "@/hooks/useAISettings";
 
 export function useEconomyMode() {
-  const { config, isLoadingConfig, saveConfig, isSaving } = useAISettings();
+  const { config, isLoadingConfig, patchConfig, isSaving } = useAISettings();
 
   const economyMode = config?.economy_mode ?? true;
 
   const setEconomyMode = useCallback(
     async (value: boolean) => {
-      await saveConfig({
-        provider: config?.provider ?? "lovable",
-        model: config?.model ?? "google/gemini-3-flash-preview",
-        api_key: config?.api_key ?? "",
-        max_docs_per_month: config?.max_docs_per_month,
-        economy_mode: value,
-      });
+      await patchConfig({ economy_mode: value });
     },
-    [config, saveConfig],
+    [patchConfig],
   );
 
   return {

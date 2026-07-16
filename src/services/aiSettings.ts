@@ -2,8 +2,14 @@
 // AI Settings Service — CRUD for LLM config & usage stats
 // Story 3.3 — AI Provider Settings
 // =============================================================================
-// TECH DEBT: API key is stored in organizations.llm_config jsonb without
-// encryption at the DB level. For production, use pgcrypto or Vault.
+// P0 ABERTO: a credencial é armazenada em organizations.llm_config (jsonb), e a
+// policy `organizations_select` permite que QUALQUER membro autenticado da
+// organização leia a linha — incluindo estagiário/secretária. RLS no Postgres é
+// row-level, não column-level: não há policy capaz de esconder apenas `api_key`
+// dentro do jsonb. O P0 só estará encerrado quando `api_key` deixar de existir
+// aqui (PR-SEC-2A: migração para provider `lovable` + limpeza do campo).
+// PR-SEC-1 apenas conteve a superfície: gate de admin na UI e fim dos
+// round-trips da chave (ver patchLLMConfig abaixo).
 
 import { supabase } from "@/lib/backend/client";
 import { USE_EDGE_FUNCTIONS } from "@/lib/config";
@@ -25,6 +31,24 @@ export interface LLMConfig {
    * Default true. Prioriza modelos rápidos/baratos para tarefas simples.
    * Ações críticas continuam usando modelo forte, salvo se `high_precision`.
    */
+  economy_mode?: boolean;
+}
+
+/**
+ * Patch parcial de `llm_config` (PR-SEC-1).
+ * - campo omitido   => permanece inalterado no banco
+ * - campo com valor => sobrescrito
+ * - campo `null`    => REMOVIDO do jsonb (apagamento intencional)
+ *
+ * Existe para que alterar uma preferência (ex.: `economy_mode`) não obrigue o
+ * frontend a reenviar `api_key`. Nunca inclua `api_key` aqui sem ação explícita
+ * do administrador.
+ */
+export interface LLMConfigPatch {
+  provider?: LLMProviderId;
+  model?: string;
+  api_key?: string | null;
+  max_docs_per_month?: number | null;
   economy_mode?: boolean;
 }
 
@@ -73,19 +97,24 @@ export async function fetchLLMConfig(
 }
 
 // ---------------------------------------------------------------------------
-// updateLLMConfig — save provider + model + API key to organizations.llm_config
+// patchLLMConfig — altera campos isolados de organizations.llm_config
 // ---------------------------------------------------------------------------
+// PR-SEC-1: substitui o antigo `updateLLMConfig`, que fazia
+// `.update({ llm_config: config })` e portanto SUBSTITUÍA o jsonb inteiro —
+// obrigando todo caller a reenviar `api_key` para não perdê-la (round-trip).
+//
+// A RPC `update_llm_config_partial` faz merge no servidor, valida papel de
+// admin, escopa à organização do próprio usuário e aplica allowlist de campos.
+// Ver: supabase/migrations/20260716120000_add_update_llm_config_partial.sql
 
-export async function updateLLMConfig(
+export async function patchLLMConfig(
   organizationId: string,
-  config: LLMConfig,
+  patch: LLMConfigPatch,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("organizations")
-    .update({
-      llm_config: config as unknown as import("@/integrations/supabase/types").Json,
-    })
-    .eq("id", organizationId);
+  const { error } = await supabase.rpc("update_llm_config_partial", {
+    p_org_id: organizationId,
+    p_patch: patch as unknown as import("@/integrations/supabase/types").Json,
+  });
 
   if (error) {
     throw new Error(`Erro ao salvar configuração de IA: ${error.message}`);

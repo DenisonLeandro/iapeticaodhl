@@ -32,7 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import ProviderCard from "@/components/settings/ProviderCard";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useEconomyMode } from "@/hooks/useEconomyMode";
-import { maskApiKey } from "@/services/aiSettings";
+import { maskApiKey, type LLMConfigPatch } from "@/services/aiSettings";
 import { AI_PROVIDERS, getProviderOption } from "@/lib/ai/pricing";
 import type { LLMProviderId } from "@/types/ai";
 
@@ -63,7 +63,7 @@ export default function AISettingsPage() {
   const {
     config,
     isLoadingConfig,
-    saveConfig,
+    patchConfig,
     isSaving,
     testConnection,
     isTesting,
@@ -121,13 +121,24 @@ export default function AISettingsPage() {
     }
 
     try {
-      await saveConfig({
+      const patch: LLMConfigPatch = {
         provider,
         model,
-        api_key: needsApiKey ? (apiKey || (config?.api_key ?? "")) : "",
+        // `null` remove o campo — equivale ao comportamento anterior, em que
+        // omitir o campo na substituição integral do jsonb o eliminava.
         max_docs_per_month:
-          maxDocsPerMonth === "" ? undefined : Number(maxDocsPerMonth),
-      });
+          maxDocsPerMonth === "" ? null : Number(maxDocsPerMonth),
+      };
+
+      // PR-SEC-1: `api_key` só entra no patch por ação explícita do admin.
+      //   - chave nova digitada        => grava a nova
+      //   - troca p/ provedor interno  => remove (apagamento intencional)
+      //   - nenhuma das duas           => campo omitido; a chave existente é
+      //     preservada no banco SEM que o frontend precise lê-la e reenviá-la.
+      if (needsApiKey && apiKey) patch.api_key = apiKey;
+      if (!needsApiKey) patch.api_key = null;
+
+      await patchConfig(patch);
       toast.success("Configuração de IA salva com sucesso");
       if (apiKey) {
         setHasExistingKey(true);
