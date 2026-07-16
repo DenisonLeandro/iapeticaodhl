@@ -7,10 +7,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
   fetchLLMConfig,
-  updateLLMConfig,
+  patchLLMConfig,
   testConnection,
   fetchUsageStats,
-  type LLMConfig,
+  type LLMConfigPatch,
   type TestConnectionResult,
 } from "@/services/aiSettings";
 import type { LLMProviderId } from "@/types/ai";
@@ -33,10 +33,13 @@ export function useAISettings() {
   });
 
   // -------------------------------------------------------------------------
-  // Mutation: save LLM config
+  // Mutation: patch parcial da LLM config (PR-SEC-1)
   // -------------------------------------------------------------------------
-  const saveConfigMutation = useMutation({
-    mutationFn: (config: LLMConfig) => updateLLMConfig(organizationId!, config),
+  // Só envia os campos que mudaram. `api_key` nunca deve entrar no patch sem
+  // ação explícita do admin (chave nova digitada, ou `null` para apagar).
+  const patchConfigMutation = useMutation({
+    mutationFn: (patch: LLMConfigPatch) =>
+      patchLLMConfig(organizationId!, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [LLM_CONFIG_KEY, organizationId],
@@ -72,10 +75,10 @@ export function useAISettings() {
     isLoadingConfig: configQuery.isLoading,
     configError: configQuery.error,
 
-    // Save
-    saveConfig: saveConfigMutation.mutateAsync,
-    isSaving: saveConfigMutation.isPending,
-    saveError: saveConfigMutation.error,
+    // Save (patch parcial — ver PR-SEC-1)
+    patchConfig: patchConfigMutation.mutateAsync,
+    isSaving: patchConfigMutation.isPending,
+    saveError: patchConfigMutation.error,
 
     // Test connection
     testConnection: (provider: LLMProviderId, model: string) =>
