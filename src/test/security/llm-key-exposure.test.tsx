@@ -49,10 +49,29 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
 const toRepoPath = (abs: string) =>
   path.relative(process.cwd(), abs).split(path.sep).join("/");
 
+/**
+ * Remove comentários de linha e de bloco antes da varredura.
+ *
+ * A guarda precisa detectar referências em CÓDIGO EXECUTÁVEL, não em prosa.
+ * Sem isto ela acusa os próprios comentários que documentam esta correção —
+ * `aiSettings.ts` cita `.update({ llm_config: config })` ao explicar o que foi
+ * removido, e `useAISettings.ts` cita `api_key` ao explicar o que não deve
+ * entrar no patch. Nenhum dos dois é leitura da credencial.
+ *
+ * O `[^:]` antes de `//` preserva URLs (https://...), que não são comentário.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, " ") // blocos /* ... */
+    .replace(/(^|[^:])\/\/.*$/gm, "$1"); // linha //, exceto após ':'
+}
+
 describe("guarda estática — leituras da credencial no frontend", () => {
   it("nenhum arquivo fora da allowlist referencia api_key", () => {
     const offenders = collectSourceFiles(SRC_DIR)
-      .filter((file) => fs.readFileSync(file, "utf8").includes("api_key"))
+      .filter((file) =>
+        stripComments(fs.readFileSync(file, "utf8")).includes("api_key"),
+      )
       .map(toRepoPath)
       .filter((rel) => !API_KEY_ALLOWLIST.includes(rel))
       .sort();
@@ -65,21 +84,33 @@ describe("guarda estática — leituras da credencial no frontend", () => {
   });
 
   it("useEconomyMode não referencia a credencial", () => {
-    const src = fs.readFileSync(
-      path.join(SRC_DIR, "hooks", "useEconomyMode.ts"),
-      "utf8",
+    const code = stripComments(
+      fs.readFileSync(path.join(SRC_DIR, "hooks", "useEconomyMode.ts"), "utf8"),
     );
-    expect(src).not.toContain("api_key");
+    expect(code).not.toContain("api_key");
   });
 
   it("patchLLMConfig usa a RPC de merge, não update direto na tabela", () => {
-    const src = fs.readFileSync(
+    const raw = fs.readFileSync(
       path.join(SRC_DIR, "services", "aiSettings.ts"),
       "utf8",
     );
-    expect(src).toContain("update_llm_config_partial");
+    expect(raw).toContain("update_llm_config_partial");
     // A substituição integral do jsonb era a causa estrutural dos round-trips.
-    expect(src).not.toMatch(/\.update\(\s*\{\s*llm_config/);
+    // Verificado sobre o código, não sobre o comentário que a documenta.
+    expect(stripComments(raw)).not.toMatch(/\.update\(\s*\{\s*llm_config/);
+  });
+
+  it("stripComments não cria falso negativo em código real", () => {
+    // Prova que a guarda continua detectando referências executáveis.
+    const code = 'const k = config.api_key; // comentário com api_key';
+    expect(stripComments(code)).toContain("api_key");
+    expect(stripComments("// só um comentário com api_key")).not.toContain(
+      "api_key",
+    );
+    expect(stripComments('const u = "https://x.com/a"; // nota')).toContain(
+      "https://x.com/a",
+    );
   });
 });
 
