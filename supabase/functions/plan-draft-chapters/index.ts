@@ -10,6 +10,16 @@ import { selectModelForTask } from "../_shared/model-router.ts";
 import { getEconomyMode } from "../_shared/economy-mode.ts";
 import { logAiUsage, summaryTag } from "../_shared/usage-log.ts";
 import { estimateCost } from "../_shared/pricing.ts";
+import {
+  STRUCTURE_VERSION,
+  baseSections,
+  closingSections,
+  meritCatalogForPlan,
+  defaultMeritKeys,
+  canonicalOrderIndex,
+  MAX_MERITO_CHAPTERS,
+  type StructureMarker,
+} from "../_shared/structure/trabalhista-inicial.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -41,35 +51,15 @@ interface SectionPlan {
   quality_notes?: Record<string, unknown> | null;
 }
 
-// ---------- Base blueprint (trabalhista_inicial) ----------
-const BASE_SECTIONS: SectionPlan[] = [
-  { section_key: "enderecamento", section_label: "Endereçamento", order_index: 10 },
-  { section_key: "qualificacao", section_label: "Qualificação das partes", order_index: 20 },
-  { section_key: "dados_funcionais", section_label: "Dados contratuais e funcionais", order_index: 30 },
-  { section_key: "sintese_fatos", section_label: "Síntese dos fatos", order_index: 40 },
-  { section_key: "justica_gratuita", section_label: "Gratuidade da justiça", order_index: 50 },
-  { section_key: "preliminares", section_label: "Preliminares", order_index: 60 },
-];
+// ---------- Estrutura canônica (fonte única compartilhada) ----------
+// Abertura e fechamento vêm do módulo _shared/structure (mesmas section_keys,
+// labels e order_index anteriores — sem drift no assemble/UI).
+const BASE_SECTIONS: SectionPlan[] = baseSections();
+const CLOSING_SECTIONS: SectionPlan[] = closingSections();
 
-const CLOSING_SECTIONS: SectionPlan[] = [
-  { section_key: "rol_pedidos_valores", section_label: "Rol de pedidos com valores individualizados", order_index: 900 },
-  { section_key: "valor_causa", section_label: "Valor da causa", order_index: 910 },
-  { section_key: "pedido_final", section_label: "Pedido final / requerimentos finais", order_index: 920 },
-  { section_key: "fechamento", section_label: "Fechamento", order_index: 930 },
-];
-
-// Universo canônico de capítulos de mérito para o modo por capítulos.
-const MERITO_CATALOG: Record<string, string> = {
-  merito_horas_extras: "Do mérito — Horas extras",
-  merito_intervalo_intrajornada: "Do mérito — Intervalo intrajornada",
-  merito_adicional_noturno: "Do mérito — Adicional noturno",
-  merito_ferias: "Do mérito — Férias",
-  merito_fgts: "Do mérito — FGTS",
-  merito_insalubridade: "Do mérito — Insalubridade",
-  merito_dano_moral: "Do mérito — Dano moral",
-  merito_verbas_rescisorias: "Do mérito — Verbas rescisórias",
-  merito_multas_467_477: "Do mérito — Multas dos arts. 467 e 477 da CLT",
-};
+// Universo canônico de capítulos de mérito oferecidos ao LLM (exclui aliases
+// legados; a ORDEM final vem sempre do rank canônico, não do LLM).
+const MERITO_CATALOG: Record<string, string> = meritCatalogForPlan();
 
 const FRIENDLY_UNSUPPORTED =
   "O modo por capítulos ainda está disponível apenas para petição inicial trabalhista. Para esta peça, use o modo rápido.";
@@ -133,12 +123,7 @@ async function callLlm(apiKey: string, model: string, system: string, user: stri
 }
 
 // Fallback conservador quando não temos sinal claro para escolher méritos.
-const DEFAULT_MERITO_KEYS = [
-  "merito_horas_extras",
-  "merito_verbas_rescisorias",
-  "merito_fgts",
-  "merito_multas_467_477",
-];
+const DEFAULT_MERITO_KEYS = defaultMeritKeys();
 
 // ---------- Handler ----------
 Deno.serve(async (req) => {
@@ -237,7 +222,8 @@ Resumo da análise: ${truncate((analysis as { content_json?: { summary?: string 
 # REGRAS
 - Escolha apenas as chaves com base fática mínima no material acima.
 - Se em dúvida entre incluir/excluir, INCLUA e adicione uma nota curta.
-- Máximo 8 capítulos de mérito.
+- Máximo ${MAX_MERITO_CHAPTERS} capítulos de mérito.
+- Escolha apenas QUAIS capítulos entram; a ORDEM final é definida pelo sistema (não precisa ordenar).
 - NÃO invente chaves fora do catálogo.
 - NÃO use chave genérica "merito_pedido".
 
@@ -251,7 +237,7 @@ Retorne JSON:
           .filter((x): x is string => typeof x === "string")
           .filter((k) => k in MERITO_CATALOG);
         // dedupe preservando ordem
-        chosenMeritoKeys = Array.from(new Set(arr)).slice(0, 8);
+        chosenMeritoKeys = Array.from(new Set(arr)).slice(0, MAX_MERITO_CHAPTERS);
         const rawNotes = (parsed as { notes?: Record<string, string> }).notes;
         if (rawNotes && typeof rawNotes === "object") {
           for (const k of chosenMeritoKeys) {
@@ -294,17 +280,58 @@ Retorne JSON:
     }
 
     // --- Monta lista final de sections ---
+    // A ORDEM dos méritos vem SEMPRE do rank canônico (não da ordem em que o LLM
+    // os listou). Se, por qualquer motivo, o rank não resolver, cai no fluxo
+    // legado (100 + (i+1)*10) e registra warning — sem quebrar a geração.
+    const structureWarnings: string[] = [];
+    let canonicalOrderApplied = true;
+    let fallbackReason: string | null = null;
+
     const sections: SectionPlan[] = [];
     sections.push(...BASE_SECTIONS);
-    chosenMeritoKeys.forEach((k, i) => {
-      sections.push({
-        section_key: k,
-        section_label: MERITO_CATALOG[k],
-        order_index: 100 + (i + 1) * 10,
-        quality_notes: meritoNotes[k] ? { hint: meritoNotes[k] } : null,
+    try {
+      chosenMeritoKeys.forEach((k, i) => {
+        const rank = canonicalOrderIndex(k);
+        if (rank == null) {
+          // Chave sem rank canônico: fallback legado só para este item.
+          canonicalOrderApplied = false;
+          fallbackReason = fallbackReason ?? `sem rank canônico para "${k}"`;
+        }
+        sections.push({
+          section_key: k,
+          section_label: MERITO_CATALOG[k] ?? k,
+          order_index: rank ?? (100 + (i + 1) * 10),
+          quality_notes: meritoNotes[k] ? { hint: meritoNotes[k] } : null,
+        });
       });
-    });
+    } catch (e) {
+      // Fallback total: reconstrói méritos pela ordem legada.
+      canonicalOrderApplied = false;
+      fallbackReason = `exceção ao aplicar ordem canônica: ${(e as Error).message}`;
+      sections.length = BASE_SECTIONS.length;
+      chosenMeritoKeys.forEach((k, i) => {
+        sections.push({
+          section_key: k,
+          section_label: MERITO_CATALOG[k] ?? k,
+          order_index: 100 + (i + 1) * 10,
+          quality_notes: meritoNotes[k] ? { hint: meritoNotes[k] } : null,
+        });
+      });
+    }
     sections.push(...CLOSING_SECTIONS);
+
+    if (!canonicalOrderApplied) {
+      structureWarnings.push(
+        "Ordem canônica de capítulos não aplicada integralmente; usando fluxo legado. Revisar estrutura.",
+      );
+    }
+
+    // Marcador de versão estrutural (gravado em sources_used.structure — sem migration).
+    const structureMarker: StructureMarker = {
+      version: STRUCTURE_VERSION,
+      canonical_order_applied: canonicalOrderApplied,
+      fallback_reason: fallbackReason,
+    };
 
     // --- Cria/atualiza draft ---
     let draftId = body.draft_id ?? null;
@@ -326,12 +353,16 @@ Retorne JSON:
           tone: null,
           template_id: body.template_id ?? null,
           additional_instructions: body.structure_instructions ?? null,
+          // Draft novo: sources_used é construído aqui; acrescentamos `structure`
+          // preservando todas as demais chaves (intake/analysis/documents/template).
           sources_used: {
             intake: !!intake,
             analysis: !!analysis,
             documents: body.use_documents !== false,
             template: !!body.template_id && body.use_template !== false,
+            structure: structureMarker,
           },
+          warnings: structureWarnings.length ? structureWarnings : null,
           generation_mode: "chapters",
           assembly_status: "stale",
           piece_type_key: pieceTypeKey,
@@ -344,11 +375,21 @@ Retorne JSON:
       draftId = newDraft.id;
     } else {
       // Garante que o draft existe, é da org e é do modo chapters.
+      // Lê sources_used/warnings existentes para MESCLAR (nunca substituir o JSONB
+      // inteiro nem apagar referências documentais/fontes/RAG já gravadas).
       const { data: existing } = await admin
-        .from("case_drafts").select("id,organization_id,generation_mode").eq("id", draftId).maybeSingle();
+        .from("case_drafts")
+        .select("id,organization_id,generation_mode,sources_used,warnings")
+        .eq("id", draftId).maybeSingle();
       if (!existing || existing.organization_id !== profile.organization_id) {
         return err("insert", "Minuta não encontrada.", "draft_not_found", 404);
       }
+      const priorSources = (existing.sources_used && typeof existing.sources_used === "object")
+        ? existing.sources_used as Record<string, unknown>
+        : {};
+      const mergedSources = { ...priorSources, structure: structureMarker };
+      const priorWarnings = Array.isArray(existing.warnings) ? existing.warnings as unknown[] : [];
+      const mergedWarnings = Array.from(new Set([...priorWarnings.map(String), ...structureWarnings]));
       await admin
         .from("case_drafts")
         .update({
@@ -359,6 +400,8 @@ Retorne JSON:
           objective: body.objective ?? null,
           additional_instructions: body.structure_instructions ?? null,
           template_id: body.template_id ?? null,
+          sources_used: mergedSources,
+          warnings: mergedWarnings.length ? mergedWarnings : null,
         })
         .eq("id", draftId);
     }

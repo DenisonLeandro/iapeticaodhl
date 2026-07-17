@@ -33,6 +33,7 @@ import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
 import { buildTemplateExcerpt, runLightDraftAudit } from "../_shared/template-excerpt.ts";
 import { buildOfficeStyleGuide } from "../_shared/style-guide.ts";
 import { estimateCost } from "../_shared/pricing.ts";
+import { STRUCTURE_VERSION, skeletonForFastPrompt, type StructureMarker } from "../_shared/structure/trabalhista-inicial.ts";
 
 
 
@@ -756,6 +757,27 @@ Seja objetivo — apenas mapear temas, pedidos, riscos, documentos e reflexos ap
   const claimMapForPrompt = JSON.stringify(claimMap).slice(0, 8000);
 
   // -------------------------------------------------------------------------
+  // Estrutura canônica (apenas trabalhista_inicial). Para as demais áreas/peças
+  // mantém-se a orientação genérica anterior ("Adapte para outras áreas...").
+  // Fallback seguro: se o esqueleto falhar, volta à frase legada + warning.
+  // -------------------------------------------------------------------------
+  const LEGACY_STRUCTURE_PHRASE =
+    `Estrutura sugerida para "${draftLabel}" trabalhista: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DA RELAÇÃO DE EMPREGO/CONTRATO; III—DA FUNÇÃO EXERCIDA; IV—DA JORNADA E HORAS EXTRAS; V—DOS INTERVALOS (INTRA E INTERJORNADA); VI—DE DOMINGOS E FERIADOS; VII—DO ADICIONAL NOTURNO (se aplicável); VIII—DAS VERBAS RESCISÓRIAS; IX—DO FGTS; X—DE PAGAMENTOS POR FORA/COMISSÕES (se aplicável); XI—DA INSALUBRIDADE/PERICULOSIDADE (se aplicável); XII—DO ÔNUS DA PROVA E DA EXIBIÇÃO DE DOCUMENTOS; XIII—DA JUSTIÇA GRATUITA; ${isTrabalhistaInicial ? "XIV—DA ESTIMATIVA DOS VALORES E NÃO LIMITAÇÃO DA CONDENAÇÃO; " : ""}XV—DOS PEDIDOS (numerados, discriminados, com reflexos, sucessivos quando cabíveis, valores ou [CALCULAR VALOR]); XVI—DO VALOR DA CAUSA; XVII—DOS REQUERIMENTOS FINAIS. Adapte para outras áreas mantendo a mesma profundidade.`;
+
+  let structureMarker: StructureMarker | null = null;
+  let structureGuidance = LEGACY_STRUCTURE_PHRASE;
+  if (isTrabalhistaInicial) {
+    try {
+      structureGuidance = skeletonForFastPrompt();
+      structureMarker = { version: STRUCTURE_VERSION, canonical_order_applied: true, fallback_reason: null };
+    } catch (e) {
+      structureGuidance = LEGACY_STRUCTURE_PHRASE;
+      structureMarker = { version: STRUCTURE_VERSION, canonical_order_applied: false, fallback_reason: `esqueleto canônico falhou: ${(e as Error).message}` };
+      warnings.push("Ordem canônica de capítulos não aplicada; usando estrutura legada. Revisar estrutura.");
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // ETAPA 3 — DRAFT PRINCIPAL (modelo forte; 120s)
   // -------------------------------------------------------------------------
   const draftPrompt = `${caseContext}
@@ -817,7 +839,7 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 - Use SOMENTE os valores dos CÁLCULOS DETERMINÍSTICOS acima. Para pedidos sem valor calculado, escreva "[CALCULAR VALOR]" e liste os dados faltantes em "missing_information".
 - ${isTrabalhistaInicial ? 'Inclua OBRIGATORIAMENTE o tópico "DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO" e o item correspondente no pedido final.' : ""}
 - Se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar sucumbência de beneficiário da gratuidade, inserir [REVISAR ADI 5.766/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (13/11/2017), aplicar art. 71 §4º CLT.
-- Estrutura sugerida para "${draftLabel}" trabalhista: endereçamento; qualificação/menção às partes; nome da ação; I—DOS FATOS; II—DA RELAÇÃO DE EMPREGO/CONTRATO; III—DA FUNÇÃO EXERCIDA; IV—DA JORNADA E HORAS EXTRAS; V—DOS INTERVALOS (INTRA E INTERJORNADA); VI—DE DOMINGOS E FERIADOS; VII—DO ADICIONAL NOTURNO (se aplicável); VIII—DAS VERBAS RESCISÓRIAS; IX—DO FGTS; X—DE PAGAMENTOS POR FORA/COMISSÕES (se aplicável); XI—DA INSALUBRIDADE/PERICULOSIDADE (se aplicável); XII—DO ÔNUS DA PROVA E DA EXIBIÇÃO DE DOCUMENTOS; XIII—DA JUSTIÇA GRATUITA; ${isTrabalhistaInicial ? "XIV—DA ESTIMATIVA DOS VALORES E NÃO LIMITAÇÃO DA CONDENAÇÃO; " : ""}XV—DOS PEDIDOS (numerados, discriminados, com reflexos, sucessivos quando cabíveis, valores ou [CALCULAR VALOR]); XVI—DO VALOR DA CAUSA; XVII—DOS REQUERIMENTOS FINAIS. Adapte para outras áreas mantendo a mesma profundidade.
+- ${structureGuidance}
 - Termine com seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
 - Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.
 - Responda APENAS o JSON solicitado, sem cercas de código.`;
@@ -912,7 +934,9 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       tone: body.tone ?? null,
       additional_instructions: body.additional_instructions ?? null,
       template_id: sourcesUsed.template ? body.template_id : null,
-      sources_used: sourcesUsed,
+      // Preserva todas as chaves de sourcesUsed e acrescenta o marcador estrutural
+      // (apenas para trabalhista_inicial). Não substitui o JSONB por { structure }.
+      sources_used: structureMarker ? { ...sourcesUsed, structure: structureMarker } : sourcesUsed,
       missing_information: missing,
       warnings: finalWarnings,
       model_used: taskChoice.model,

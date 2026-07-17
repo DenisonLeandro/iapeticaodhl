@@ -9,6 +9,7 @@ import { selectModelForTask } from "../_shared/model-router.ts";
 import { getEconomyMode } from "../_shared/economy-mode.ts";
 import { logAiUsage } from "../_shared/usage-log.ts";
 import { estimateCost } from "../_shared/pricing.ts";
+import { getChapter } from "../_shared/structure/trabalhista-inicial.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -221,6 +222,31 @@ Deno.serve(async (req) => {
       })
       .join("\n\n");
 
+    // Ordem canônica do ROL: fornecida ANTES da geração (não há reordenação de
+    // texto). Só se aplica quando a seção é o rol de pedidos. Deriva das seções
+    // irmãs (já ordenadas por order_index canônico), consolidando jornada +
+    // intervalo numa única alínea via grouping_key.
+    let rolOrderGuidance = "";
+    if (section.section_key === "rol_pedidos_valores") {
+      const seenGroups = new Set<string>();
+      const orderedItems: string[] = [];
+      for (const s of (sisters ?? [])) {
+        const row = s as { section_key: string; section_label: string };
+        const spec = getChapter(row.section_key);
+        if (!spec || !spec.requires_final_request) continue;
+        const groupId = spec.grouping_key ?? spec.section_key;
+        if (seenGroups.has(groupId)) continue;
+        seenGroups.add(groupId);
+        orderedItems.push(row.section_label);
+      }
+      if (orderedItems.length > 0) {
+        rolOrderGuidance = `# ORDEM DO ROL (obrigatória — mesma ordem dos capítulos)
+Redija as alíneas do rol NESTA ordem, incluindo apenas as que tiverem capítulo/base correspondente e omitindo as demais sem alterar a posição relativa:
+${orderedItems.map((t, i) => `${i + 1}. ${t}`).join("\n")}
+Observação: jornada, horas extras e intervalo intrajornada devem constar em UMA ÚNICA alínea consolidada.`;
+      }
+    }
+
     const hint = (section.quality_notes as { hint?: string } | null)?.hint ?? "";
 
     const system = `Você é um advogado trabalhista sênior brasileiro, redigindo UMA seção específica de uma petição inicial trabalhista. Regras invioláveis:
@@ -240,7 +266,7 @@ Nota do planejamento: ${hint || "(sem nota específica)"}
 
 # INSTRUÇÃO ESPECÍFICA
 ${specific}
-
+${rolOrderGuidance ? `\n${rolOrderGuidance}\n` : ""}
 # CONTEXTO DO CASO
 Área jurídica: ${caseRow?.legal_area ?? "trabalhista"}
 Assunto: ${caseRow?.subject ?? ""}
