@@ -2374,6 +2374,10 @@ export type Database = {
           file_id: string
         }[]
       }
+      update_llm_config_partial: {
+        Args: { p_org_id: string; p_patch: Json }
+        Returns: undefined
+      }
     }
     Enums: {
       case_status: "active" | "archived" | "closed"
