@@ -819,9 +819,12 @@ ${JSON.stringify(templateBlueprint)}
 
 ${templateExcerptPromptBlock}
 
+${skeletonPromptBlock}
+
 ${styleGuidePromptBlock}
 
 ${officeRulesPromptBlock}
+
 
 
 ${requiredBlocksPrompt}
