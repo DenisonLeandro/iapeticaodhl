@@ -1,84 +1,78 @@
-# Plano de evolução — escopo enxuto (Fases 2, 3, 6 e 1)
+# Plano — Fidelidade ao modelo do escritório (prioridade)
 
-Escopo aprovado: ~70–105 horas, entregue **uma fase por vez**, com validação de advogado real antes de seguir.
+Objetivo: a petição gerada deve reproduzir fielmente a estrutura, numeração, linguagem, blocos e forma de pedir do modelo que o advogado anexa. Hoje não reproduz.
 
-Ordem ajustada ao gargalo relatado (wizard > navegação > revisão): o wizard é atacado em duas etapas — primeiro por redução de atrito (barato, cedo), depois pelo Assistant completo. Isso evita o risco de o Assistant virar mais uma camada antes do mesmo wizard.
+## Diagnóstico (causa raiz verificada no código)
 
-## Ordem de execução
+O advogado anexa um arquivo (Word/PDF). O sistema extrai o texto completo — até 120.000 caracteres — e guarda na coluna `extracted_text` da tabela `legal_templates` (`analyze-legal-template/index.ts:23,467`). **O texto completo existe no banco.**
 
-| # | Fase | Estimativa | Ganho |
-|---|---|---|---|
-| A | Enxugar o wizard (pré-Assistant) | 10–16h | Ataca o gargalo nº1 já na primeira entrega |
-| B | Busca global (Cmd+K) | 8–14h | Ataca o gargalo nº2, sem custo de IA |
-| C | Grounding com citação exata | 20–30h | Ataca o gargalo nº3, gera confiança na saída |
-| D | Raciocínio visível durante a geração | 8–12h | Reduz sensação de espera |
-| E | Assistant único (entrada em linguagem natural) | 30–45h | Só depois de A–D provarem o caminho |
+Mas na hora de gerar a petição, `generate-legal-draft` não envia o texto completo à IA. Ele envia:
 
-Total: 76–117h. Cada fase termina em uma entrega utilizável e testável isoladamente.
+1. **Resumos gerados pela IA** — `structure_summary`, `style_summary`, `standard_sections`, `topic_structure`, `writing_patterns`, `request_patterns` (`generate-legal-draft/index.ts:548-560`). São paráfrases, não o texto literal.
+2. **Apenas 3 fragmentos curtos do texto real**, totalizando no máximo **6.000 caracteres** (`template-excerpt.ts:23-25`: abertura 1.500, estilo 2.000, pedidos 2.500).
 
----
+Uma petição inicial trabalhista real tem 15.000–30.000 caracteres. A IA recebe 6.000 caracteres fragmentados e resumos. **Ela nunca vê o modelo inteiro, então não consegue espelhar sua estrutura, transições, linguagem e forma de pedir ao longo de toda a peça.** O teto de 6.000 caracteres foi criado no PR-Q1A explicitamente para economizar tokens (`template-excerpt.ts:2-4`).
 
-## Fase A — Enxugar o wizard
+Esta é a causa raiz. Não é bug de extração, não é bug de prompt — é um limite artificial de custo que corta exatamente o que faria a fidelidade.
 
-Antes de substituir o wizard por chat, remover o que ele pede sem necessidade.
+## O que vamos mudar
 
-- Auditar cada campo obrigatório das etapas atuais e classificar em: essencial, derivável de dados já cadastrados, ou opcional.
-- Pré-preencher tudo que já existe no cliente/processo selecionado.
-- Colapsar etapas que hoje têm poucos campos em uma só tela.
-- Permitir "gerar agora" com os campos essenciais e completar o resto depois.
+### Fase 0 — Enviar o modelo completo à IA (núcleo da fidelidade)
 
-Critério de validação: contar cliques e campos digitados para gerar uma inicial trabalhista antes e depois. Meta: redução de pelo menos 40%.
+Substituir a seleção de 3 fragmentos (6.000 chars) pelo envio do texto literal do modelo — completo ou com teto alto (ex.: 60.000 chars, o mesmo limite que o `analyze-legal-template` já usa para análise). O texto completo já está no banco; basta enviá-lo.
 
-## Fase B — Busca global (Cmd+K)
+- Em `generate-legal-draft`, injetar `extracted_text` (truncado a um teto generoso) como **texto literal dominante** no prompt, substituindo o bloco `templateExcerptPromptBlock`.
+- Reforçar a instrução de fidelidade: "espelhe a ordem das seções, a numeração, os blocos e a linguagem do modelo abaixo; troque apenas os fatos/partes/valores pelos do caso atual".
+- Manter a proibição de copiar fatos/nomes/valores do modelo (já existe e está correta).
+- Aplicar também no modo rápido e, quando habilitado, no modo por capítulos.
 
-Paleta de comando acessível de qualquer tela, buscando processos, clientes, minutas, documentos e tarefas.
+**Por que isto resolve:** a IA passa a ver o modelo inteiro e pode reproduzir sua arquitetura de ponta a ponta, em vez de adivinhar a partir de 3 recortes.
 
-- Busca no Postgres com `pg_trgm`, sem chamada de IA.
-- Resultados agrupados por tipo, navegação por teclado, atalho `Cmd/Ctrl+K`.
-- Escopo por organização via RLS já existente.
+### Fase 1 — Esqueleto estrutural extraído do modelo
 
-Critério de validação: advogado encontra um processo pelo nome parcial da parte em menos de 5 segundos.
+Extrair deterministicamente (sem IA) a lista de seções/capítulos do modelo na ordem em que aparecem — usando os títulos em MAIÚSCULAS e a numeração detectada — e injetar como "esqueleto obrigatório" no prompt. A IA deve seguir a ordem e os títulos do modelo, preenchendo cada seção com os fatos do caso atual.
 
-## Fase C — Grounding com citação exata
+- Reaproveitar `detectsArabicNumbering` e a detecção de títulos em MAIÚSCULAS já existentes.
+- Para modelo trabalhista, harmonizar com o esqueleto canônico já existente (`trabalhista-inicial.ts`): quando o modelo divergir do canônico, o modelo prevalece (é a vontade do escritório).
 
-Toda afirmação da IA sobre documento do processo devolve trecho e localização clicável.
+### Fase 2 — Auditoria de fidelidade
 
-- Respostas do chat do processo e do documento passam a retornar `chunk_id` junto do texto.
-- UI renderiza a citação como chip clicável que abre o trecho de origem destacado.
-- Aplicar também às seções geradas que citem documento do processo.
+Estender a auditoria leve existente (`runLightDraftAudit`) para comparar a minuta gerada **contra o próprio modelo**, não apenas contra padrões genéricos:
 
-Critério de validação: advogado consegue conferir a origem de uma afirmação sem abrir o PDF inteiro.
+- A minuta contém as mesmas seções na mesma ordem?
+- A numeração bate com o modelo?
+- Os blocos presentes no modelo (ex.: DADOS FUNCIONAIS) aparecem na minuta?
+- A forma de pedir (itens numerados vs. parágrafos) espelha o modelo?
+- Razão entre tamanho da minuta e tamanho do modelo dentro de uma faixa aceitável.
 
-## Fase D — Raciocínio visível
-
-Exibir as etapas reais da geração (planejamento de capítulos, seção em curso, auditoria) usando os eventos que as edge functions já emitem — sem chamadas de IA adicionais.
-
-Critério de validação: durante a geração, o usuário sempre sabe em que etapa está.
-
-## Fase E — Assistant único
-
-Só iniciar após A–D validados, e apenas se a Fase A não tiver resolvido o atrito do wizard.
-
-- Tela única: campo de texto, anexo opcional, seletor de fonte (este processo / meus documentos / jurisprudência / modelos do escritório).
-- Classificação barata de intenção roteia para o fluxo correto **já preenchido**, não para o wizard vazio.
-- Regra de projeto: o Assistant precisa *substituir* etapas. Se ao final ele apenas antecede o wizard, a fase é descartada.
-
-Critério de validação: gerar uma inicial trabalhista partindo só de um parágrafo em linguagem natural + processo selecionado.
-
----
+Resultado vira `quality_report.fidelity_audit` e warnings acionáveis para o advogado.
 
 ## Detalhes técnicos
 
-- Fase A: apenas frontend (`DraftGeneratorPage` e etapas do wizard) + leitura de dados já persistidos. Sem migração.
-- Fase B: índices `pg_trgm` nas tabelas principais; uma RPC de busca unificada com `SECURITY DEFINER` e filtro por `get_my_organization_id()`; componente de command palette no shell.
-- Fase C: reaproveita `document_chunks` e embeddings existentes; alterações nas edge functions `case-chat` e afins para propagar `chunk_id`; novo componente de citação.
-- Fase D: streaming/persistência dos eventos que `plan-draft-chapters` e `generate-draft-section` já produzem.
-- Fase E: rota nova + edge function de classificação de intenção retornando `{intent, entities, target_route, prefill}`, usando `selectModelForTask` em modo econômico.
+- `template-excerpt.ts`: adicionar `buildFullTemplateBlock(extractedText, maxChars=60000)` que devolve o texto literal truncado + metadados de numeração/blocos. Manter `buildTemplateExcerpt` para compatibilidade/auditoria, mas o prompt passa a usar o bloco completo.
+- `generate-legal-draft/index.ts`: substituir `templateExcerptPromptBlock` (linhas 609–622) pelo bloco completo; ajustar `DRAFT_SYSTEM` para instrução de espelhamento; injetar esqueleto extraído.
+- `style-guide.ts`: mantém-se, mas deixa de ser a principal fonte de fidelidade — o texto literal passa a ser.
+- Custo: o aumento de input tokens é o trade-off. Enviar ~60.000 chars (~15k tokens) em vez de 6.000 (~1,5k tokens) por geração. No `gemini-2.5-pro` o acréscimo é da ordem de US$ 0,02–0,04 por geração. Em modo econômico (`gemini-2.5-flash`), menos. Justificável: é exatamente o recurso que o advogado mais valoriza.
+- Sem migração de banco: `extracted_text` já existe e já é populado. Modelos antigos sem `extracted_text` caem no caminho atual (fragmentos) como fallback.
 
-## Fora de escopo agora
+## Esforço estimado
 
-Workflow Agents, Review Table multi-documento, add-in de Word e mobile. Reavaliar só depois de A–D em uso real.
+| Fase | Estimativa |
+|---|---|
+| 0 — Modelo completo no prompt | 6–10h |
+| 1 — Esqueleto estrutural | 6–10h |
+| 2 — Auditoria de fidelidade | 6–10h |
+| **Total** | **18–30h** |
 
-## Referência: comparativo Harvey
+Cada fase é entregável e testável isoladamente. A Fase 0 sozinha já deve produzir a diferença mais perceptível.
 
-O comparativo detalhado com o Harvey global que originou este plano permanece válido como diagnóstico. Conclusão estratégica: nossas vantagens (foro brasileiro, vertical trabalhista, fidelidade ao padrão da banca, gestão processual acoplada, governança de custo) não devem ser diluídas em busca de paridade de UX com um produto generalista corporativo que não atua no nosso nicho. Copiamos apenas o que é objetivamente melhor: entrada única, busca global e grounding citável.
+## Validação
+
+1. Pegar uma petição modelo real do escritório (anexada, já no banco).
+2. Gerar a mesma peça antes e depois da Fase 0, com o mesmo caso.
+3. Comparar lado a lado: ordem das seções, numeração, presença dos blocos, forma de pedir, densidade.
+4. Validar com o advogado: "esta minuta se parece com a sua?" antes/depois.
+
+## Fora de escopo (adiado)
+
+As Fases de UX (busca global, grounding, wizard, Assistant) ficam congeladas até a fidelidade estar validada em caso real. Reavaliar após o advogado confirmar que a peça gerada reproduz fielmente o modelo.
