@@ -579,8 +579,9 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
   const isTrabalhistaInicial = legalArea === "trabalhista" && draftType === "initial_petition";
 
   // ---------------------------------------------------------------------------
-  // PR-Q1A — Excerpt curto e style guide do escritório
-  // Teto hard: 6.000 chars totais de texto literal do modelo no prompt.
+  // PR-FIDELIDADE — Texto literal COMPLETO do modelo no prompt (até 60k chars)
+  // Substitui o excerpt de 3 fragmentos (6k chars) por fonte dominante fiel.
+  // Mantém o excerpt antigo apenas para a auditoria leve e detecção de estilo.
   // ---------------------------------------------------------------------------
   const templateExcerpt = template
     ? buildTemplateExcerpt(
@@ -593,21 +594,38 @@ Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasi
       )
     : buildTemplateExcerpt(null);
 
-  const templateExcerptHasContent = templateExcerpt.total_chars > 0;
-  const templateCompatible =
-    !!template &&
-    templateExcerpt.uses_arabic_numbering; // aplica style guide forte só quando o modelo usa arábico
+  // Bloco completo (texto literal dominante)
+  const fullTemplate = template
+    ? buildFullTemplateBlock((template.extracted_text as string | null) ?? null)
+    : buildFullTemplateBlock(null);
+  const fullTemplateHasContent = fullTemplate.chars > 0;
 
   const officeStyleGuide = template
     ? buildOfficeStyleGuide({
-        uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
-        has_dados_funcionais: templateExcerpt.has_dados_funcionais,
+        uses_arabic_numbering: fullTemplate.uses_arabic_numbering,
+        has_dados_funcionais: fullTemplate.has_dados_funcionais,
         is_trabalhista_inicial: isTrabalhistaInicial,
       })
     : "";
 
-  const templateExcerptPromptBlock = templateExcerptHasContent
-    ? `# [MODELO DO ESCRITÓRIO — TRECHOS LITERAIS (fonte dominante de estrutura, numeração, linguagem, forma de pedir e fechamento)]
+  // Esqueleto estrutural extraído do modelo (lista de seções em ordem)
+  const skeletonPrompt = fullTemplateHasContent && fullTemplate.skeleton.length >= 3
+    ? renderSkeletonForPrompt(fullTemplate.skeleton)
+    : "";
+
+  // PR-FIDELIDADE: bloco dominante com o texto literal completo do modelo.
+  // Se houver extracted_text, envia o texto real; senão cai no excerpt antigo.
+  const templateExcerptPromptBlock = fullTemplateHasContent
+    ? `# [MODELO DO ESCRITÓRIO — TEXTO LITERAL COMPLETO (fonte DOMINANTE de estrutura, numeração, linguagem, forma de narrar e forma de pedir)]
+REGRA DE FIDELIDADE: este é o MODELO do escritório. Sua minuta deve ESPELHAR a estrutura, a ordem das seções, a numeração, os blocos, a linguagem e a forma de pedir deste modelo. Troque APENAS os fatos, nomes, CPFs/CNPJs, valores, datas e endereços pelos do caso atual. NÃO copie fundamentos específicos de outro caso — redija os fundamentos aplicáveis ao caso atual, mas no MESMO estilo e na MESMA posição estrutural do modelo.
+${fullTemplate.truncated ? `\n[NOTA: modelo truncado em ${fullTemplate.chars} caracteres para controle de contexto — os primeiros ${fullTemplate.chars} chars contêm a estrutura dominante.]` : ""}
+
+--- INÍCIO DO MODELO DO ESCRITÓRIO ---
+${fullTemplate.text}
+--- FIM DO MODELO DO ESCRITÓRIO ---
+`
+    : (templateExcerpt.total_chars > 0
+      ? `# [MODELO DO ESCRITÓRIO — TRECHOS LITERAIS (fonte dominante de estrutura, numeração, linguagem, forma de pedir e fechamento)]
 REGRA: use estes trechos como referência DOMINANTE de estilo e forma. NÃO copie fatos, partes, valores, datas, endereços, CPFs/CNPJs nem fundamentos específicos — esses dados pertencem a outro caso.
 
 [ABERTURA DO MODELO]
@@ -619,19 +637,30 @@ ${templateExcerpt.style || "(sem trecho de mérito identificado)"}
 [FORMA DE PEDIR / PEDIDO FINAL DO MODELO]
 ${templateExcerpt.requests || "(sem trecho de pedidos identificado)"}
 `
+      : "");
+
+  // Esqueleto obrigatório (quando extraído do modelo)
+  const skeletonPromptBlock = skeletonPrompt
+    ? `# ESQUELETO OBRIGATÓRIO (ordem de seções do modelo do escritório — seguir esta sequência)
+${skeletonPrompt}
+
+REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos títulos/numeração do modelo. Pode adicionar seções aplicáveis ao caso que não existam no modelo, mas NÃO pode omitir seções estruturais do modelo nem inverter a ordem.`
     : "";
 
   const styleGuidePromptBlock = officeStyleGuide
     ? `# ${officeStyleGuide}`
     : "";
 
-  // Regras adicionais obrigatórias do PR-Q1A quando há template compatível
+  // Regras adicionais obrigatórias quando há template
   const officeRulesPromptBlock = template
     ? `# REGRAS OBRIGATÓRIAS (MODELO DOMINANTE)
-- Quando houver modelo do escritório selecionado, o modelo é fonte dominante de estrutura, linguagem, numeração, forma de pedir e fechamento. Não substitua por estrutura genérica de IA.
-- Não resuma excessivamente a petição se o modelo-base for robusto. A peça deve ter densidade proporcional ao modelo, respeitando os fatos e documentos disponíveis.
+- O MODELO DO ESCRITÓRIO é a fonte DOMINANTE de estrutura, linguagem, numeração, forma de narrar, forma de pedir e fechamento. Sua minuta deve se parecer com o modelo — não com uma peça genérica de IA.
+- ESPELHE a numeração do modelo (arábica "1.-, 2.-" ou romana, conforme o modelo). NÃO troque o esquema de numeração.
+- ESPELHE a ordem e os títulos dos blocos do modelo (ex.: DADOS FUNCIONAIS, PRELIMINARMENTE, etc.) quando o modelo os contiver.
+- NÃO resuma excessivamente a petição se o modelo-base for robusto. A peça deve ter densidade proporcional ao modelo, respeitando os fatos e documentos disponíveis.
 - Todos os pedidos tratados nos tópicos de mérito devem aparecer no rol final de pedidos.
 - Todo item do rol final deve ter correspondência no corpo da peça, salvo pedidos processuais padrão.
+- NUNCA copie fatos, nomes, CPFs/CNPJs, valores, datas, endereços ou fundamentos específicos do modelo — esses dados pertencem a outro caso. Substitua pelos do caso atual.
 - Se faltar dado essencial, sinalize de forma controlada em seção final "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" ou em missing_information — NÃO INVENTAR e NÃO deixar placeholders crus como [NOME], [CPF], [ENDEREÇO], [INSERIR VALOR], NOME DO ADVOGADO, OAB/[UF].`
     : "";
 
