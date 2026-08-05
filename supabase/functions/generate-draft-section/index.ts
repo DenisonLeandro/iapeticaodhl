@@ -196,12 +196,14 @@ Deno.serve(async (req) => {
         .eq("draft_id", draftId).order("order_index", { ascending: true }),
     ]);
 
-    // Template do escritório (se apontado no draft)
+    // Template do escritório (se apontado no draft) — texto literal completo
     let templateContent: string | null = null;
+    let templateName: string | null = null;
     if (draft.template_id) {
       const { data: tmpl } = await admin
-        .from("legal_templates").select("content,title").eq("id", draft.template_id).maybeSingle();
-      templateContent = (tmpl?.content as string | null) ?? null;
+        .from("legal_templates").select("extracted_text,name").eq("id", draft.template_id).maybeSingle();
+      templateContent = (tmpl?.extracted_text as string | null) ?? null;
+      templateName = (tmpl?.name as string | null) ?? null;
     }
 
     // Playbook (se houver)
@@ -282,8 +284,10 @@ História do cliente: ${truncate((intake as { client_story?: string } | null)?.c
 # ANÁLISE DO CASO (resumo)
 ${truncate((analysis as { content_json?: { summary?: string } } | null)?.content_json?.summary, 1500)}
 
-# MODELO DO ESCRITÓRIO
-${templateContent ? truncate(templateContent, 4000) : "(sem modelo específico)"}
+# MODELO DO ESCRITÓRIO (texto literal completo — fonte dominante de estrutura e estilo)
+${templateContent ? truncate(templateContent, 60000) : "(sem modelo específico)"}
+${templateName ? `\n[Nome do modelo: ${templateName}]` : ""}
+REGRA DE FIDELIDADE: espelhe a estrutura, numeração, linguagem e forma de pedir do modelo acima. Troque apenas fatos/nomes/valores/datas pelos do caso atual.
 
 # PLAYBOOK
 ${playbookSummary ?? "(sem playbook)"}
