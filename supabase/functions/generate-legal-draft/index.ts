@@ -928,8 +928,18 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
     warnings.push("O rol final usa bullets, mas o modelo do escritório usa itens numerados. Revisar formatação do pedido final.");
   }
 
+  // PR-FIDELIDADE — Auditoria de fidelidade (minuta vs modelo do escritório)
+  let fidelityAudit: ReturnType<typeof runFidelityAudit> | null = null;
+  if (fullTemplateHasContent) {
+    fidelityAudit = runFidelityAudit(content, fullTemplate);
+    for (const fw of fidelityAudit.fidelity_warnings) {
+      warnings.push(fw);
+    }
+  }
+
   const qualityReport: Record<string, unknown> = {
     light_audit: lightAudit,
+    fidelity_audit: fidelityAudit,
     template_excerpt: {
       total_chars: templateExcerpt.total_chars,
       opening_chars: templateExcerpt.opening.length,
@@ -939,6 +949,15 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
       has_dados_funcionais: templateExcerpt.has_dados_funcionais,
       uses_arabic_numbering: templateExcerpt.uses_arabic_numbering,
     },
+    template_full: fullTemplateHasContent
+      ? {
+          chars: fullTemplate.chars,
+          truncated: fullTemplate.truncated,
+          uses_arabic_numbering: fullTemplate.uses_arabic_numbering,
+          has_dados_funcionais: fullTemplate.has_dados_funcionais,
+          skeleton_section_count: fullTemplate.skeleton.length,
+        }
+      : null,
   };
 
   const mergedWarningsSet = new Set<string>();
