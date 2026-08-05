@@ -545,7 +545,7 @@ Nível de confiança: ${c.confidence_level ?? ""}`.slice(0, MAX_ANALYSIS_CHARS))
     if (docsSummary) parts.push(`# [DOCUMENTOS DO CASO]\n${docsSummary}`);
 
     if (template) {
-      parts.push(`# [MODELO DO ESCRITÓRIO — RÉGUA MÍNIMA de estrutura, profundidade, organização e completude]
+      parts.push(`# [MODELO DO ESCRITÓRIO — RÉGUA DOMINANTE de estrutura, profundidade, organização e completude]
 Nome interno (não citar na minuta): ${template.name}
 Área: ${template.legal_area ?? ""} | Tipo: ${template.piece_type ?? ""}
 Resumo de estrutura: ${template.structure_summary ?? ""}
@@ -557,7 +557,7 @@ Padrões de pedidos: ${stringifyList(template.request_patterns)}
 Cuidados: ${stringifyList(template.risk_notes)}
 Diretrizes de uso: ${template.usage_guidelines ?? ""}
 
-REGRA: este modelo é RÉGUA MÍNIMA de qualidade/profundidade. NÃO copie fatos, partes, valores, datas ou fundamentos dele — esses dados pertencem a outro caso.`);
+REGRA: este modelo é a FONTE DOMINANTE de estrutura, linguagem e estilo. Sua minuta deve ESPELHAR o modelo. NÃO copie fatos, partes, valores, datas ou fundamentos dele — esses dados pertencem a outro caso. O texto literal completo do modelo é fornecido mais abaixo neste prompt.`);
     } else {
       parts.push(`# [MODELO DO ESCRITÓRIO]
 Nenhum modelo compatível foi selecionado. Use estrutura jurídica padrão brasileira ROBUSTA para "${draftLabel}" — não gere peça curta.`);
