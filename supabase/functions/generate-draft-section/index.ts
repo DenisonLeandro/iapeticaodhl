@@ -196,12 +196,14 @@ Deno.serve(async (req) => {
         .eq("draft_id", draftId).order("order_index", { ascending: true }),
     ]);
 
-    // Template do escritório (se apontado no draft)
+    // Template do escritório (se apontado no draft) — texto literal completo
     let templateContent: string | null = null;
+    let templateName: string | null = null;
     if (draft.template_id) {
       const { data: tmpl } = await admin
-        .from("legal_templates").select("content,title").eq("id", draft.template_id).maybeSingle();
-      templateContent = (tmpl?.content as string | null) ?? null;
+        .from("legal_templates").select("extracted_text,name").eq("id", draft.template_id).maybeSingle();
+      templateContent = (tmpl?.extracted_text as string | null) ?? null;
+      templateName = (tmpl?.name as string | null) ?? null;
     }
 
     // Playbook (se houver)
