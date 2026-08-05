@@ -1,95 +1,84 @@
-# Comparativo Harvey (global, produto real) x nosso sistema + plano de evolução
+# Plano de evolução — escopo enxuto (Fases 2, 3, 6 e 1)
 
-## Esclarecimento sobre os dois "Harvey"
+Escopo aprovado: ~70–105 horas, entregue **uma fase por vez**, com validação de advogado real antes de seguir.
 
-São produtos diferentes:
+Ordem ajustada ao gargalo relatado (wizard > navegação > revisão): o wizard é atacado em duas etapas — primeiro por redução de atrito (barato, cedo), depois pelo Assistant completo. Isso evita o risco de o Assistant virar mais uma camada antes do mesmo wizard.
 
-1. **Harvey (harvey.ai)** — produto global real, fundado em 2022 (Winston Weinberg, ex-litigator, + Gabe Pereyra, ex-Google/Meta), modelos customizados sobre OpenAI, +200 mil profissionais, foco em Am Law 100, Big Four e departamentos jurídicos Fortune 500. É este que serve de referência de funcionamento real.
-2. **harveyai.com.br** — projeto brasileiro independente, ainda em pré-lançamento (lista de espera por WhatsApp), com planos de R$ 359,90 / R$ 659,90 / sob consulta. Não há produto acessível; só promessa de posicionamento.
+## Ordem de execução
 
-A comparação abaixo usa o **Harvey global** como referência técnica, e o `.com.br` apenas como referência de posicionamento comercial no Brasil.
+| # | Fase | Estimativa | Ganho |
+|---|---|---|---|
+| A | Enxugar o wizard (pré-Assistant) | 10–16h | Ataca o gargalo nº1 já na primeira entrega |
+| B | Busca global (Cmd+K) | 8–14h | Ataca o gargalo nº2, sem custo de IA |
+| C | Grounding com citação exata | 20–30h | Ataca o gargalo nº3, gera confiança na saída |
+| D | Raciocínio visível durante a geração | 8–12h | Reduz sensação de espera |
+| E | Assistant único (entrada em linguagem natural) | 30–45h | Só depois de A–D provarem o caminho |
 
-## Como o Harvey global realmente funciona
+Total: 76–117h. Cada fase termina em uma entrega utilizável e testável isoladamente.
 
-Cinco ferramentas centrais, mais camadas recentes:
+---
 
-- **Assistant** — tela única de chat onde o usuário pergunta, anexa documentos e escolhe *fontes de conhecimento* (LexisNexis, EUR-Lex, EDGAR, web, Vault). Gera, edita, resume e redige. Toda resposta é ancorada na fonte exata usada.
-- **Vault** — repositório de milhares de documentos com análise em massa: Review Tables (extração para tabela estruturada), Q&A dirigido, sumarização em lote, agentes de um clique por área (M&A, litigation).
-- **Workflow Agents** — automações reutilizáveis: conjuntos de consultas e etapas que o escritório monta uma vez e roda sempre. Executam trabalho ponta a ponta.
-- **Knowledge** — pesquisa jurídica, regulatória e tributária multi-jurisdição sobre bases licenciadas.
-- **History / Library** — histórico de threads e biblioteca de prompts/modelos do escritório.
-- **Camadas 2025-2026** — Shared Spaces (colaboração entre organizações), Command Center (analytics, benchmarking e adoção de IA no escritório), Contract Intelligence, Harvey Mobile, Ecosystem (add-in de Word e integrações onde o time já trabalha), Harvey Academy (treinamento).
+## Fase A — Enxugar o wizard
 
-Pontos de arquitetura relevantes: fine-tuning sobre acervo jurídico, grounding obrigatório com citação da fonte exata, geração a partir de templates aprovados do próprio escritório, matriz de risco e verificação de conformidade contra padrões internos, e busca global (Cmd+K) como espinha dorsal da navegação.
+Antes de substituir o wizard por chat, remover o que ele pede sem necessidade.
 
-Críticas recorrentes na imprensa especializada: preço e contrato enterprise, obrigatoriedade de sales call, saída em formato de memorando longo (padrão Big Law), pouca aderência a rotinas de departamento jurídico enxuto, e nenhuma cobertura de foro brasileiro.
+- Auditar cada campo obrigatório das etapas atuais e classificar em: essencial, derivável de dados já cadastrados, ou opcional.
+- Pré-preencher tudo que já existe no cliente/processo selecionado.
+- Colapsar etapas que hoje têm poucos campos em uma só tela.
+- Permitir "gerar agora" com os campos essenciais e completar o resto depois.
 
-## Onde estamos iguais
+Critério de validação: contar cliques e campos digitados para gerar uma inicial trabalhista antes e depois. Meta: redução de pelo menos 40%.
 
-| Capacidade | Harvey global | Nós |
-|---|---|---|
-| Redação a partir de modelos do escritório | sim (Library) | sim, e com extração de trechos literais + style guide |
-| Grounding com fonte | sim, citação exata | sim, para jurisprudência e documentos do processo |
-| Análise de documentos em volume | Vault | pipeline OCR + chunk + embeddings + chat do processo |
-| Chat com o acervo | Assistant | chat do processo e chat do documento |
-| Análise de risco | risk matrix / compliance | Mapa de Pedidos e Riscos + revisão sênior |
-| Revisão contra padrão interno | sim | sim, playbooks + auditoria estrutural |
-| Analytics de uso de IA | Command Center | tela de consumo `/settings/ai-usage` |
-| Multiusuário e segurança | enterprise | multi-tenant com RLS por organização |
+## Fase B — Busca global (Cmd+K)
 
-## Onde somos melhores
+Paleta de comando acessível de qualquer tela, buscando processos, clientes, minutas, documentos e tarefas.
 
-1. **Foro brasileiro nativo** — DJEN, tribunais brasileiros, CPC/CLT, padrão CNJ/ABNT, cálculo trabalhista. O Harvey não cobre isso.
-2. **Vertical trabalhista profunda** — mapa canônico de pedidos, pares principal/sucessivo, guardas de tese sensível, cálculos vinculados. Harvey é generalista corporativo.
-3. **Fidelidade ao padrão da banca** — não só "usar template", mas reproduzir numeração, blocos e estilo do modelo real do escritório.
-4. **Gestão processual acoplada** — clientes, processos, timeline, publicações, tarefas. O Harvey é ferramenta de trabalho, não sistema de escritório.
-5. **Governança de custo por chamada** — log, custo por usuário/função, modo econômico, confirmação antes de tarefa cara. Harvey esconde isso em contrato enterprise.
-6. **Acessível a escritório pequeno e médio** — sem sales call, sem contrato mínimo.
+- Busca no Postgres com `pg_trgm`, sem chamada de IA.
+- Resultados agrupados por tipo, navegação por teclado, atalho `Cmd/Ctrl+K`.
+- Escopo por organização via RLS já existente.
 
-## Onde somos piores
+Critério de validação: advogado encontra um processo pelo nome parcial da parte em menos de 5 segundos.
 
-1. **Porta de entrada** — o Assistant do Harvey é uma tela só: pergunta, anexo, fonte, resposta. O nosso fluxo principal é wizard multi-etapas com cadastro prévio.
-2. **Sem agentes/workflows reutilizáveis** — o escritório não consegue montar e salvar uma automação própria ("checklist de inicial trabalhista", "análise de contestação") sem código nosso.
-3. **Sem grounding com citação exata na maioria das saídas** — citamos jurisprudência com guarda, mas não devolvemos "esta frase veio da página X do documento Y" de forma sistemática.
-4. **Sem análise em massa tipo Review Table** — não há extração multi-documento para tabela comparativa.
-5. **Sem busca global** — não existe Cmd+K sobre processos, minutas, documentos e threads.
-6. **Sem integração onde o advogado já trabalha** — nada de add-in de Word, e-mail ou mobile.
-7. **Sem base de pesquisa jurídica licenciada** — dependemos de scraping de tribunais, não de acervo estruturado.
-8. **Sem biblioteca de prompts/histórico reaproveitável** pelo usuário final.
+## Fase C — Grounding com citação exata
 
-## Plano de evolução proposto
+Toda afirmação da IA sobre documento do processo devolve trecho e localização clicável.
 
-### Fase 1 — Assistant único (entrada em linguagem natural)
-Uma tela de comando: campo de texto, anexo opcional e seletor de fonte (este processo / meus documentos / jurisprudência / modelos do escritório). Uma classificação barata de intenção roteia para os fluxos que já existem, pré-preenchidos. É a diferença de percepção mais forte entre nós e o Harvey.
+- Respostas do chat do processo e do documento passam a retornar `chunk_id` junto do texto.
+- UI renderiza a citação como chip clicável que abre o trecho de origem destacado.
+- Aplicar também às seções geradas que citem documento do processo.
 
-### Fase 2 — Busca global (Cmd+K)
-Busca unificada sobre processos, clientes, minutas, documentos e conversas. Barato de fazer, impacto alto em sensação de produto maduro.
+Critério de validação: advogado consegue conferir a origem de uma afirmação sem abrir o PDF inteiro.
 
-### Fase 3 — Grounding com citação exata
-Toda afirmação da IA sobre um documento do processo devolve trecho e localização clicável, usando os chunks e embeddings que já existem.
+## Fase D — Raciocínio visível
 
-### Fase 4 — Workflow Agents do escritório
-Permitir que o admin monte e salve sequências reutilizáveis (etapas, prompts, modelo, playbook, saída esperada) e que qualquer advogado rode com um clique. Generaliza os fluxos hoje fixos em código.
+Exibir as etapas reais da geração (planejamento de capítulos, seção em curso, auditoria) usando os eventos que as edge functions já emitem — sem chamadas de IA adicionais.
 
-### Fase 5 — Análise em massa (Review Table)
-Selecionar N documentos de um processo ou cliente e extrair colunas definidas pelo usuário para uma tabela comparativa exportável.
+Critério de validação: durante a geração, o usuário sempre sabe em que etapa está.
 
-### Fase 6 — Raciocínio visível e biblioteca
-Mostrar as etapas de raciocínio durante a geração e manter histórico/biblioteca de prompts e peças reaproveitáveis por organização.
+## Fase E — Assistant único
 
-### Fase 7 — Onde o advogado trabalha
-Export/edição em Word com ida e volta, e visão mobile de leitura e aprovação.
+Só iniciar após A–D validados, e apenas se a Fase A não tiver resolvido o atrito do wizard.
+
+- Tela única: campo de texto, anexo opcional, seletor de fonte (este processo / meus documentos / jurisprudência / modelos do escritório).
+- Classificação barata de intenção roteia para o fluxo correto **já preenchido**, não para o wizard vazio.
+- Regra de projeto: o Assistant precisa *substituir* etapas. Se ao final ele apenas antecede o wizard, a fase é descartada.
+
+Critério de validação: gerar uma inicial trabalhista partindo só de um parágrafo em linguagem natural + processo selecionado.
+
+---
 
 ## Detalhes técnicos
 
-- Fase 1: rota nova + edge function de classificação de intenção devolvendo `{intent, entities, target_route, prefill}`, usando `selectModelForTask` em modo econômico.
-- Fase 2: busca no Postgres com `pg_trgm` sobre as tabelas principais, sem custo de IA.
-- Fase 3: reaproveita `document_chunks` e embeddings já persistidos; exige apenas retornar `chunk_id` nas respostas e renderizar o trecho.
-- Fase 4: novas tabelas `workflow_agents` e `workflow_runs` com RLS por organização; execução reusa as edge functions existentes como passos.
-- Fase 5: nova função de extração em lote sobre chunks, com schema de colunas definido pelo usuário e saída em XLSX (já temos exportador).
-- Fase 6: streaming dos eventos que `plan-draft-chapters` e `generate-draft-section` já emitem.
-- Fase 7: `src/lib/docx/export-document.ts` já existe; falta o caminho de reimportação.
+- Fase A: apenas frontend (`DraftGeneratorPage` e etapas do wizard) + leitura de dados já persistidos. Sem migração.
+- Fase B: índices `pg_trgm` nas tabelas principais; uma RPC de busca unificada com `SECURITY DEFINER` e filtro por `get_my_organization_id()`; componente de command palette no shell.
+- Fase C: reaproveita `document_chunks` e embeddings existentes; alterações nas edge functions `case-chat` e afins para propagar `chunk_id`; novo componente de citação.
+- Fase D: streaming/persistência dos eventos que `plan-draft-chapters` e `generate-draft-section` já produzem.
+- Fase E: rota nova + edge function de classificação de intenção retornando `{intent, entities, target_route, prefill}`, usando `selectModelForTask` em modo econômico.
 
-## Recomendação
+## Fora de escopo agora
 
-Priorizar Fases 1, 2 e 3. São as três lacunas em que o Harvey é estruturalmente superior e que não exigem base de dados licenciada nem contrato enterprise. As Fases 4 e 5 são o que transforma o sistema de "gerador de peças" em plataforma de escritório.
+Workflow Agents, Review Table multi-documento, add-in de Word e mobile. Reavaliar só depois de A–D em uso real.
+
+## Referência: comparativo Harvey
+
+O comparativo detalhado com o Harvey global que originou este plano permanece válido como diagnóstico. Conclusão estratégica: nossas vantagens (foro brasileiro, vertical trabalhista, fidelidade ao padrão da banca, gestão processual acoplada, governança de custo) não devem ser diluídas em busca de paridade de UX com um produto generalista corporativo que não atua no nosso nicho. Copiamos apenas o que é objetivamente melhor: entrada única, busca global e grounding citável.
