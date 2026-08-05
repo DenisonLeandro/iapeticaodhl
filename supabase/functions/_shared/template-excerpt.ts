@@ -194,6 +194,98 @@ export function buildTemplateExcerpt(
 }
 
 // =============================================================================
+// PR-FIDELIDADE — Bloco completo do modelo (texto literal dominante)
+// Em vez de 3 fragmentos de 6.000 chars, envia o texto literal do modelo
+// (até MAX_FULL_TEMPLATE_CHARS) como fonte dominante de estrutura/estilo.
+// =============================================================================
+
+const MAX_FULL_TEMPLATE_CHARS = 60_000;
+
+export interface FullTemplateBlock {
+  text: string;
+  chars: number;
+  truncated: boolean;
+  uses_arabic_numbering: boolean;
+  has_dados_funcionais: boolean;
+  skeleton: TemplateSkeletonSection[];
+}
+
+export interface TemplateSkeletonSection {
+  title: string;
+  numbering: string | null;
+}
+
+/**
+ * Extrai um esqueleto determinístico (sem IA) da ordem de seções do modelo,
+ * usando títulos em MAIÚSCULAS e numeração (arábica ou romana) no início de linha.
+ */
+export function extractTemplateSkeleton(
+  text: string | null | undefined,
+): TemplateSkeletonSection[] {
+  if (!text || typeof text !== "string") return [];
+  const sections: TemplateSkeletonSection[] = [];
+  const seen = new Set<string>();
+  // Captura linhas que começam com numeração (1.-, 2.-, I-, II-, a), b)) seguida
+  // de texto em MAIÚSCULAS, OU linhas inteiramente em MAIÚSCULAS com 4+ chars.
+  const re =
+    /(?:^|\n)\s*((?:\d+\.\-|\d+[\.\)]|\d+\.\d+\.\-|[IVXLCDM]+\s*[\.\-–—]|[a-h]\))\s*)?([A-ZÀ-Ú][A-ZÀ-Ú0-9\sºª\/\(\)\-—–:]{3,})\s*(?:\n|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const numbering = (m[1] ?? "").trim();
+    const title = m[2].trim();
+    if (title.length < 4) continue;
+    // Filtra títulos que são só ruído (ex.: "OAB", "CPF")
+    if (/^(OAB|CPF|CNPJ|RG|CNH|CEI)$/.test(title)) continue;
+    const key = `${numbering}|${title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sections.push({ title, numbering: numbering || null });
+  }
+  return sections.slice(0, 40);
+}
+
+/**
+ * Constrói o bloco de texto literal completo do modelo para o prompt.
+ * Usa o texto extraído (até 60.000 chars) como fonte dominante de fidelidade.
+ */
+export function buildFullTemplateBlock(
+  extractedText: string | null | undefined,
+): FullTemplateBlock {
+  const empty: FullTemplateBlock = {
+    text: "",
+    chars: 0,
+    truncated: false,
+    uses_arabic_numbering: false,
+    has_dados_funcionais: false,
+    skeleton: [],
+  };
+  if (!extractedText || typeof extractedText !== "string") return empty;
+  const text = extractedText;
+  const truncated = text.length > MAX_FULL_TEMPLATE_CHARS;
+  const clipped = truncated ? text.slice(0, MAX_FULL_TEMPLATE_CHARS) : text;
+  return {
+    text: clipped,
+    chars: clipped.length,
+    truncated,
+    uses_arabic_numbering: detectsArabicNumbering(text),
+    has_dados_funcionais: /DADOS\s+FUNCIONAIS/i.test(text),
+    skeleton: extractTemplateSkeleton(text),
+  };
+}
+
+/**
+ * Renderiza o esqueleto extraído como lista ordenada para o prompt.
+ */
+export function renderSkeletonForPrompt(
+  skeleton: TemplateSkeletonSection[],
+): string {
+  if (!skeleton || skeleton.length === 0) return "";
+  return skeleton
+    .map((s, i) => `${i + 1}. ${s.numbering ? s.numbering + " " : ""}${s.title}`)
+    .join("\n");
+}
+
+// =============================================================================
 // Auditoria leve determinística — placeholders, seções, estilo
 // =============================================================================
 
