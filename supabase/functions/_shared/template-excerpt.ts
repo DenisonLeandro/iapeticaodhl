@@ -373,3 +373,112 @@ export function runLightDraftAudit(
     final_requests_use_bullets,
   };
 }
+
+// =============================================================================
+// PR-FIDELIDADE — Auditoria de fidelidade (minuta gerada vs modelo do escritório)
+// =============================================================================
+
+export interface FidelityAuditResult {
+  template_section_count: number;
+  draft_section_count: number;
+  matched_sections: string[];
+  missing_sections: string[];
+  numbering_mismatch: boolean;
+  template_has_dados_funcionais: boolean;
+  draft_has_dados_funcionais: boolean;
+  dados_funcionais_missing: boolean;
+  length_ratio: number;
+  length_ratio_acceptable: boolean;
+  fidelity_score: number;
+  fidelity_warnings: string[];
+}
+
+/**
+ * Compara a minuta gerada contra o esqueleto do modelo do escritório.
+ * Retorna score 0-100 e warnings acionáveis.
+ */
+export function runFidelityAudit(
+  draftContent: string,
+  fullTemplate: FullTemplateBlock,
+): FidelityAuditResult {
+  const skeleton = fullTemplate.skeleton ?? [];
+  const draftUpper = (draftContent ?? "").toUpperCase();
+
+  const matched: string[] = [];
+  const missing: string[] = [];
+  for (const sec of skeleton) {
+    // Aceita match parcial do título (primeiras palavras significativas)
+    const needle = sec.title.split(/\s+/).slice(0, 3).join(" ").toUpperCase();
+    if (needle.length >= 4 && draftUpper.includes(needle)) {
+      matched.push(sec.title);
+    } else {
+      missing.push(sec.title);
+    }
+  }
+
+  // Numeração: se modelo usa arábico (1.-) e minuta usa romano predominante
+  const arabicInDraft = (draftContent.match(/(^|\n)\s*\d+\.\-/g) ?? []).length;
+  const romanInDraft = (draftContent.match(/(^|\n)\s*[IVX]{1,4}\s*[\.\-–—]/g) ?? []).length;
+  const numbering_mismatch =
+    fullTemplate.uses_arabic_numbering &&
+    romanInDraft >= 5 &&
+    romanInDraft > arabicInDraft * 2;
+
+  const template_has_dados_funcionais = fullTemplate.has_dados_funcionais;
+  const draft_has_dados_funcionais = /DADOS\s+FUNCIONAIS/i.test(draftContent);
+  const dados_funcionais_missing = template_has_dados_funcionais && !draft_has_dados_funcionais;
+
+  const templateLen = fullTemplate.chars;
+  const draftLen = (draftContent ?? "").length;
+  const length_ratio = templateLen > 0 ? draftLen / templateLen : 1;
+  // Aceitável: minuta entre 0.4x e 3x o tamanho do modelo
+  const length_ratio_acceptable = length_ratio >= 0.4 && length_ratio <= 3.0;
+
+  const warnings: string[] = [];
+  if (missing.length > 0 && skeleton.length >= 4) {
+    warnings.push(
+      `Seções do modelo ausentes na minuta: ${missing.slice(0, 6).join("; ")}${missing.length > 6 ? "…" : ""}`,
+    );
+  }
+  if (numbering_mismatch) {
+    warnings.push("O modelo usa numeração arábica (1.-, 2.-) e a minuta usa romanos (I, II). Revisar numeração.");
+  }
+  if (dados_funcionais_missing) {
+    warnings.push('O modelo contém bloco "DADOS FUNCIONAIS" e a minuta não. Revisar.');
+  }
+  if (!length_ratio_acceptable && templateLen > 1000) {
+    if (length_ratio < 0.4) {
+      warnings.push(`A minuta (${draftLen} chars) é bem menor que o modelo (${templateLen} chars). Verificar densidade.`);
+    } else {
+      warnings.push(`A minuta (${draftLen} chars) é bem maior que o modelo (${templateLen} chars). Verificar excessos.`);
+    }
+  }
+
+  // Score: começa em 100, desconta por divergências
+  let score = 100;
+  if (skeleton.length >= 4) {
+    const matchRate = matched.length / skeleton.length;
+    score = Math.round(matchRate * 60);
+  } else {
+    score = 70; // sem esqueleto confiável, score neutro-médio
+  }
+  if (numbering_mismatch) score -= 15;
+  if (dados_funcionais_missing) score -= 10;
+  if (!length_ratio_acceptable && templateLen > 1000) score -= 10;
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    template_section_count: skeleton.length,
+    draft_section_count: matched.length,
+    matched_sections: matched,
+    missing_sections: missing,
+    numbering_mismatch,
+    template_has_dados_funcionais,
+    draft_has_dados_funcionais,
+    dados_funcionais_missing,
+    length_ratio: Math.round(length_ratio * 100) / 100,
+    length_ratio_acceptable,
+    fidelity_score: score,
+    fidelity_warnings: warnings,
+  };
+}
