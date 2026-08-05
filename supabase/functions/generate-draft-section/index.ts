@@ -284,8 +284,10 @@ História do cliente: ${truncate((intake as { client_story?: string } | null)?.c
 # ANÁLISE DO CASO (resumo)
 ${truncate((analysis as { content_json?: { summary?: string } } | null)?.content_json?.summary, 1500)}
 
-# MODELO DO ESCRITÓRIO
-${templateContent ? truncate(templateContent, 4000) : "(sem modelo específico)"}
+# MODELO DO ESCRITÓRIO (texto literal completo — fonte dominante de estrutura e estilo)
+${templateContent ? truncate(templateContent, 60000) : "(sem modelo específico)"}
+${templateName ? `\n[Nome do modelo: ${templateName}]` : ""}
+REGRA DE FIDELIDADE: espelhe a estrutura, numeração, linguagem e forma de pedir do modelo acima. Troque apenas fatos/nomes/valores/datas pelos do caso atual.
 
 # PLAYBOOK
 ${playbookSummary ?? "(sem playbook)"}
