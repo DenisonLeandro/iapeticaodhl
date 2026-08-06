@@ -297,11 +297,42 @@ export function contentHash(text: string): string {
   return `fnv1a:${h.toString(16)}:${text.length}`;
 }
 
+/**
+ * Assinatura do ESTADO MATERIAL da minuta: conteúdo + valores de cada pedido
+ * (sistema, manual e respectivas confirmações) + somatório do valor da causa +
+ * versão da auditoria. Qualquer alteração material invalida a revisão humana.
+ */
+export function reviewedStateHash(content: string, items: CalcItemLike[]): string {
+  const caseValue = computeCaseValue(items ?? []);
+  const parts = (items ?? [])
+    .map((it) =>
+      [
+        it.request_label ?? "",
+        it.estimated_value ?? "",
+        it.manual_value ?? "",
+        it.manual_value_confirmed === true ? 1 : 0,
+        it.system_value_confirmed === true ? 1 : 0,
+        deriveCalculationStatus(it),
+      ].join("|"),
+    )
+    .sort()
+    .join("\n");
+  return contentHash(
+    [
+      COMPLETENESS_AUDIT_VERSION,
+      content ?? "",
+      parts,
+      caseValue.claim_value_sum.toFixed(2),
+      caseValue.case_value_status,
+    ].join("\u0001"),
+  );
+}
+
 export function runCompletenessAudit(input: {
   content: string;
   items?: CalcItemLike[];
   lawyerConfirmedCaseValue?: boolean;
-  /** Confirmação explícita do advogado + hash do conteúdo confirmado. */
+  /** Confirmação explícita do advogado + hash do estado confirmado. */
   lawyerReviewConfirmedHash?: string | null;
 }): CompletenessAudit {
   const content = input.content ?? "";
@@ -310,13 +341,19 @@ export function runCompletenessAudit(input: {
   const items = input.items ?? [];
   const caseValue = computeCaseValue(items, { lawyerConfirmedCaseValue: input.lawyerConfirmedCaseValue });
   const hash = contentHash(content);
+  const stateHash = reviewedStateHash(content, items);
 
   const clean =
     summary.placeholder_count === 0 &&
     (caseValue.case_value_status === "complete" || caseValue.case_value_status === "manual");
 
   let readiness: ProtocolReadiness = clean ? "ready_for_legal_review" : "draft_incomplete";
-  if (clean && input.lawyerReviewConfirmedHash && input.lawyerReviewConfirmedHash === hash) {
+  // Aceita o hash de estado (atual) e, por compatibilidade, o hash textual legado.
+  if (
+    clean &&
+    input.lawyerReviewConfirmedHash &&
+    (input.lawyerReviewConfirmedHash === stateHash || input.lawyerReviewConfirmedHash === hash)
+  ) {
     readiness = "lawyer_review_confirmed";
   }
 
@@ -324,6 +361,7 @@ export function runCompletenessAudit(input: {
     version: COMPLETENESS_AUDIT_VERSION,
     audited_at: new Date().toISOString(),
     content_hash: hash,
+    state_hash: stateHash,
     ...summary,
     placeholders,
     claims: items.map((it) => ({
@@ -338,3 +376,4 @@ export function runCompletenessAudit(input: {
     protocol_readiness: readiness,
   };
 }
+
