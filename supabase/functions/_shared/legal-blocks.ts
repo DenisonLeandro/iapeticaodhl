@@ -23,7 +23,7 @@ const TRABALHISTA_INICIAL_BASE: RequiredBlock[] = [
   { id: "exibicao_documentos", label: "Exibição de documentos", guidance: "art. 400 CPC; especificar documentos e consequências da não exibição." },
   { id: "nao_limitacao", label: "Não limitação da condenação aos valores da inicial", guidance: "Tópico próprio obrigatório + item no pedido final. Ver texto fixo." },
   { id: "juros_correcao", label: "Juros e correção monetária", guidance: "Aplicar entendimento atual (Lei 13.467/17 e decisões vinculantes STF/TST)." },
-  { id: "honorarios", label: "Honorários advocatícios", guidance: "art. 791-A CLT; cuidado com beneficiário da justiça gratuita — marcar revisão ADI 5.766/STF." },
+  { id: "honorarios", label: "Honorários advocatícios", guidance: "art. 791-A CLT (5% a 15% sobre a liquidação) + art. 85, §§2º e 8º, CPC. Quando o reclamante for beneficiário da gratuidade, afirmar de forma assertiva, com base na ADI 5.766/STF, que a sucumbência fica sob condição suspensiva de exigibilidade e não pode ser satisfeita com os créditos obtidos no processo. NÃO inserir marcador de revisão nesta matéria." },
   { id: "protesto_provas", label: "Protesto por provas", guidance: "Depoimentos, testemunhas, perícia, documentos, inspeção." },
   { id: "pedido_final", label: "Pedido final numerado e detalhado", guidance: "Cada pedido remete ao tópico; reflexos discriminados; sucessivos quando cabíveis; valores ou [CALCULAR VALOR]." },
   { id: "valor_causa", label: "Valor da causa", guidance: "Soma dos pedidos ou marcador se depender de cálculo." },
