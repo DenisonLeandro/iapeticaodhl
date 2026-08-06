@@ -168,7 +168,7 @@ export default function CompletenessPanel({
 
       {staleConfirmation && (
         <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
-          A minuta foi alterada depois da confirmação — o selo de apto para protocolo foi invalidado.
+          A minuta ou os valores foram alterados depois da confirmação — o selo de apto para protocolo foi invalidado.
         </p>
       )}
 
