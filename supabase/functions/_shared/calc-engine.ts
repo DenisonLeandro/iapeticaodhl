@@ -523,34 +523,42 @@ export function contextFromNormalized(n: CalculationContext): CalcContext {
 export function annotateWithSources(result: CalcResult, n: CalculationContext): CalcResult {
   const bySrc = n.sources_by_field;
   const byConf = n.confidence_by_field;
+  const byKey = n.source_keys_by_field ?? {};
   const has = (k: string) => bySrc[k] || byConf[k];
-  const labelFor = (label: string): { src?: string; conf?: string } => {
+  const labelFor = (label: string): { src?: string; conf?: string; key?: CalculationSource } => {
     const l = label.toLowerCase();
-    if (l.includes("saldo")) return { src: bySrc.termination_day_count || bySrc.termination_date, conf: byConf.termination_day_count || byConf.termination_date };
+    if (l.includes("saldo")) return { src: bySrc.termination_day_count || bySrc.termination_date, conf: byConf.termination_day_count || byConf.termination_date, key: byKey.termination_day_count || byKey.termination_date };
     if (l.includes("aviso") || l.includes("férias") || l.includes("13") || l.includes("fgts") || l.includes("multa"))
-      return { src: bySrc.monthly_salary, conf: byConf.monthly_salary };
+      return { src: bySrc.monthly_salary, conf: byConf.monthly_salary, key: byKey.monthly_salary };
     if (l.includes("intrajornada") || l.includes("horas extras") || l.includes("interjornada"))
-      return { src: bySrc.work_schedule, conf: byConf.work_schedule };
+      return { src: bySrc.work_schedule, conf: byConf.work_schedule, key: byKey.work_schedule };
     if (l.includes("produtividade") || l.includes("km"))
-      return { src: bySrc.variable_pay, conf: byConf.variable_pay };
-    return { src: has("monthly_salary") ? bySrc.monthly_salary : undefined, conf: byConf.monthly_salary };
+      return { src: bySrc.variable_pay, conf: byConf.variable_pay, key: byKey.variable_pay };
+    return { src: has("monthly_salary") ? bySrc.monthly_salary : undefined, conf: byConf.monthly_salary, key: byKey.monthly_salary };
   };
   return {
     ...result,
     items: result.items.map((it) => {
-      const { src, conf } = labelFor(it.request_label);
+      const { src, conf, key } = labelFor(it.request_label);
       const assumptions = { ...(it.assumptions ?? {}) } as Record<string, unknown>;
-      if (src) assumptions._source = src;
+      if (src) assumptions._source = src;              // rótulo (apresentação)
+      if (key) assumptions._source_key = key;          // chave canônica (regra)
       if (conf) assumptions._confidence_source = conf;
       const injectable = isItemConsistent(it, {
-        salarySrc: bySrc.monthly_salary,
-        admissionSrc: bySrc.admission_date,
-        terminationSrc: bySrc.termination_date,
-        scheduleSrc: bySrc.work_schedule,
-        itemSrc: src,
+        salarySrc: byKey.monthly_salary,
+        admissionSrc: byKey.admission_date,
+        terminationSrc: byKey.termination_date,
+        scheduleSrc: byKey.work_schedule,
+        itemSrc: key,
       });
       assumptions._draft_injectable = injectable;
-      const notes = injectable ? it.notes : "[CALCULAR VALOR — revisar memória de cálculo]";
+      // Só vira marcador de cálculo quando NÃO há valor. Havendo base matemática
+      // (ex.: honorários sobre subtotal), o item permanece como valor estimado.
+      const notes = injectable
+        ? it.notes
+        : it.estimated_value == null
+          ? "[CALCULAR VALOR — revisar memória de cálculo]"
+          : it.notes ?? "[VALOR ESTIMADO — depende de confirmação do advogado]";
       return { ...it, assumptions, notes };
     }),
   };
@@ -559,15 +567,21 @@ export function annotateWithSources(result: CalcResult, n: CalculationContext): 
 /**
  * Draft-injection gate. Conservative on purpose: any doubt → keep
  * "[CALCULAR VALOR — revisar memória de cálculo]" in the petition body.
+ * IMPORTANTE: compara SOMENTE chaves canônicas (`CalculationSource`),
+ * nunca rótulos de interface.
  */
 export function isItemConsistent(
   item: CalcItem,
-  sources: { salarySrc?: string; admissionSrc?: string; terminationSrc?: string; scheduleSrc?: string; itemSrc?: string },
+  sources: {
+    salarySrc?: CalculationSource; admissionSrc?: CalculationSource;
+    terminationSrc?: CalculationSource; scheduleSrc?: CalculationSource;
+    itemSrc?: CalculationSource;
+  },
 ): boolean {
   if (item.estimated_value == null) return false;
   if (item.confidence !== "high") return false;
   if (Array.isArray(item.missing_fields) && item.missing_fields.length > 0) return false;
-  const doc = (s?: string) => s === "documento" || s === "ficha";
+  const doc = (s?: CalculationSource) => s === "document" || s === "intake";
   const l = item.request_label.toLowerCase();
   if (l.includes("saldo")) return doc(sources.terminationSrc);
   if (l.includes("aviso") || l.includes("férias") || l.includes("13") || l.includes("fgts"))
@@ -575,7 +589,7 @@ export function isItemConsistent(
   if (l.includes("multa do art. 477") || l.includes("multa 477")) return doc(sources.salarySrc);
   if (l.includes("horas extras") || l.includes("intrajornada") || l.includes("interjornada"))
     return doc(sources.scheduleSrc) && doc(sources.salarySrc);
-  if (l.includes("honorário")) return false;
+  if (l.includes("honorário")) return false; // percentual e base dependem do juízo
   return doc(sources.itemSrc);
 }
 
