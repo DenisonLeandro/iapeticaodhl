@@ -7,7 +7,7 @@
 //     só quando premissas expressas são fornecidas.
 // =============================================================================
 
-import type { CalculationContext } from "./calc-engine/normalize-context.ts";
+import type { CalculationContext, CalculationSource } from "./calc-engine/normalize-context.ts";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -355,12 +355,18 @@ function calcHonorarios(ctx: CalcContext, subtotalConhecido: number): CalcItem {
     legal_basis: "art. 791-A CLT",
     formula: "15% × subtotal estimado dos pedidos",
     input_data: { subtotal_estimado: subtotalConhecido },
-    assumptions: { percentual: 0.15, base: "somente pedidos com valor calculado" },
+    assumptions: {
+      percentual: 0.15,
+      base: "somente pedidos com valor calculado",
+      base_valor: round2(subtotalConhecido),
+      formula_resumida: "15% × R$ " + round2(subtotalConhecido).toFixed(2),
+      depende_de_apreciacao_judicial: true,
+    },
     estimated_value: round2(subtotalConhecido * 0.15),
     confidence: "medium",
-    missing_fields: ["Percentual final depende do juízo (5% a 15%)"],
+    missing_fields: [],
     period: null,
-    notes: "[REVISAR JURISPRUDÊNCIA ATUAL SOBRE ADI 5.766/STF QUANTO À JUSTIÇA GRATUITA]",
+    notes: "[VALOR ESTIMADO — percentual (5% a 15%) e base dependem de apreciação judicial; revisar ADI 5.766/STF quanto à justiça gratuita]",
   };
 }
 
