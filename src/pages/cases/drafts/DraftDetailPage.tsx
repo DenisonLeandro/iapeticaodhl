@@ -45,6 +45,7 @@ import {
 import DraftSourcesBadges from "@/components/cases/drafts/DraftSourcesBadges";
 import DraftWarningsList from "@/components/cases/drafts/DraftWarningsList";
 import CalculationsPanel from "@/components/cases/drafts/CalculationsPanel";
+import CompletenessPanel from "@/components/cases/drafts/CompletenessPanel";
 import SeniorReviewPanel from "@/components/cases/drafts/SeniorReviewPanel";
 import PendingCountBadge from "@/components/cases/drafts/PendingCountBadge";
 import DraftContentPreview from "@/components/cases/drafts/DraftContentPreview";
@@ -309,6 +310,12 @@ export default function DraftDetailPage() {
         <Card className="p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <PendingCountBadge content={content} />
+
+          <CompletenessPanel
+            draft={draft}
+            content={content}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
+          />
             <Button
               size="sm"
               variant="ghost"
@@ -360,6 +367,12 @@ export default function DraftDetailPage() {
           </Card>
 
           <PendingCountBadge content={content} />
+
+          <CompletenessPanel
+            draft={draft}
+            content={content}
+            onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
+          />
 
           <DraftWarningsList
             warnings={draft.warnings}
