@@ -27,10 +27,23 @@ export interface CalculationContext {
   work_schedule: WorkSchedule;
   variable_pay: VariablePay;
   confidence_by_field: Record<string, Confidence>;
+  /** Rótulos legíveis (interface). NUNCA usar em regra de negócio. */
   sources_by_field: Record<string, string>;
+  /** Chaves canônicas estáveis — única base válida para regras (gate). */
+  source_keys_by_field: Record<string, CalculationSource>;
 }
 
-type SourceKey = "document" | "intake" | "analysis" | "draft" | "instructions" | "client" | "derived";
+/** Chave canônica de origem do dado. Estável, independente de rótulo visível. */
+export type CalculationSource =
+  | "document"
+  | "intake"
+  | "initial_analysis"
+  | "draft"
+  | "instructions"
+  | "client"
+  | "derived";
+
+type SourceKey = CalculationSource;
 
 const SOURCE_CONFIDENCE: Record<SourceKey, Confidence> = {
   document: "high", intake: "medium", analysis: "medium",
