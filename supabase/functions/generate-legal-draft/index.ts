@@ -28,6 +28,7 @@ import {
 import { runCalculations, contextFromNormalized, annotateWithSources } from "../_shared/calc-engine.ts";
 import { buildCalculationContext } from "../_shared/calc-engine/normalize-context.ts";
 import { runCompletenessAudit, computeCaseValue } from "../_shared/completeness.ts";
+import { selectApplicableTheses, renderThesesForPrompt } from "../_shared/legal-theses.ts";
 import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 import { loadApplicablePlaybook, renderPlaybookForPrompt } from "../_shared/playbooks/load-playbook.ts";
 import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
@@ -702,6 +703,32 @@ REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos tí
     }
   }
 
+  // PR-EXCELÊNCIA 1 — Teses recorrentes conferidas (determinístico, sem IA).
+  let thesesPromptBlock = "";
+  let selectedThesisKeys: string[] = [];
+  try {
+    const applicableTheses = selectApplicableTheses({
+      contextTexts: [caseContext, body.objective ?? null, requiredBlocksPrompt],
+      requiredBlockIds: requiredBlocks.map((b) => `${b.id} ${b.label} ${b.guidance}`),
+      playbookText: playbookPromptBlock,
+      caseSubtype: caseSubtypeHint,
+      legalArea,
+      draftType,
+    });
+    selectedThesisKeys = applicableTheses.map((t) => t.key);
+    thesesPromptBlock = renderThesesForPrompt(applicableTheses);
+  } catch (e) {
+    console.warn("generate-legal-draft:theses_select_failed", { error: (e as Error)?.message });
+    thesesPromptBlock = "";
+  }
+  console.log("generate-legal-draft:theses_selected", {
+    stage: "theses_selected",
+    case_id: caseId,
+    theses: selectedThesisKeys,
+  });
+
+
+
   // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt.
   // 1) Normaliza contexto a partir de todas as fontes disponíveis.
   const normalized = buildCalculationContext({
@@ -834,6 +861,8 @@ ${requiredBlocksPrompt}
 
 ${playbookPromptBlock}
 
+${thesesPromptBlock}
+
 ${calcSummaryForPrompt}
 
 ${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir LITERALMENTE ANTES do pedido final, com este título EXATO: "${NON_LIMITATION_TOPIC_HEADER}"):
@@ -873,7 +902,7 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 - Cada BLOCO OBRIGATÓRIO acima deve ser explicitamente avaliado. Se não houver base, escreva "não se aplica" com justificativa curta — nunca omitir silenciosamente.
 - Use SOMENTE os valores dos CÁLCULOS DETERMINÍSTICOS acima. Para pedidos sem valor calculado, escreva "[CALCULAR VALOR]" e liste os dados faltantes em "missing_information".
 - ${isTrabalhistaInicial ? 'Inclua OBRIGATORIAMENTE o tópico "DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO" e o item correspondente no pedido final.' : ""}
-- Se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar sucumbência de beneficiário da gratuidade, inserir [REVISAR ADI 5.766/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (13/11/2017), aplicar art. 71 §4º CLT.
+- Matérias listadas em "TESES JURÍDICAS CONFERIDAS PELO ESCRITÓRIO" devem ser afirmadas com a fundamentação recebida: é PROIBIDO inserir [REVISAR ...], [ATUALIZAR ...] ou [CONFERIR JURISPRUDÊNCIA ...] nelas. Matérias FORA dessa lista podem receber alerta de revisão quando houver dúvida real. Em especial: se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (11/11/2017), aplicar diretamente o art. 71 §4º CLT, sem marcador.
 - ${structureGuidance}
 - Termine com seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
 - Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.

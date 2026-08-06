@@ -20,8 +20,10 @@ const SEAL_STYLE: Record<ProtocolReadiness, string> = {
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  calculation: "Valor a calcular",
+  legal_review: "Revisão jurídica",
   qualification: "Dado de qualificação",
+  instruction: "Documento a juntar",
+  calculation: "Valor a calcular",
   other: "Outro marcador",
 };
 
@@ -124,7 +126,7 @@ export default function CompletenessPanel({
           <div className="text-muted-foreground">Pendências no texto</div>
           <div className="text-base font-semibold">{audit.placeholder_count}</div>
           <div className="text-muted-foreground">
-            valores: {audit.calculation_placeholder_count} · qualificação: {audit.qualification_placeholder_count} · outros: {audit.other_placeholder_count}
+            revisão jurídica: {audit.legal_review_placeholder_count ?? 0} · qualificação: {audit.qualification_placeholder_count} · instrução: {audit.instruction_placeholder_count ?? 0} · cálculo: {audit.calculation_placeholder_count} · outros: {audit.other_placeholder_count}
           </div>
         </div>
         <div className="rounded-md border p-2">
