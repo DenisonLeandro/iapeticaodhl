@@ -14,7 +14,12 @@ export const COMPLETENESS_AUDIT_VERSION = "1.0.0";
 // 1. Placeholders
 // ---------------------------------------------------------------------------
 
-export type PlaceholderCategory = "calculation" | "qualification" | "other";
+export type PlaceholderCategory =
+  | "legal_review"
+  | "qualification"
+  | "instruction"
+  | "calculation"
+  | "other";
 
 export interface PlaceholderOccurrence {
   marker: string;
