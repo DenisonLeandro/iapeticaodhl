@@ -861,6 +861,8 @@ ${requiredBlocksPrompt}
 
 ${playbookPromptBlock}
 
+${thesesPromptBlock}
+
 ${calcSummaryForPrompt}
 
 ${isTrabalhistaInicial ? `# TÓPICO OBRIGATÓRIO (inserir LITERALMENTE ANTES do pedido final, com este título EXATO: "${NON_LIMITATION_TOPIC_HEADER}"):
