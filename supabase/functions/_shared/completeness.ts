@@ -272,6 +272,8 @@ export interface CompletenessAudit extends PlaceholderSummary {
   version: string;
   audited_at: string;
   content_hash: string;
+  /** Assinatura do estado material (texto + valores + valor da causa + versão). */
+  state_hash: string;
   placeholders: PlaceholderOccurrence[];
   claims: Array<{
     label: string;
