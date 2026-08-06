@@ -20,8 +20,10 @@ const SEAL_STYLE: Record<ProtocolReadiness, string> = {
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  calculation: "Valor a calcular",
+  legal_review: "Revisão jurídica",
   qualification: "Dado de qualificação",
+  instruction: "Documento a juntar",
+  calculation: "Valor a calcular",
   other: "Outro marcador",
 };
 
