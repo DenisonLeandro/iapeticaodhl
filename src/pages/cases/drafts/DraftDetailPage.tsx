@@ -311,11 +311,6 @@ export default function DraftDetailPage() {
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <PendingCountBadge content={content} />
 
-          <CompletenessPanel
-            draft={draft}
-            content={content}
-            onRefresh={() => qc.invalidateQueries({ queryKey: ["case_drafts", "one", draft.id] })}
-          />
             <Button
               size="sm"
               variant="ghost"
