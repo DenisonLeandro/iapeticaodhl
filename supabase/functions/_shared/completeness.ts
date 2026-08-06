@@ -52,23 +52,37 @@ const CALCULATION_TOKENS = /CALCULAR|VALOR A APURAR|A LIQUIDAR|LIQUIDA[ÇC][ÃA]
 /** Marcadores de qualificação/identificação de partes, advogado, juízo. */
 const QUALIFICATION_TOKENS =
   /NOME|QUALIFICA|ENDERE[ÇC]O|CPF|CNPJ|RG\b|OAB|VARA|COMARCA|JU[ÍI]ZO|N[ÚU]MERO D[OA] PROCESSO|ESTADO CIVIL|PROFISS[ÃA]O|NACIONALIDADE|X{2,}|_{3,}/i;
+/** Marcadores que pedem pesquisa/atualização jurídica ao advogado. */
+const LEGAL_REVIEW_TOKENS =
+  /REVISAR|REVER\b|ATUALIZAR|CONFERIR JURISPRUD|VERIFICAR ENTENDIMENTO|JURISPRUD[ÊE]NCIA A INSERIR|CONFIRMAR TESE|CHECAR S[ÚU]MULA/i;
+/** Marcadores que pedem juntada/produção de prova (pendência do escritório). */
+const INSTRUCTION_TOKENS =
+  /ANEXAR|JUNTAR|DOCUMENTO A|COMPROVANTE|APRESENTAR C[ÓO]PIA|PROTOCOLAR C[ÓO]PIA|INSTRUIR COM/i;
 
 export function classifyPlaceholder(marker: string): PlaceholderCategory {
   const u = marker.toUpperCase();
+  if (LEGAL_REVIEW_TOKENS.test(u)) return "legal_review";
+  if (INSTRUCTION_TOKENS.test(u)) return "instruction";
   if (CALCULATION_TOKENS.test(u)) return "calculation";
   if (QUALIFICATION_TOKENS.test(u)) return "qualification";
   return "other";
 }
 
-/** Falsos positivos comuns: notas de rodapé [1], referências [n], [sic]. */
+/** Numeração estrutural romana usada nos pedidos: [I], [II], [XIV], [iii]. */
+const ROMAN_NUMERAL_ONLY = /^[IVXLCDM]{1,7}$/i;
+
+/** Falsos positivos comuns: notas de rodapé [1], referências [n], [sic], [II]. */
 function isIgnorableBracket(raw: string): boolean {
   const inner = raw.slice(1, -1).trim();
   if (!inner) return true;
   if (/^\d{1,3}$/.test(inner)) return true;
   if (/^sic\.?$/i.test(inner)) return true;
   if (/^\.\.\.$/.test(inner)) return true;
+  // Numeração estrutural de pedidos não é pendência.
+  if (ROMAN_NUMERAL_ONLY.test(inner.replace(/[.)\-\s]+$/, ""))) return true;
   return false;
 }
+
 
 const SECTION_RULES: Array<{ key: string; re: RegExp }> = [
   { key: "valor_da_causa", re: /VALOR\s+D[AE]\s+CAUSA/i },
