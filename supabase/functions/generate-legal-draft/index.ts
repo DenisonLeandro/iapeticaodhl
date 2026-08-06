@@ -702,6 +702,32 @@ REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos tí
     }
   }
 
+  // PR-EXCELÊNCIA 1 — Teses recorrentes conferidas (determinístico, sem IA).
+  let thesesPromptBlock = "";
+  let selectedThesisKeys: string[] = [];
+  try {
+    const applicableTheses = selectApplicableTheses({
+      contextTexts: [caseContext, body.objective ?? null, JSON.stringify(claimMap ?? null)],
+      requiredBlockIds: requiredBlocks.map((b) => `${b.id} ${b.label} ${b.guidance}`),
+      playbookText: playbookPromptBlock,
+      caseSubtype: caseSubtypeHint,
+      legalArea,
+      draftType,
+    });
+    selectedThesisKeys = applicableTheses.map((t) => t.key);
+    thesesPromptBlock = renderThesesForPrompt(applicableTheses);
+  } catch (e) {
+    console.warn("generate-legal-draft:theses_select_failed", { error: (e as Error)?.message });
+    thesesPromptBlock = "";
+  }
+  console.log("generate-legal-draft:theses_selected", {
+    stage: "theses_selected",
+    case_id: caseId,
+    theses: selectedThesisKeys,
+  });
+
+
+
   // Cálculos determinísticos (sem IA) — feitos ANTES do draft para injetar valores no prompt.
   // 1) Normaliza contexto a partir de todas as fontes disponíveis.
   const normalized = buildCalculationContext({
