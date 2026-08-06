@@ -166,23 +166,38 @@ export interface PlaceholderSummary {
   placeholder_count: number;
   calculation_placeholder_count: number;
   qualification_placeholder_count: number;
+  legal_review_placeholder_count: number;
+  instruction_placeholder_count: number;
   other_placeholder_count: number;
 }
+
+export const PLACEHOLDER_CATEGORY_LABELS: Record<PlaceholderCategory, string> = {
+  legal_review: "Revisão jurídica",
+  qualification: "Qualificação",
+  instruction: "Instrução / documentos",
+  calculation: "Cálculo",
+  other: "Outros",
+};
 
 export function summarizePlaceholders(list: PlaceholderOccurrence[]): PlaceholderSummary {
   const s: PlaceholderSummary = {
     placeholder_count: list.length,
     calculation_placeholder_count: 0,
     qualification_placeholder_count: 0,
+    legal_review_placeholder_count: 0,
+    instruction_placeholder_count: 0,
     other_placeholder_count: 0,
   };
   for (const p of list) {
     if (p.category === "calculation") s.calculation_placeholder_count += 1;
     else if (p.category === "qualification") s.qualification_placeholder_count += 1;
+    else if (p.category === "legal_review") s.legal_review_placeholder_count += 1;
+    else if (p.category === "instruction") s.instruction_placeholder_count += 1;
     else s.other_placeholder_count += 1;
   }
   return s;
 }
+
 
 // ---------------------------------------------------------------------------
 // 2. Status de cálculo (DERIVADO em runtime — nunca persistido)
