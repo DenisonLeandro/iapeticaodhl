@@ -1,56 +1,83 @@
-# PR-COMPLETUDE 1 — Zero placeholder, pedidos com status e valor da causa
+# Validação integrada final — PR-COMPLETUDE 1 (caso João Vitor Correia)
 
-O prompt faz sentido e está bem calibrado: escopo fechado, sem nova IA, apoiado no que já existe. Confirmei no código que a base necessária já está no lugar — o motor determinístico (`_shared/calc-engine.ts`) já devolve `confidence` e `missing_fields` por item, a normalização (`_shared/calc-engine/normalize-context.ts`) já rastreia origem por campo (`sources_by_field`, `confidence_by_field`), e o front já sabe contar marcadores (`src/lib/drafts/pending-markers.ts`) e ler o gate `_draft_injectable`. Ou seja: a PR é majoritariamente de consolidação, não de arquitetura nova.
+## 1. Estado real verificado no banco (antes das correções)
 
-Três ajustes que recomendo sobre o texto original (o resto entra como escrito):
+Minuta única do caso (`case_drafts` 4b214d40…, 13.260 caracteres, atualizada 06/08 17:19 UTC — **gerada antes do deploy da PR**).
 
-1. O status `estimated` não deve ser inventado: mapear a partir do que o motor já produz (`confidence` + `_draft_injectable`), evitando uma segunda taxonomia paralela.
-2. `manual` exige um lugar para o advogado gravar o valor — hoje não existe esse campo por pedido. Sugiro entrar como campo simples em `case_calculation_items` (valor + confirmação), sem tela nova além de edição inline na lista de cálculos.
-3. `ready_for_protocol` depende de confirmação humana; ele será um ato explícito do advogado, gravado na minuta, e não um cálculo automático.
+Placeholders no conteúdo **salvo**:
 
-## Etapa 1 — Diagnóstico (sem código)
+| Marcador | Ocorrências |
+|---|---|
+| `[CALCULAR VALOR]` | 7 |
+| `[CALCULAR VALOR — valor estimado…]` | 1 |
+| `[INFORMAR VALOR, sugestão de R$ 5.000,00]` | 2 |
+| `[NOME DO ADVOGADO]`, `[NÚMERO DA OAB]`, `[INFORMAR VARA/COMARCA]`, `[INFORMAR DATA]` | 4 |
+| `[REVISAR …]` (ADI 5.766, seguro-desemprego) | 2 |
 
-Analisar um caso real com `[CALCULAR VALOR]`: dados salvos no caso/ficha, o que a normalização enxergou (`sources_by_field`), o retorno do motor item a item, o bloco "VALORES PRONTOS PARA USO" efetivamente injetado e o `quality_report` gravado. Para cada pedido pendente, classificar a causa: dado ausente, dado existente não reconhecido, formato incompatível, fórmula inexistente, regra de confiança bloqueando, ou falha de injeção/persistência. Nada é corrigido antes disso.
+Não há valor da causa nem subtotal no corpo da minuta (nenhuma ocorrência de "valor da causa" / "R$" de liquidação).
 
-Saída do diagnóstico por pedido: `claim_key`, `status`, `value`, `missing_fields`, `input_sources`, `assumptions`, `formula_summary`, `failure_reason`.
+Itens de cálculo persistidos (`case_calculation_items`):
 
-## Etapa 2 — Corrigir só o comprovadamente falho
+| Pedido | Sistema | Manual | Confirmado | `_draft_injectable` |
+|---|---|---|---|---|
+| Saldo de salário | R$ 1.670,83 | — | não | **false** |
+| 13º proporcional | R$ 1.002,50 | — | não | **false** |
+| Multa art. 477 | R$ 2.005,00 | — | não | **false** |
+| Honorários (estimativa) | R$ 701,75 | — | não | false (medium) |
+| Aviso-prévio, férias+1/3, FGTS, multa 40% | nulo | — | não | false (falta data de admissão) |
 
-Ajustes pontuais em `calc-engine.ts` / `normalize-context.ts` apenas onde o dado existe e não é reconhecido. Sem defaults artificiais, sem normalização paralela, sem presumir jornada/salário/período. Dado inexistente permanece `pending` com `missing_fields` explícito.
+Leitura: os três pedidos de alta confiança já têm valor calculado, mas continuam como `[CALCULAR VALOR]` no texto porque a minuta é **anterior** à correção do gate. Os quatro pedidos sem valor são ausência real de dado (data de admissão / extratos FGTS) — placeholder legítimo.
 
-## Etapa 3 — `_shared/completeness.ts` (determinístico, custo zero)
+## 2. Lacunas confirmadas (o que ainda impede o encerramento)
 
-Módulo único reutilizado por `generate-legal-draft`, `generate-draft-section`, revisão e exibição. Verifica: placeholders textuais (com marcador, seção e trecho — nunca removidos em silêncio), status de cada pedido, valor da causa vs. somatório, e campos críticos aplicáveis. Resultado gravado em `quality_report.completeness_audit` na estrutura definida no prompt, incluindo `protocol_readiness`.
+1. **Auditoria não persistida.** `quality_report.completeness_audit` só é gravado em `generate-legal-draft`. Na minuta real o campo **não existe** (`has_audit = false`). Não há gravação em `generate-draft-section`, na edição manual, na alteração/confirmação de valores nem em reexecução — hoje a auditoria é recalculada só em memória no `CompletenessPanel`.
+2. **Hash da confirmação é apenas textual.** `setLawyerReviewConfirmation` grava `lawyer_review_confirmed_hash = contentHash(content)`. Alterar valor manual, confirmar valor, recalcular ou mudar o valor da causa **não invalida** o selo.
+3. **Valor manual não tem ponte com o texto.** Não existe ação de aplicar o valor ao pedido correspondente; o advogado precisa editar o texto à mão, e nada sinaliza a divergência.
+4. **Exportação** (DOCX/PDF) usa o estado atual do editor (`content`) — correto, sem dados só-visuais. Placeholders exportados hoje = os 17 acima, pois o conteúdo não foi regenerado.
+5. **Testes preexistentes**: `src/test/ai/document-wizard.test.tsx` — "navigates to step 2 when clicking next after type selection" e "goes back to step 1 when clicking back on step 2" — falham com `ReferenceError: ResizeObserver is not defined` (Radix `use-size` no jsdom). Falha de ambiente de teste, independente desta PR (o terceiro caso citado antes pertence ao mesmo arquivo/erro).
 
-Para não duplicar regra, a detecção de marcadores passa a ter uma fonte única compartilhada com a lógica já usada no front.
+## 3. Correções estritamente necessárias
 
-## Etapa 4 — Valor da causa
+### 3.1 Persistir a auditoria (`quality_report.completeness_audit`)
+- `src/services/caseDrafts.ts`: nova função `persistCompletenessAudit(draftId, report, audit)` que grava `quality_report.completeness_audit` + `completeness_audit_at`.
+- Chamada nos pontos de estado material:
+  - salvamento manual do conteúdo (`updateCaseDraft` em `DraftDetailPage`);
+  - qualquer mutação de valores (`useCalculationItemMutation` → `onSuccess`);
+  - botão "reexecutar verificação" no `CompletenessPanel`;
+  - `generate-draft-section` (após montagem/atualização do conteúdo, mesma chamada de `runCompletenessAudit` já usada em `generate-legal-draft`).
+- Objeto persistido (formato já produzido por `runCompletenessAudit`), exemplo esperado para o caso João Vitor após regeneração:
 
-Somatório determinístico de `calculated + estimated + manual`; `pending` nunca recebe valor arbitrário. Havendo pendência, o valor da causa é `partial`. O total já vai pronto no bloco de valores injetado no prompt, com status e premissas por item — a IA nunca soma.
+```json
+{
+  "version": 1,
+  "content_hash": "…",
+  "placeholder_count": 6,
+  "calculation_placeholder_count": 4,
+  "qualification_placeholder_count": 4,
+  "other_placeholder_count": 2,
+  "claim_value_sum": 4678.33,
+  "case_value_status": "partial",
+  "case_value_pending_claims": ["Aviso-prévio indenizado", "Férias proporcionais + 1/3", "FGTS", "Multa de 40%"],
+  "protocol_readiness": "pending_completion"
+}
+```
 
-## Etapa 5 — Selo de completude
+### 3.2 `reviewed_state_hash` (estado material, não só texto)
+- Em `_shared/completeness.ts`: `reviewedStateHash({ content, items, case_value, audit_version })` — assinatura estável sobre `id + estimated_value + manual_value + manual_value_confirmed + system_value_confirmed` de cada item, somatório do valor da causa e versão da auditoria.
+- `setLawyerReviewConfirmation` passa a gravar `lawyer_review_confirmed_state_hash`; `CompletenessPanel` compara com o hash recalculado. Hash textual antigo continua aceito para minutas legadas (mantém compatibilidade e é tratado como inválido na primeira mudança material).
 
-Indicador simples na página da minuta, reaproveitando o componente de contagem já existente: "Rascunho — não apto para protocolo", "Apto para revisão final" e "Apto para protocolo" (este só com auditoria limpa **e** confirmação do advogado).
+### 3.3 Valor manual × texto da minuta (comportamento documentado, sem substituição genérica)
+- Sem substituição automática por ordem de ocorrência.
+- Quando um pedido tem valor efetivo (sistema confirmado ou manual confirmado) e o texto ainda contém marcador de valor **na seção de pedidos vinculada àquele `claim_key`/`request_label`**, o painel exibe o aviso "valor definido não refletido na minuta" com ação **"Aplicar ao pedido"**, que substitui apenas o marcador localizado dentro do trecho do pedido correspondente (casamento por rótulo do pedido; se não houver casamento inequívoco, a ação fica desabilitada e o sistema orienta regenerar a seção).
+- Nenhuma regeneração automática é disparada.
 
-## Etapa 6 — Lista curta de pendências
+### 3.4 Reexecução da validação no caso real
+- Após as correções, regerar a minuta do caso João Vitor e reportar: contagem de `[CALCULAR VALOR]` no conteúdo salvo, presença de saldo salarial / 13º / multa 477 com valor, honorários como estimativa, pedidos ainda pendentes por falta de data de admissão, subtotal e valor da causa no corpo, objeto real de `completeness_audit` persistido, e contagem de placeholders no arquivo DOCX exportado.
 
-Tipo, seção, dado faltante e ação recomendada; clique navega até o trecho quando trivial. Sem editor novo.
-
-## Fora do escopo
-
-Checagem jurídica fatos × pedidos, fragilidade de dano moral, sócios, jurisprudência, prescrição, reescrita automática, novo agente de IA, memória de cálculo visual, automação de protocolo.
+## 4. Fora de escopo
+Correção dos testes do wizard `/ai/documents`, novos modelos de IA, mudanças de prompt além do já entregue, e qualquer substituição textual automática não vinculada ao pedido.
 
 ## Detalhes técnicos
-
-- Alterados: `_shared/calc-engine.ts`, `_shared/calc-engine/normalize-context.ts`, `generate-legal-draft/index.ts`, `generate-draft-section/index.ts`, `src/lib/drafts/pending-markers.ts` (fonte única), página da minuta e componente de pendências.
-- Novo: `_shared/completeness.ts` + testes dos 6 cenários do prompt.
-- Migração pequena para o valor manual confirmado por pedido (Etapa 2/4).
-- Nenhuma chamada de IA adicionada; toda verificação é determinística.
-
-## Riscos de regressão
-
-Mudança no bloco de valores injetado pode alterar o texto gerado (mitigado por comparação antes/depois em um caso real); unificar a regex de marcadores pode mudar contagens exibidas; travar `ready_for_protocol` pode ser percebido como bloqueio novo — por isso o rascunho continua gerável e exportável.
-
-## Entrega
-
-Antes de codar: diagnóstico do caso, causa exata das pendências, arquivos a alterar e riscos. Depois: arquivos, correções, estrutura da auditoria, resultado dos testes e confirmação de escopo/zero IA.
+- Arquivos: `supabase/functions/_shared/completeness.ts` (hash de estado), `supabase/functions/generate-draft-section/index.ts` (persistir auditoria), `src/services/caseDrafts.ts`, `src/hooks/useCaseCalculations.ts`, `src/components/cases/drafts/CompletenessPanel.tsx`, `src/components/cases/drafts/CalculationsPanel.tsx`, `src/pages/cases/drafts/DraftDetailPage.tsx`.
+- Sem migração de banco: tudo cabe em `case_drafts.quality_report` (jsonb).
+- Sem novas chamadas de IA.
