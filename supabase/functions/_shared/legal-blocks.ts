@@ -35,7 +35,7 @@ const TRABALHISTA_MOTORISTA: RequiredBlock[] = [
   { id: "controle_jornada", label: "Controle de jornada", guidance: "Diário de bordo, papeleta, ficha externa, tacógrafo, MDF-e, CT-e, rastreador/GPS." },
   { id: "art_62_i", label: "Art. 62, I, CLT", guidance: "Afastar quando houver meios de controle (Lei 13.103); inverter ônus da prova." },
   { id: "tempo_espera", label: "Tempo de espera", guidance: "Distinguir de hora extra; art. 235-C §8º CLT." },
-  { id: "intra", label: "Intervalo intrajornada", guidance: "art. 71 CLT. SEGMENTAR por período contratual: antes de 11/11/2017 aplicar Súmula 437/TST (pagamento integral, natureza salarial, com reflexos); a partir de 11/11/2017 aplicar §4º (apenas o tempo SUPRIMIDO, natureza indenizatória). NÃO afirmar pagamento integral de forma absoluta em contratos pós-Reforma. Marcar [REVISAR APLICAÇÃO TEMPORAL — art. 71, §4º, CLT pós-Reforma]." },
+  { id: "intra", label: "Intervalo intrajornada", guidance: "art. 71 CLT. SEGMENTAR por período contratual: antes de 11/11/2017 aplicar Súmula 437/TST (pagamento integral, natureza salarial, com reflexos); a partir de 11/11/2017 aplicar §4º (apenas o tempo SUPRIMIDO, natureza indenizatória). NÃO afirmar pagamento integral de forma absoluta em contratos pós-Reforma. Aplicar diretamente o regime correspondente à data de admissão do caso, sem marcador de revisão." },
   { id: "inter", label: "Intervalo interjornada", guidance: "art. 66 CLT; horas suprimidas como extras + reflexos." },
   { id: "dsr_feriados", label: "Domingos e feriados", guidance: "Lei 605/49; Súmula 146/TST; dobra sem compensação." },
   { id: "adicional_noturno", label: "Adicional noturno", guidance: "art. 73 CLT; hora reduzida; prorrogação; reflexos." },
