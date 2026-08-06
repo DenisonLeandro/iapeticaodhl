@@ -59,8 +59,26 @@ export default function CompletenessPanel({
   );
 
   const legacy = !report.completeness_audit && !confirmedHash && !data;
-  const hash = contentHash(content);
-  const staleConfirmation = !!confirmedHash && confirmedHash !== hash;
+  const hash = audit.state_hash;
+  const staleConfirmation = !!confirmedHash && audit.protocol_readiness !== "lawyer_review_confirmed";
+
+  // Persistência da auditoria (debounce): cobre edição manual do conteúdo,
+  // alteração/confirmação de valores e reexecução da verificação.
+  const persistedRef = useRef<string | null>(
+    ((report.completeness_audit as { state_hash?: string } | undefined)?.state_hash) ?? null,
+  );
+  useEffect(() => {
+    if (!content?.trim()) return;
+    if (persistedRef.current === audit.state_hash) return;
+    const t = setTimeout(() => {
+      persistedRef.current = audit.state_hash;
+      persistCompletenessAudit(draft.id, report, audit as unknown as Record<string, unknown>).catch((e) =>
+        console.warn("[CompletenessPanel] persistCompletenessAudit failed", (e as Error).message),
+      );
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audit.state_hash, draft.id, content]);
 
   const toggleConfirmation = async (confirm: boolean) => {
     setSaving(true);
@@ -74,6 +92,7 @@ export default function CompletenessPanel({
       setSaving(false);
     }
   };
+
 
   const Icon =
     audit.protocol_readiness === "lawyer_review_confirmed"
