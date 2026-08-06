@@ -902,7 +902,7 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 - Cada BLOCO OBRIGATÓRIO acima deve ser explicitamente avaliado. Se não houver base, escreva "não se aplica" com justificativa curta — nunca omitir silenciosamente.
 - Use SOMENTE os valores dos CÁLCULOS DETERMINÍSTICOS acima. Para pedidos sem valor calculado, escreva "[CALCULAR VALOR]" e liste os dados faltantes em "missing_information".
 - ${isTrabalhistaInicial ? 'Inclua OBRIGATORIAMENTE o tópico "DA ESTIMATIVA DOS VALORES ATRIBUÍDOS AOS PEDIDOS E DA NÃO LIMITAÇÃO DA CONDENAÇÃO" e o item correspondente no pedido final.' : ""}
-- Se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar sucumbência de beneficiário da gratuidade, inserir [REVISAR ADI 5.766/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (13/11/2017), aplicar art. 71 §4º CLT.
+- Matérias listadas em "TESES JURÍDICAS CONFERIDAS PELO ESCRITÓRIO" devem ser afirmadas com a fundamentação recebida: é PROIBIDO inserir [REVISAR ...], [ATUALIZAR ...] ou [CONFERIR JURISPRUDÊNCIA ...] nelas. Matérias FORA dessa lista podem receber alerta de revisão quando houver dúvida real. Em especial: se citar Súmula 450/TST (férias em dobro), inserir [REVISAR ADPF 501/STF]. Se citar intervalo intrajornada em contrato pós-Reforma (11/11/2017), aplicar diretamente o art. 71 §4º CLT, sem marcador.
 - ${structureGuidance}
 - Termine com seção "PONTOS A CONFIRMAR ANTES DO PROTOCOLO" listando lacunas.
 - Preencha "warnings" com alertas de jurisprudência a revisar e "missing_information" com pendências acionáveis.
