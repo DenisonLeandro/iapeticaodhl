@@ -27,6 +27,7 @@ import {
 } from "../_shared/legal-blocks.ts";
 import { runCalculations, contextFromNormalized, annotateWithSources } from "../_shared/calc-engine.ts";
 import { buildCalculationContext } from "../_shared/calc-engine/normalize-context.ts";
+import { runCompletenessAudit, computeCaseValue } from "../_shared/completeness.ts";
 import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 import { loadApplicablePlaybook, renderPlaybookForPrompt } from "../_shared/playbooks/load-playbook.ts";
 import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
@@ -722,6 +723,7 @@ REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos tí
   const pendingItems = calcResult.items.filter((i) => !isInjectable(i));
   const injectableTotal = computedItems.reduce((a, i) => a + (i.estimated_value ?? 0), 0);
   const hasInconsistency = pendingItems.length > 0;
+  const caseValuePreview = computeCaseValue(calcResult.items);
 
   const fmtMoney = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA
@@ -743,13 +745,14 @@ ${pendingItems.length > 0
     : "—"}
 
 Subtotal dos itens injetáveis (referência interna, NÃO transcrever automaticamente): ${fmtMoney(injectableTotal)}
+Status do valor da causa: ${caseValuePreview.case_value_status} (soma utilizável: ${fmtMoney(caseValuePreview.claim_value_sum)})
 
 REGRAS DURAS DE VALOR:
 - É PROIBIDO transcrever no corpo da peça qualquer valor monetário que NÃO esteja na lista "VALORES PRONTOS PARA USO" acima.
 - Para todo pedido da segunda lista, escrever LITERALMENTE "[CALCULAR VALOR — revisar memória de cálculo]" no lugar do valor. Manter o pedido completo (rubrica, base legal, período, reflexos) — a ausência de valor não elimina o pedido.
 - Nunca inserir número de dias, meses ou frações (ex.: "14 dias", "17 dias", "11/12 avos", "33 dias") que não venham dos VALORES PRONTOS PARA USO — nesses casos usar "[CALCULAR VALOR — revisar memória de cálculo]".
 - Valor da causa: ${hasInconsistency
-      ? 'escrever "[CALCULAR VALOR — valor estimado, sujeito à revisão em liquidação]" (há itens com inconsistência).'
+      ? 'escrever "[CALCULAR VALOR — valor estimado, sujeito à revisão em liquidação]" (há pedidos pendentes; é PROIBIDO transcrever o subtotal como valor definitivo da causa).'
       : 'pode usar o subtotal acima acrescido da estimativa dos itens remanescentes, sempre indicando "sujeito à revisão em liquidação".'}`;
 
   const taskChoice = selectAIModelForTask("legal_draft_generation");
@@ -937,7 +940,11 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
     }
   }
 
+  // PR-COMPLETUDE 1 — auditoria determinística (sem IA) do texto final.
+  const completenessAudit = runCompletenessAudit({ content, items: calcResult.items });
+
   const qualityReport: Record<string, unknown> = {
+    completeness_audit: completenessAudit,
     light_audit: lightAudit,
     fidelity_audit: fidelityAudit,
     template_excerpt: {
