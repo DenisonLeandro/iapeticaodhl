@@ -264,7 +264,10 @@ export function buildCalculationContext(input: BuildInput): CalculationContext {
 
   const conf: Record<string, Confidence> = {};
   const src: Record<string, string> = {};
-  const set = (f: string, s: SourceKey | null) => { if (s) { conf[f] = SOURCE_CONFIDENCE[s]; src[f] = SOURCE_LABEL[s]; } };
+  const keys: Record<string, CalculationSource> = {};
+  const set = (f: string, s: SourceKey | null) => {
+    if (s) { conf[f] = SOURCE_CONFIDENCE[s]; src[f] = SOURCE_LABEL[s]; keys[f] = s; }
+  };
   set("monthly_salary", salary?.source ?? null);
   set("admission_date", admission?.source ?? null);
   set("termination_date", termination?.source ?? null);
@@ -286,5 +289,6 @@ export function buildCalculationContext(input: BuildInput): CalculationContext {
     variable_pay: varPay,
     confidence_by_field: conf,
     sources_by_field: src,
+    source_keys_by_field: keys,
   };
 }
