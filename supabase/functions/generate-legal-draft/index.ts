@@ -707,7 +707,7 @@ REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos tí
   let selectedThesisKeys: string[] = [];
   try {
     const applicableTheses = selectApplicableTheses({
-      contextTexts: [caseContext, body.objective ?? null, JSON.stringify(claimMap ?? null)],
+      contextTexts: [caseContext, body.objective ?? null, requiredBlocksPrompt],
       requiredBlockIds: requiredBlocks.map((b) => `${b.id} ${b.label} ${b.guidance}`),
       playbookText: playbookPromptBlock,
       caseSubtype: caseSubtypeHint,
