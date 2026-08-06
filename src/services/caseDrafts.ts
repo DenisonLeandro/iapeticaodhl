@@ -277,20 +277,43 @@ export async function assembleDraftChapters(
 
 
 /**
+ * PR-COMPLETUDE 1 — persiste a auditoria de completude em
+ * `quality_report.completeness_audit`, para que o estado seja recuperável e
+ * auditável fora da sessão do navegador. Sem chamada de IA.
+ */
+export async function persistCompletenessAudit(
+  draftId: string,
+  currentReport: Record<string, unknown> | null,
+  audit: Record<string, unknown>,
+): Promise<void> {
+  const report = { ...(currentReport ?? {}) } as Record<string, unknown>;
+  // A lista completa de ocorrências pode ser longa: guardamos apenas uma amostra.
+  const placeholders = Array.isArray((audit as { placeholders?: unknown[] }).placeholders)
+    ? ((audit as { placeholders: unknown[] }).placeholders).slice(0, 50)
+    : [];
+  report.completeness_audit = { ...audit, placeholders };
+  report.completeness_audit_at = new Date().toISOString();
+  const { error } = await db.from("case_drafts").update({ quality_report: report }).eq("id", draftId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * PR-COMPLETUDE 1 — registra (ou revoga) o ato explícito do advogado marcando
  * a minuta como apta para protocolo. A confirmação fica atrelada ao hash do
- * conteúdo confirmado: qualquer alteração posterior a invalida automaticamente.
+ * ESTADO MATERIAL (texto + valores + valor da causa): qualquer alteração
+ * posterior — textual ou de valores — a invalida automaticamente.
  */
 export async function setLawyerReviewConfirmation(
   draftId: string,
   currentReport: Record<string, unknown> | null,
-  contentHashValue: string | null,
+  stateHashValue: string | null,
 ): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
   const report = { ...(currentReport ?? {}) } as Record<string, unknown>;
-  report.lawyer_review_confirmed_hash = contentHashValue;
-  report.lawyer_review_confirmed_at = contentHashValue ? new Date().toISOString() : null;
-  report.lawyer_review_confirmed_by = contentHashValue ? (userData.user?.id ?? null) : null;
+  report.lawyer_review_confirmed_hash = stateHashValue;
+  report.lawyer_review_confirmed_at = stateHashValue ? new Date().toISOString() : null;
+  report.lawyer_review_confirmed_by = stateHashValue ? (userData.user?.id ?? null) : null;
   const { error } = await db.from("case_drafts").update({ quality_report: report }).eq("id", draftId);
   if (error) throw new Error(error.message);
 }
+

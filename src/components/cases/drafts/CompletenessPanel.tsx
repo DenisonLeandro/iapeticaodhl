@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   runCompletenessAudit,
-  contentHash,
   PROTOCOL_READINESS_LABEL,
   type ProtocolReadiness,
 } from "@shared/completeness.ts";
 import { useCalculationByDraft } from "@/hooks/useCaseCalculations";
-import { setLawyerReviewConfirmation } from "@/services/caseDrafts";
+import { persistCompletenessAudit, setLawyerReviewConfirmation } from "@/services/caseDrafts";
 import type { CaseDraft } from "@/types/caseDraft";
 
 const SEAL_STYLE: Record<ProtocolReadiness, string> = {
@@ -60,8 +59,26 @@ export default function CompletenessPanel({
   );
 
   const legacy = !report.completeness_audit && !confirmedHash && !data;
-  const hash = contentHash(content);
-  const staleConfirmation = !!confirmedHash && confirmedHash !== hash;
+  const hash = audit.state_hash;
+  const staleConfirmation = !!confirmedHash && audit.protocol_readiness !== "lawyer_review_confirmed";
+
+  // Persistência da auditoria (debounce): cobre edição manual do conteúdo,
+  // alteração/confirmação de valores e reexecução da verificação.
+  const persistedRef = useRef<string | null>(
+    ((report.completeness_audit as { state_hash?: string } | undefined)?.state_hash) ?? null,
+  );
+  useEffect(() => {
+    if (!content?.trim()) return;
+    if (persistedRef.current === audit.state_hash) return;
+    const t = setTimeout(() => {
+      persistedRef.current = audit.state_hash;
+      persistCompletenessAudit(draft.id, report, audit as unknown as Record<string, unknown>).catch((e) =>
+        console.warn("[CompletenessPanel] persistCompletenessAudit failed", (e as Error).message),
+      );
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audit.state_hash, draft.id, content]);
 
   const toggleConfirmation = async (confirm: boolean) => {
     setSaving(true);
@@ -75,6 +92,7 @@ export default function CompletenessPanel({
       setSaving(false);
     }
   };
+
 
   const Icon =
     audit.protocol_readiness === "lawyer_review_confirmed"
@@ -150,7 +168,7 @@ export default function CompletenessPanel({
 
       {staleConfirmation && (
         <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800 dark:text-amber-200">
-          A minuta foi alterada depois da confirmação — o selo de apto para protocolo foi invalidado.
+          A minuta ou os valores foram alterados depois da confirmação — o selo de apto para protocolo foi invalidado.
         </p>
       )}
 
