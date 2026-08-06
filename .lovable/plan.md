@@ -1,46 +1,45 @@
-# Excelência na petição inicial (sem foco em cálculo)
+# PR-EXCELÊNCIA 1 — Teses jurídicas recorrentes
 
-Cálculo sai do centro. O objetivo passa a ser um só: a peça sair pronta para o advogado ler, ajustar pouco e protocolar. Os valores continuam como estão hoje — "a apurar em liquidação" é redação aceita no foro trabalhista e não impede a excelência do texto.
+Objetivo único: a petição não deve mais mandar o advogado pesquisar matéria que o sistema já conhece. Cálculo permanece fora de escopo e não será tocado.
 
-## O que falta, olhando a peça do Anderson x JTI
+## 1. Arquivo de teses
 
-**1. A peça pede que o advogado pesquise o que o sistema já deveria saber.**
-Aparece `[REVISAR ENTENDIMENTO ATUAL SOBRE ADI 5.766/STF]` duas vezes. Essa ADI foi julgada e o entendimento está consolidado. Uma peça de excelência afirma a tese com a fundamentação atual — não delega a checagem ao advogado. O mesmo vale para outras teses recorrentes na Justiça do Trabalho (ADPF 501, honorários de sucumbência do beneficiário da gratuidade, ADC 58).
+Novo `supabase/functions/_shared/legal-theses.ts`, com dez teses no formato exato pedido (`key`, `title`, `guidance`, `legal_basis`, `reviewed_at`):
 
-**2. Densidade abaixo do modelo.**
-A minuta tem cerca de 12,7 mil caracteres; a inicial real do escritório fica na faixa de 20 a 30 mil. As teses estão certas, mas curtas: o item de rescisão indireta e o de integração da remuneração variável têm poucos parágrafos, sem desdobramento fático nem jurisprudência de apoio.
+justiça gratuita; honorários sucumbenciais do beneficiário da gratuidade; ADI 5.766; correção monetária e juros (ADC 58); trabalho externo e controle de jornada; Súmula 338 do TST; intervalo intrajornada; rescisão indireta; integração da remuneração variável; honorários sucumbenciais.
 
-**3. Não há jurisprudência citada por tese.**
-Há súmulas (264, 340, 172) e artigos, mas nenhum acórdão do TST ou do TRT da 9ª Região no corpo. Numa inicial trabalhista de banca, cada tese controvertida vem com pelo menos um julgado.
+O `guidance` de cada tese diz o que sustentar e como amarrar aos fatos do caso — não é texto pronto para colar. O `legal_basis` traz só artigo, súmula, orientação jurisprudencial ou decisão vinculante. Nenhuma tese carrega número de processo, relator ou data de julgamento de acórdão comum.
 
-**4. Nenhuma checagem de fato narrado sem pedido correspondente.**
-Nada garante hoje que todo fato relevante levantado na entrada virou pedido, nem que todo pedido tenha fato que o sustente. É a falha que mais custa caro.
+Sem tabela, sem tela, sem versionamento.
 
-**5. Marcadores de instrução misturados com defeitos.**
-`[ANEXAR DOCUMENTO]`, `[INFORMAR DATA]`, `[INFORMAR NOME DA MÃE]` são tarefas do escritório, não erro da IA — mas hoje entram na mesma contagem e poluem a leitura de qualidade.
+## 2. Seleção da tese aplicável
 
-## O que fazer
+Função determinística `selectApplicableTheses(...)` no mesmo arquivo. Ela recebe o que já existe no fluxo de geração — blocos obrigatórios da peça, playbook carregado, subtipo do caso e o texto do contexto/pedidos — e devolve só as teses acionadas por correspondência de palavras-chave. Sem chamada de IA, sem heurística por cliente ou por processo.
 
-**Fase A — Banco de teses consolidadas (maior ganho por esforço)**
-Criar um conjunto curto de teses trabalhistas recorrentes com redação pronta, fundamento e status atual (ADI 5.766, ADPF 501, ADC 58, art. 62 I com controle por rastreador, Súmula 338, rescisão indireta art. 483). Quando a tese for acionada no caso, o texto consolidado entra na peça em vez de um marcador de revisão. Sem chamada de IA extra — é conteúdo curado, injetado no prompt.
+Em `generate-legal-draft`, o bloco renderizado das teses selecionadas entra no prompt junto do playbook, com instrução expressa de aplicar cada tese aos fatos concretos e de nunca reproduzir texto genérico.
 
-**Fase B — Densidade e jurisprudência por tese**
-Elevar a exigência de desenvolvimento por seção no prompt (mínimo de parágrafos e obrigatoriedade de um julgado por tese controvertida), calibrado pela extensão do modelo do escritório: a minuta passa a mirar uma faixa proporcional ao modelo anexado, não um tamanho fixo. A busca de jurisprudência já existe no sistema e passa a ser acionada por tese.
+## 3. Fim dos marcadores de revisão nas matérias cobertas
 
-**Fase C — Conferência fato ↔ pedido**
-Verificação determinística ao fim da geração: cada tese desenvolvida no corpo tem pedido correspondente na lista, e cada pedido tem seção que o fundamenta. Divergência vira alerta objetivo no painel ("fato narrado sem pedido: intervalo intrajornada").
+Duas frentes:
+- Retirar de `_shared/legal-blocks.ts` as instruções que mandam marcar revisão nas matérias agora cobertas (o `guidance` de honorários hoje pede explicitamente marcar ADI 5.766; o de intrajornada também manda marcar revisão temporal).
+- Instrução no prompt: matérias listadas nas teses fornecidas devem ser afirmadas com a fundamentação recebida, sem `[REVISAR ...]`, `[ATUALIZAR ...]` ou `[CONFERIR JURISPRUDÊNCIA ...]`. Matérias fora da lista continuam podendo receber alerta de revisão.
 
-**Fase D — Limpeza do painel de pendências**
-Separar "pendência de instrução" (anexar documento, informar dado do cliente) de "defeito da peça". O selo passa a mostrar só o que compromete a qualidade do texto.
+## 4. Classificação das pendências no painel
+
+Em `_shared/completeness.ts`, as categorias passam de três para cinco: revisão jurídica, qualificação, instrução, cálculo, outros. `[ANEXAR ...]` vira instrução, `[REVISAR ...]`/`[CONFERIR ...]`/`[ATUALIZAR ...]` viram revisão jurídica, `[CALCULAR ...]` continua cálculo, `[INFORMAR NOME/DATA/...]` continua qualificação.
+
+Numeração estrutural de pedidos (`[I]`, `[II]`, `[III]`, `[IV]`, romanos em geral) deixa de ser contada como pendência.
+
+`CompletenessPanel.tsx` apenas passa a exibir as cinco categorias. Nenhum painel novo.
 
 ## Fora de escopo
 
-Injeção automática de valores nos pedidos, estimativa de horas extras e valor da causa numérico — congelados até a excelência textual estar validada.
+Cálculo, valor da causa, tamanho mínimo da peça, jurisprudência obrigatória por tese, conferência fatos ↔ pedidos, novo agente, nova tela, migração de banco, atualização automática das teses.
 
 ## Detalhes técnicos
 
-Novos: `supabase/functions/_shared/legal-theses.ts` (teses curadas). Alterados: `generate-legal-draft/index.ts` (injeção das teses, exigência de densidade e de julgado por tese), `_shared/legal-blocks.ts` (guidance por bloco), `_shared/completeness.ts` (categoria "instrução" e conferência fato ↔ pedido), `src/components/cases/drafts/CompletenessPanel.tsx` (leitura do painel). Sem migração de banco. Custo adicional por geração próximo de zero na Fase A; a Fase B aumenta os tokens de saída.
+Novo: `supabase/functions/_shared/legal-theses.ts`. Alterados: `supabase/functions/generate-legal-draft/index.ts` (seleção + bloco no prompt + instrução anti-marcador), `supabase/functions/_shared/legal-blocks.ts` (retirar as ordens de marcar revisão nas matérias cobertas), `supabase/functions/_shared/completeness.ts` (cinco categorias e filtro de numeração romana), `src/components/cases/drafts/CompletenessPanel.tsx` (rótulos). Sem migração, sem chamada de IA adicional, nada tocado em `calc-engine.ts`. Testes novos em `src/test/completeness/` para a classificação e para a seleção de teses.
 
 ## Validação
 
-Regerar a peça do Anderson x JTI após a Fase A e comparar: marcadores de revisão de tese devem ir a zero. Após a Fase B, comparar a extensão e a presença de julgado por tese contra o modelo do escritório.
+Regerar Anderson Luis x JTI e reportar: marcadores de ADI 5.766 zerados, quais teses foram selecionadas, trechos mostrando a tese ligada aos fatos do caso, e a contagem de pendências por categoria. Repetir em uma segunda petição de fatos distintos para confirmar que a seleção varia com a matéria e não com o cliente. Confirmar que o objeto de cálculo persistido não mudou.
