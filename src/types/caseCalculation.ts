@@ -1,3 +1,12 @@
+import {
+  deriveCalculationStatus,
+  effectiveItemValue,
+  isDraftInjectableItem,
+  computeCaseValue,
+  CALCULATION_STATUS_LABEL,
+  type CalculationStatus,
+} from "@shared/completeness.ts";
+
 export type CalcConfidence = "high" | "medium" | "low";
 export type CalcStatus = "complete" | "partial" | "pending_data";
 
@@ -16,6 +25,13 @@ export interface CaseCalculationItem {
   notes: string | null;
   sort_order: number;
   created_at: string;
+  // PR-COMPLETUDE 1 — valor definido pelo advogado (nunca sobrescreve o do sistema)
+  manual_value: number | null;
+  manual_value_confirmed: boolean;
+  manual_value_confirmed_at: string | null;
+  manual_value_confirmed_by: string | null;
+  manual_value_note: string | null;
+  system_value_confirmed: boolean;
 }
 
 export interface CaseCalculation {
@@ -33,10 +49,19 @@ export interface CaseCalculation {
 }
 
 /**
- * Read the draft-injection gate flag set by the backend calc-engine.
- * Legacy items without the flag are treated as NOT injectable.
+ * O status por pedido é DERIVADO em runtime (nunca persistido) — evita
+ * divergência entre estado gravado e estado real. Fonte única compartilhada
+ * com as Edge Functions.
  */
+export {
+  deriveCalculationStatus,
+  effectiveItemValue,
+  computeCaseValue,
+  CALCULATION_STATUS_LABEL,
+};
+export type { CalculationStatus };
+
+/** Gate de injeção na peça, definido pelo motor determinístico. */
 export function isDraftInjectable(item: CaseCalculationItem): boolean {
-  const a = (item.assumptions ?? {}) as Record<string, unknown>;
-  return a._draft_injectable === true && item.estimated_value != null;
+  return isDraftInjectableItem(item);
 }

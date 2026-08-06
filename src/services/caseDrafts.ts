@@ -275,3 +275,22 @@ export async function assembleDraftChapters(
 }
 
 
+
+/**
+ * PR-COMPLETUDE 1 — registra (ou revoga) o ato explícito do advogado marcando
+ * a minuta como apta para protocolo. A confirmação fica atrelada ao hash do
+ * conteúdo confirmado: qualquer alteração posterior a invalida automaticamente.
+ */
+export async function setLawyerReviewConfirmation(
+  draftId: string,
+  currentReport: Record<string, unknown> | null,
+  contentHashValue: string | null,
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const report = { ...(currentReport ?? {}) } as Record<string, unknown>;
+  report.lawyer_review_confirmed_hash = contentHashValue;
+  report.lawyer_review_confirmed_at = contentHashValue ? new Date().toISOString() : null;
+  report.lawyer_review_confirmed_by = contentHashValue ? (userData.user?.id ?? null) : null;
+  const { error } = await db.from("case_drafts").update({ quality_report: report }).eq("id", draftId);
+  if (error) throw new Error(error.message);
+}

@@ -27,17 +27,30 @@ export interface CalculationContext {
   work_schedule: WorkSchedule;
   variable_pay: VariablePay;
   confidence_by_field: Record<string, Confidence>;
+  /** Rótulos legíveis (interface). NUNCA usar em regra de negócio. */
   sources_by_field: Record<string, string>;
+  /** Chaves canônicas estáveis — única base válida para regras (gate). */
+  source_keys_by_field: Record<string, CalculationSource>;
 }
 
-type SourceKey = "document" | "intake" | "analysis" | "draft" | "instructions" | "client" | "derived";
+/** Chave canônica de origem do dado. Estável, independente de rótulo visível. */
+export type CalculationSource =
+  | "document"
+  | "intake"
+  | "initial_analysis"
+  | "draft"
+  | "instructions"
+  | "client"
+  | "derived";
+
+type SourceKey = CalculationSource;
 
 const SOURCE_CONFIDENCE: Record<SourceKey, Confidence> = {
-  document: "high", intake: "medium", analysis: "medium",
+  document: "high", intake: "medium", initial_analysis: "medium",
   draft: "medium", instructions: "medium", client: "low", derived: "medium",
 };
 const SOURCE_LABEL: Record<SourceKey, string> = {
-  document: "documento processado", intake: "ficha inteligente", analysis: "análise inicial",
+  document: "documento processado", intake: "ficha inteligente", initial_analysis: "análise inicial",
   draft: "minuta gerada", instructions: "instruções do advogado", client: "relato do cliente", derived: "derivado",
 };
 
@@ -181,7 +194,7 @@ function collectText(input: BuildInput): Array<{ text: string; source: SourceKey
     const c = (input.analysis.content_json as Record<string, unknown> | undefined) ?? {};
     const t = [c.summary, ...(Array.isArray(c.facts) ? c.facts : [])]
       .filter((x) => typeof x === "string").join("\n");
-    if (t) arr.push({ text: t, source: "analysis" });
+    if (t) arr.push({ text: t, source: "initial_analysis" });
   }
   if (input.additionalInstructions) arr.push({ text: input.additionalInstructions, source: "instructions" });
   return arr;
@@ -194,19 +207,19 @@ export function buildCalculationContext(input: BuildInput): CalculationContext {
 
   const salary = firstOf<number>(
     { value: parseMoneyBrl(it.monthly_salary as string) ?? parseMoneyBrl(it.salary as string) ?? parseMoneyBrl(it.remuneracao as string), source: "intake" },
-    { value: parseMoneyBrl(an.monthly_salary as string), source: "analysis" },
+    { value: parseMoneyBrl(an.monthly_salary as string), source: "initial_analysis" },
     ...texts.map((t) => ({ value: extractSalary(t.text), source: t.source })),
   );
 
   const admission = firstOf<string>(
     { value: parseDatePtBr(it.admission_date as string) ?? parseDatePtBr(it.data_admissao as string), source: "intake" },
-    { value: parseDatePtBr(an.admission_date as string), source: "analysis" },
+    { value: parseDatePtBr(an.admission_date as string), source: "initial_analysis" },
     ...texts.map((t) => ({ value: extractAdmission(t.text), source: t.source })),
   );
 
   const termination = firstOf<string>(
     { value: parseDatePtBr(it.termination_date as string) ?? parseDatePtBr(it.data_rescisao as string), source: "intake" },
-    { value: parseDatePtBr(an.termination_date as string), source: "analysis" },
+    { value: parseDatePtBr(an.termination_date as string), source: "initial_analysis" },
     ...texts.map((t) => ({ value: extractTermination(t.text), source: t.source })),
   );
 
@@ -251,7 +264,10 @@ export function buildCalculationContext(input: BuildInput): CalculationContext {
 
   const conf: Record<string, Confidence> = {};
   const src: Record<string, string> = {};
-  const set = (f: string, s: SourceKey | null) => { if (s) { conf[f] = SOURCE_CONFIDENCE[s]; src[f] = SOURCE_LABEL[s]; } };
+  const keys: Record<string, CalculationSource> = {};
+  const set = (f: string, s: SourceKey | null) => {
+    if (s) { conf[f] = SOURCE_CONFIDENCE[s]; src[f] = SOURCE_LABEL[s]; keys[f] = s; }
+  };
   set("monthly_salary", salary?.source ?? null);
   set("admission_date", admission?.source ?? null);
   set("termination_date", termination?.source ?? null);
@@ -273,5 +289,6 @@ export function buildCalculationContext(input: BuildInput): CalculationContext {
     variable_pay: varPay,
     confidence_by_field: conf,
     sources_by_field: src,
+    source_keys_by_field: keys,
   };
 }

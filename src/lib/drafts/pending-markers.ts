@@ -1,29 +1,24 @@
 // =============================================================================
-// PR-4.4B.2B — Detecção e destaque visual dos marcadores pendentes.
-// NÃO altera o texto salvo — apenas apresentação.
-// Duas passadas:
-//   1) regex tipada → classifica (informar/calcular/anexar/confirmar/revisar/jurisprudencia)
-//   2) fallback bracket → qualquer [...] remanescente vira "revisar"
+// PR-4.4B.2B — Destaque visual dos marcadores pendentes (apresentação).
+// PR-COMPLETUDE 1 — a DETECÇÃO passou a vir da fonte única compartilhada
+// (`@shared/completeness.ts`, mesmo arquivo usado pelas Edge Functions).
+// Aqui ficam apenas rótulos e renderização — nenhuma regex duplicada.
 // =============================================================================
 import type { ReactNode } from "react";
 import { createElement, Fragment } from "react";
+import { detectPlaceholders, type PlaceholderOccurrence } from "@shared/completeness.ts";
 
 export type PendingCategory =
   | "informar" | "calcular" | "anexar" | "confirmar" | "revisar" | "jurisprudencia";
 
-export const PENDING_MARKER_REGEX =
-  /\[(INFORMAR|PREENCHER|INSERIR|DEFINIR|ATUALIZAR|VERIFICAR|CALCULAR|ANEXAR|CONFIRMAR|REVISAR|JURISPRUD[EÊ]NCIA A INSERIR|REVISAR ADPF|REVISAR ENTENDIMENTO|CONFIRMAR COM O CLIENTE|ANEXAR DOCUMENTO|INFORMAR VARA|INFORMAR COMARCA|INFORMAR DATA)[^\]\n]{0,400}\]/gi;
-
-// Fallback: qualquer [ ... ] que ainda não tenha sido capturado.
-export const PENDING_MARKER_BRACKET_REGEX = /\[[^\]\n]{2,400}\]/g;
-
 export function classifyMarker(marker: string): PendingCategory {
   const u = marker.toUpperCase();
   if (u.includes("JURISPRUD")) return "jurisprudencia";
-  if (u.startsWith("[INFORMAR") || u.startsWith("[PREENCHER") || u.startsWith("[INSERIR") || u.startsWith("[DEFINIR") || u.startsWith("[ATUALIZAR") || u.startsWith("[VERIFICAR")) return "informar";
-  if (u.startsWith("[CALCULAR")) return "calcular";
-  if (u.startsWith("[ANEXAR")) return "anexar";
-  if (u.startsWith("[CONFIRMAR")) return "confirmar";
+  if (u.includes("CALCULAR")) return "calcular";
+  if (u.includes("ANEXAR")) return "anexar";
+  if (u.includes("CONFIRMAR")) return "confirmar";
+  if (/INFORMAR|PREENCHER|INSERIR|DEFINIR|ATUALIZAR|VERIFICAR|NOME|OAB|VARA|COMARCA|CPF|CNPJ|ENDERE/.test(u))
+    return "informar";
   return "revisar";
 }
 
@@ -41,30 +36,17 @@ export const CATEGORY_LABEL: Record<PendingCategory, string> = {
   jurisprudencia: "Jurisprudência a inserir",
 };
 
-interface Found { index: number; length: number; text: string; category: PendingCategory }
+export interface PendingMarker extends PlaceholderOccurrence {
+  ui_category: PendingCategory;
+}
 
-function findAllMarkers(text: string): Found[] {
-  const out: Found[] = [];
-  if (!text) return out;
-  const re1 = new RegExp(PENDING_MARKER_REGEX.source, "gi");
-  let m: RegExpExecArray | null;
-  while ((m = re1.exec(text)) !== null) {
-    out.push({ index: m.index, length: m[0].length, text: m[0], category: classifyMarker(m[0]) });
-  }
-  const re2 = new RegExp(PENDING_MARKER_BRACKET_REGEX.source, "g");
-  while ((m = re2.exec(text)) !== null) {
-    const start = m.index, end = m.index + m[0].length;
-    const overlap = out.some((f) => !(end <= f.index || start >= f.index + f.length));
-    if (overlap) continue;
-    if (/^\[\s*\d+\s*\]$/.test(m[0])) continue; // ignore [1] etc.
-    out.push({ index: start, length: m[0].length, text: m[0], category: "revisar" });
-  }
-  return out.sort((a, b) => a.index - b.index);
+export function findPendingMarkers(text: string): PendingMarker[] {
+  return detectPlaceholders(text ?? "").map((p) => ({ ...p, ui_category: classifyMarker(p.marker) }));
 }
 
 export function countPendingMarkers(text: string): PendingCounts {
   const counts: PendingCounts = { total: 0, informar: 0, calcular: 0, anexar: 0, confirmar: 0, revisar: 0, jurisprudencia: 0 };
-  for (const f of findAllMarkers(text)) { counts[f.category] += 1; counts.total += 1; }
+  for (const f of findPendingMarkers(text)) { counts[f.ui_category] += 1; counts.total += 1; }
   return counts;
 }
 
@@ -72,13 +54,13 @@ export function renderWithHighlights(text: string): ReactNode {
   if (!text) return null;
   const nodes: ReactNode[] = [];
   let last = 0; let key = 0;
-  for (const f of findAllMarkers(text)) {
+  for (const f of findPendingMarkers(text)) {
     if (f.index > last) nodes.push(text.slice(last, f.index));
     nodes.push(createElement("mark", {
       key: `pm-${key++}`,
-      className: `pending-marker pending-marker--${f.category}`,
-      title: CATEGORY_LABEL[f.category],
-    }, f.text));
+      className: `pending-marker pending-marker--${f.ui_category}`,
+      title: CATEGORY_LABEL[f.ui_category],
+    }, f.marker));
     last = f.index + f.length;
   }
   if (last < text.length) nodes.push(text.slice(last));

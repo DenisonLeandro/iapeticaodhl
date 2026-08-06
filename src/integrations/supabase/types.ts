@@ -214,11 +214,18 @@ export type Database = {
           id: string
           input_data: Json | null
           legal_basis: string | null
+          manual_value: number | null
+          manual_value_confirmed: boolean
+          manual_value_confirmed_at: string | null
+          manual_value_confirmed_by: string | null
+          manual_value_note: string | null
           missing_fields: Json | null
           notes: string | null
           period: string | null
           request_label: string
           sort_order: number
+          system_value_confirmed: boolean
+          updated_at: string
         }
         Insert: {
           assumptions?: Json | null
@@ -230,11 +237,18 @@ export type Database = {
           id?: string
           input_data?: Json | null
           legal_basis?: string | null
+          manual_value?: number | null
+          manual_value_confirmed?: boolean
+          manual_value_confirmed_at?: string | null
+          manual_value_confirmed_by?: string | null
+          manual_value_note?: string | null
           missing_fields?: Json | null
           notes?: string | null
           period?: string | null
           request_label: string
           sort_order?: number
+          system_value_confirmed?: boolean
+          updated_at?: string
         }
         Update: {
           assumptions?: Json | null
@@ -246,11 +260,18 @@ export type Database = {
           id?: string
           input_data?: Json | null
           legal_basis?: string | null
+          manual_value?: number | null
+          manual_value_confirmed?: boolean
+          manual_value_confirmed_at?: string | null
+          manual_value_confirmed_by?: string | null
+          manual_value_note?: string | null
           missing_fields?: Json | null
           notes?: string | null
           period?: string | null
           request_label?: string
           sort_order?: number
+          system_value_confirmed?: boolean
+          updated_at?: string
         }
         Relationships: [
           {
