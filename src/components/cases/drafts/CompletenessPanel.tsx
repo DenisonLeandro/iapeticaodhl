@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   runCompletenessAudit,
-  contentHash,
   PROTOCOL_READINESS_LABEL,
   type ProtocolReadiness,
 } from "@shared/completeness.ts";
 import { useCalculationByDraft } from "@/hooks/useCaseCalculations";
-import { setLawyerReviewConfirmation } from "@/services/caseDrafts";
+import { persistCompletenessAudit, setLawyerReviewConfirmation } from "@/services/caseDrafts";
 import type { CaseDraft } from "@/types/caseDraft";
 
 const SEAL_STYLE: Record<ProtocolReadiness, string> = {
