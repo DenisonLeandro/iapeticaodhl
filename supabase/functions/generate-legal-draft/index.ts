@@ -379,10 +379,14 @@ Deno.serve(async (req) => {
   }
 
   const { data: profile } = await admin
-    .from("profiles").select("organization_id").eq("id", user.id).maybeSingle();
+    .from("profiles").select("organization_id,full_name,oab_number").eq("id", user.id).maybeSingle();
   if (!profile?.organization_id) {
     return err("auth", "Usuário sem organização vinculada.", "no_organization", 403, "no_organization");
   }
+
+  // PR-JORNADA 1 — dados do escritório para eliminar placeholders de fecho.
+  const { data: orgRow } = await admin
+    .from("organizations").select("name,branding").eq("id", profile.organization_id).maybeSingle();
 
   let body: Payload;
   try { body = await req.json(); } catch { return err("unknown", "Requisição inválida.", "invalid_body", 400, "invalid_body"); }
