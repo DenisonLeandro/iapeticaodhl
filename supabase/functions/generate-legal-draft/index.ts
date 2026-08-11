@@ -756,6 +756,69 @@ REGRA: a minuta deve conter as seções acima, na mesma ordem, com os mesmos tí
   const hasInconsistency = pendingItems.length > 0;
   const caseValuePreview = computeCaseValue(calcResult.items);
 
+  // ---------------------------------------------------------------------------
+  // PR-JORNADA 1 — Fatos apurados de jornada (determinístico, sem IA).
+  // Fonte primária: a jornada narrada no contexto do caso. Fallback: os campos
+  // estruturados já normalizados (work_schedule).
+  // ---------------------------------------------------------------------------
+  const jornadaOpts = {
+    admission_date: normalized.admission_date ?? null,
+    termination_date: normalized.termination_date ?? null,
+  };
+  let jornadaAnalysis = analyzeJornadaFromText(caseContext, jornadaOpts);
+  if (!jornadaAnalysis.detected) {
+    const ws = normalized.work_schedule;
+    const toMin = (t: string | null | undefined) => {
+      const m = String(t ?? "").match(/^(\d{1,2}):(\d{2})$/);
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+    };
+    const st = toMin(ws?.start_time);
+    const en = toMin(ws?.end_time);
+    if (st != null && en != null) {
+      jornadaAnalysis = analyzeJornadaSegments(
+        [{
+          day_group: "weekdays",
+          start_minutes: st,
+          end_minutes: en,
+          interval_minutes: ws?.interval_minutes ?? null,
+          days_per_week: ws?.days_per_week ?? 5,
+          excerpt: "jornada estruturada do caso",
+        }],
+        jornadaOpts,
+      );
+    }
+  }
+  const jornadaFactsBlock = renderJornadaFactsForPrompt(jornadaAnalysis);
+  console.log("generate-legal-draft:jornada_analyzed", {
+    stage: "jornada_analyzed",
+    case_id: caseId,
+    detected: jornadaAnalysis.detected,
+    segments: jornadaAnalysis.segments.length,
+    weekly_minutes: jornadaAnalysis.weekly_worked_minutes,
+    suppression: jornadaAnalysis.weekly_suppressed_interval_minutes,
+  });
+
+  // PR-JORNADA 1 — Dados do escritório/procurador (evita placeholders de fecho).
+  const branding = (orgRow?.branding ?? {}) as Record<string, unknown>;
+  const officeAddress = [branding.address, branding.endereco, branding.office_address]
+    .find((v) => typeof v === "string" && v.trim().length > 3) as string | undefined;
+  const officeCity = [branding.city, branding.cidade].find(
+    (v) => typeof v === "string" && v.trim().length > 1,
+  ) as string | undefined;
+  const officeDataBlock = `# DADOS DO ESCRITÓRIO E DO PROCURADOR (usar LITERALMENTE — proibido placeholder)
+- Escritório: ${orgRow?.name ?? "(não informado)"}
+- Advogado subscritor: ${profile.full_name ?? "(não informado)"}
+- OAB: ${profile.oab_number ?? "(não informado)"}
+- Endereço profissional: ${officeAddress ?? "(não informado)"}
+- Cidade/foro do escritório: ${officeCity ?? "(não informado)"}
+- Vara/Comarca do caso: ${caseRow.branch || "(não informado)"}
+- Órgão/Tribunal do caso: ${caseRow.court || "(não informado)"}
+
+REGRAS:
+- Onde o modelo do escritório traz nome do advogado, OAB, endereço profissional, vara ou comarca, escreva os dados acima quando informados. É PROIBIDO reescrever um dado informado como [NOME DO ADVOGADO], [OAB], [INFORMAR ENDEREÇO DO ESCRITÓRIO] ou equivalente.
+- Para os itens marcados "(não informado)", NÃO inventar: usar o marcador padronizado correspondente ([INFORMAR ENDEREÇO DO ESCRITÓRIO], [INFORMAR VARA/COMARCA] etc.) e listar o item em "missing_information".
+`;
+
   const fmtMoney = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const calcSummaryForPrompt = `# CÁLCULOS DETERMINÍSTICOS DO SISTEMA
 Fontes normalizadas: ${Object.entries(normalized.sources_by_field).map(([k, v]) => `${k}=${v}`).join("; ") || "—"}
