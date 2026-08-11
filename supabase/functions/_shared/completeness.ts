@@ -536,6 +536,8 @@ export function runCompletenessAudit(input: {
   lawyerConfirmedCaseValue?: boolean;
   /** Confirmação explícita do advogado + hash do estado confirmado. */
   lawyerReviewConfirmedHash?: string | null;
+  /** Fatos de jornada já apurados; se ausente, são derivados do próprio texto. */
+  jornada?: JornadaAnalysis | null;
 }): CompletenessAudit {
   const content = input.content ?? "";
   const placeholders = detectPlaceholders(content);
@@ -545,8 +547,13 @@ export function runCompletenessAudit(input: {
   const hash = contentHash(content);
   const stateHash = reviewedStateHash(content, items);
 
+  const jornada = input.jornada ?? analyzeJornadaFromText(content);
+  const incoherences = detectIncoherences(content, { jornada });
+  const highIncoherences = incoherences.filter((i) => i.severity === "high").length;
+
   const clean =
     summary.placeholder_count === 0 &&
+    highIncoherences === 0 &&
     (caseValue.case_value_status === "complete" || caseValue.case_value_status === "manual");
 
   let readiness: ProtocolReadiness = clean ? "ready_for_legal_review" : "draft_incomplete";
@@ -575,6 +582,10 @@ export function runCompletenessAudit(input: {
     claim_value_sum: caseValue.claim_value_sum,
     case_value_status: caseValue.case_value_status,
     case_value_pending_claims: caseValue.pending_claims,
+    incoherences,
+    incoherence_count: incoherences.length,
+    high_incoherence_count: highIncoherences,
+    jornada_summary: summarizeJornada(jornada),
     protocol_readiness: readiness,
   };
 }
