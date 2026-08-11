@@ -481,6 +481,11 @@ export interface CompletenessAudit extends PlaceholderSummary {
   claim_value_sum: number;
   case_value_status: CaseValueStatus;
   case_value_pending_claims: Array<{ label: string; missing_fields: string[] }>;
+  /** PR-JORNADA 1 — incoerências internas entre fatos e pedidos. */
+  incoherences: IncoherenceFinding[];
+  incoherence_count: number;
+  high_incoherence_count: number;
+  jornada_summary: string | null;
   protocol_readiness: ProtocolReadiness;
 }
 
