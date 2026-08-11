@@ -148,6 +148,34 @@ export const LEGAL_THESES: LegalThesis[] = [
     ],
     reviewed_at: "2026-08-06",
   },
+  {
+    key: "horas_extras_8_44",
+    title: "Horas extras — excedente da 8ª diária e da 44ª semanal",
+    guidance:
+      "Desenvolver o capítulo de horas extras com autonomia, sem depender do intervalo intrajornada. Narrar a jornada dia a dia exatamente como apurada nos FATOS APURADOS DE JORNADA (horário de entrada, saída, intervalo concedido e dias da semana), apontar o excedente da 8ª hora diária E o excedente da 44ª hora semanal, e pedir o pagamento das horas extras com adicional mínimo de 50%, base de cálculo pela remuneração global (não apenas o salário-base) e divisor aplicável à jornada contratual. Requerer os reflexos em DSR e, com estes, em aviso prévio, 13º salários, férias acrescidas de 1/3 e FGTS com a multa de 40%. É PROIBIDO afirmar duração de jornada ou excedente diferente do apurado pelo sistema, e é PROIBIDO pedir adicional de feriado, de domingo ou noturno sem fato narrado.",
+    legal_basis: [
+      "art. 7º, XIII e XVI, da Constituição Federal",
+      "arts. 58, 59 e 64 da CLT",
+      "Súmula 264 do TST (base de cálculo — remuneração global)",
+      "Súmula 172 do TST (reflexos em DSR)",
+      "Súmula 347 do TST (média física das horas extras habituais)",
+      "Súmula 431 do TST (divisor para jornada de 6 horas)",
+      "OJ 394 da SDI-1 do TST (majoração do DSR e reflexos)",
+    ],
+    reviewed_at: "2026-08-11",
+  },
+  {
+    key: "art71_faixas_intervalo",
+    title: "Faixas do intervalo intrajornada (art. 71 da CLT)",
+    guidance:
+      "Aplicar corretamente as faixas legais: jornada superior a 6 horas exige 1 hora de intervalo; jornada superior a 4 e até 6 horas exige 15 minutos; jornada de até 4 horas não exige intervalo. É PROIBIDO escrever que jornada 'superior a 4 horas' exige 1 hora de intervalo. Só formular pedido de intervalo suprimido quando o intervalo concedido for INFERIOR ao devido pela faixa correta, conforme os FATOS APURADOS DE JORNADA — se o intervalo estiver regular naquele grupo de dias, não formular o pedido nem no mérito nem no rol final.",
+    legal_basis: [
+      "art. 71, caput, § 1º e § 4º, da CLT",
+      "Súmula 437 do TST (contratos anteriores a 11/11/2017)",
+      "Lei 13.467/2017",
+    ],
+    reviewed_at: "2026-08-11",
+  },
 ];
 
 export const LEGAL_THESIS_BY_KEY: Record<string, LegalThesis> = Object.fromEntries(
@@ -174,6 +202,10 @@ const THESIS_TRIGGERS: Record<string, RegExp> = {
   integracao_remuneracao_variavel:
     /comiss[ãa]o|comiss[õo]es|remunera[çc][ãa]o\s+vari[áa]vel|pr[êe]mi|bonifica|produtividade|parte\s+vari[áa]vel|integra[çc][ãa]o/i,
   honorarios_sucumbenciais: /honor[áa]rio|sucumb[êe]nc|791-?A|art\.?\s*85/i,
+  horas_extras_8_44:
+    /hora[s]?\s+extra|sobrejornada|jornada\s+extraordin|excedente[s]?\s+d[ao]\s+(?:8|oitava)|44[ªa]\s*(?:hora)?\s*semanal|prorroga[çc][ãa]o\s+de\s+jornada/i,
+  art71_faixas_intervalo:
+    /intrajornada|intervalo[^.]{0,40}(?:refei[çc][ãa]o|descanso|almo[çc]o)|art\.?\s*71/i,
 };
 
 /**

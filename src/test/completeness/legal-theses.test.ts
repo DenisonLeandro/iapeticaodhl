@@ -50,8 +50,8 @@ describe("PR-EXCELÊNCIA 1 — classificação de pendências", () => {
 });
 
 describe("PR-EXCELÊNCIA 1 — seleção de teses", () => {
-  it("tem as dez teses curadas com base legal", () => {
-    expect(LEGAL_THESES).toHaveLength(10);
+  it("tem as teses curadas com base legal", () => {
+    expect(LEGAL_THESES).toHaveLength(12);
     for (const t of LEGAL_THESES) {
       expect(t.legal_basis.length).toBeGreaterThan(0);
       expect(t.reviewed_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);

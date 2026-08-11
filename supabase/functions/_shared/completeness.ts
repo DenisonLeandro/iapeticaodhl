@@ -8,7 +8,9 @@
 // Não pode importar nada de Deno nem do browser.
 // =============================================================================
 
-export const COMPLETENESS_AUDIT_VERSION = "1.0.0";
+import { analyzeJornadaFromText, type JornadaAnalysis, fmtHm } from "./jornada-engine.ts";
+
+export const COMPLETENESS_AUDIT_VERSION = "1.1.0";
 
 // ---------------------------------------------------------------------------
 // 1. Placeholders
@@ -291,6 +293,167 @@ export function computeCaseValue(
 }
 
 // ---------------------------------------------------------------------------
+// 3.1 PR-JORNADA 1 — Guarda de coerência fato ↔ pedido (determinística)
+// ---------------------------------------------------------------------------
+
+export type IncoherenceCode =
+  | "interval_request_without_suppression"
+  | "interval_threshold_misstated"
+  | "holiday_request_without_fact"
+  | "night_shift_request_without_fact"
+  | "sumula_340_vs_integration"
+  | "multiple_salary_bases";
+
+export type IncoherenceSeverity = "high" | "medium";
+
+export interface IncoherenceFinding {
+  code: IncoherenceCode;
+  label: string;
+  detail: string;
+  severity: IncoherenceSeverity;
+  excerpt?: string;
+}
+
+export const INCOHERENCE_LABELS: Record<IncoherenceCode, string> = {
+  interval_request_without_suppression: "Pedido de intervalo sem supressão apurada",
+  interval_threshold_misstated: "Faixa do art. 71 da CLT enunciada incorretamente",
+  holiday_request_without_fact: "Adicional de feriado sem fato narrado",
+  night_shift_request_without_fact: "Adicional noturno sem fato narrado",
+  sumula_340_vs_integration: "Súmula 340 do TST x integração da parte variável",
+  multiple_salary_bases: "Mais de uma base remuneratória na mesma peça",
+};
+
+function snippet(text: string, index: number, len = 140): string {
+  const start = Math.max(0, index - 40);
+  return text.slice(start, start + len).replace(/\s+/g, " ").trim();
+}
+
+/** Bases remuneratórias distintas citadas como salário/remuneração do autor. */
+export function extractSalaryBases(text: string): number[] {
+  const re =
+    /(?:remunera[çc][ãa]o|sal[áa]rio)[^.\n]{0,80}?R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{2})?)/gi;
+  const found = new Set<number>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const v = Number(m[1].replace(/\./g, "").replace(",", "."));
+    if (Number.isFinite(v) && v >= 500 && v <= 200_000) found.add(Math.round(v * 100) / 100);
+  }
+  return [...found].sort((a, b) => a - b);
+}
+
+/**
+ * Detecta incoerências internas entre os FATOS narrados e os PEDIDOS
+ * formulados. Sem IA; usa o motor de jornada como fonte dos fatos apurados.
+ */
+export function detectIncoherences(
+  content: string,
+  opts?: { jornada?: JornadaAnalysis | null },
+): IncoherenceFinding[] {
+  const text = content ?? "";
+  if (!text.trim()) return [];
+  const out: IncoherenceFinding[] = [];
+  const jornada = opts?.jornada ?? analyzeJornadaFromText(text);
+
+  // 1) Pedido de intervalo intrajornada sem supressão apurada.
+  const intervalRequest =
+    /intervalo\s+intrajornada[^.]{0,200}?(suprimid|supress|indeniza|acrescid[oa]\s+de\s+50)/i.exec(text) ??
+    /(suprimid|supress)[^.]{0,120}?intervalo/i.exec(text);
+  if (intervalRequest && jornada.detected && !jornada.has_interval_suppression) {
+    out.push({
+      code: "interval_request_without_suppression",
+      label: INCOHERENCE_LABELS.interval_request_without_suppression,
+      severity: "high",
+      detail:
+        "A jornada narrada não apresenta supressão de intervalo pelo art. 71 da CLT — o intervalo concedido atende ao mínimo devido para a duração apurada.",
+      excerpt: snippet(text, intervalRequest.index),
+    });
+  }
+
+  // 2) Faixa do art. 71 enunciada de forma incorreta ("superior a 4 horas → 1 hora").
+  const threshold =
+    /superior\s+a\s+(?:4|quatro)\s+horas[^.]{0,160}?(?:1\s*(?:\(?uma\)?\s*)?hora|60\s*minutos|uma\s+hora)/i.exec(text);
+  if (threshold) {
+    out.push({
+      code: "interval_threshold_misstated",
+      label: INCOHERENCE_LABELS.interval_threshold_misstated,
+      severity: "high",
+      detail:
+        "O art. 71 da CLT exige 1 hora de intervalo apenas para jornada superior a 6 horas; entre 4 e 6 horas o mínimo é de 15 minutos.",
+      excerpt: snippet(text, threshold.index),
+    });
+  }
+
+  // 3) Adicional de 100% por feriado sem fato de labor em feriado.
+  const holidayRequest = /feriado[s]?[^.]{0,120}?100\s*%|100\s*%[^.]{0,120}?feriado/i.exec(text);
+  const holidayFact =
+    /(labor(?:ava|ou|)|trabalh(?:ava|ou|o)|escala|convocad[oa]|plant[ãa]o)[^.]{0,120}?feriado/i.test(text);
+  if (holidayRequest && !holidayFact) {
+    out.push({
+      code: "holiday_request_without_fact",
+      label: INCOHERENCE_LABELS.holiday_request_without_fact,
+      severity: "high",
+      detail:
+        "Há pedido de adicional de 100% por feriados, mas nenhum fato narrado de labor em feriado.",
+      excerpt: snippet(text, holidayRequest.index),
+    });
+  }
+
+  // 4) Adicional noturno sem jornada que avance das 22h.
+  const nightRequest = /adicional\s+noturno|hora\s+noturna\s+reduzida/i.exec(text);
+  const nightFact =
+    /(22|vinte\s+e\s+duas)\s*(?:h|horas|:00)/i.test(text) ||
+    jornada.segments.some((s) => s.end_minutes > 22 * 60 || s.end_minutes < s.start_minutes);
+  if (nightRequest && !nightFact) {
+    out.push({
+      code: "night_shift_request_without_fact",
+      label: INCOHERENCE_LABELS.night_shift_request_without_fact,
+      severity: "high",
+      detail: "Há pedido de adicional noturno sem jornada narrada em horário noturno (após as 22h).",
+      excerpt: snippet(text, nightRequest.index),
+    });
+  }
+
+  // 5) Súmula 340 do TST convivendo com integração da variável sem ressalva.
+  const s340 = /s[úu]mula\s*(?:n[º°]?\s*)?340/i.exec(text);
+  const integration = /integra[çc][ãa]o[^.]{0,120}?(vari[áa]vel|comiss)|m[ée]dia[^.]{0,60}?(vari[áa]vel|comiss)/i.test(text);
+  const reconciled = /sem\s+preju[íi]zo[^.]{0,80}?340|compatibiliz|apenas\s+o\s+adicional\s+sobre\s+a\s+parte\s+vari[áa]vel/i.test(text);
+  if (s340 && integration && !reconciled) {
+    out.push({
+      code: "sumula_340_vs_integration",
+      label: INCOHERENCE_LABELS.sumula_340_vs_integration,
+      severity: "medium",
+      detail:
+        "A peça manda observar a Súmula 340 do TST (apenas o adicional sobre a parte variável) e, em outro tópico, pede a integração da média variável na base das horas extras. Explicitar a compatibilização.",
+      excerpt: snippet(text, s340.index),
+    });
+  }
+
+  // 6) Mais de uma base remuneratória.
+  const bases = extractSalaryBases(text);
+  if (bases.length > 1) {
+    out.push({
+      code: "multiple_salary_bases",
+      label: INCOHERENCE_LABELS.multiple_salary_bases,
+      severity: "high",
+      detail: `A peça cita bases remuneratórias distintas: ${bases
+        .map((b) => `R$ ${b.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`)
+        .join(" e ")}. Unificar a base antes do protocolo.`,
+    });
+  }
+
+  return out;
+}
+
+/** Resumo textual dos fatos de jornada, para exibição na UI. */
+export function summarizeJornada(a: JornadaAnalysis): string | null {
+  if (!a.detected) return null;
+  return `Semana apurada: ${fmtHm(a.weekly_worked_minutes)}${
+    a.weekly_overtime_minutes > 0 ? ` · excedente da 44ª: ${fmtHm(a.weekly_overtime_minutes)}` : " · sem excedente semanal"
+  }${a.has_interval_suppression ? ` · intervalo suprimido: ${fmtHm(a.weekly_suppressed_interval_minutes)}/semana` : " · intervalo regular"}`;
+}
+
+
+// ---------------------------------------------------------------------------
 // 4. Auditoria de completude
 // ---------------------------------------------------------------------------
 
@@ -318,6 +481,11 @@ export interface CompletenessAudit extends PlaceholderSummary {
   claim_value_sum: number;
   case_value_status: CaseValueStatus;
   case_value_pending_claims: Array<{ label: string; missing_fields: string[] }>;
+  /** PR-JORNADA 1 — incoerências internas entre fatos e pedidos. */
+  incoherences: IncoherenceFinding[];
+  incoherence_count: number;
+  high_incoherence_count: number;
+  jornada_summary: string | null;
   protocol_readiness: ProtocolReadiness;
 }
 
@@ -368,6 +536,8 @@ export function runCompletenessAudit(input: {
   lawyerConfirmedCaseValue?: boolean;
   /** Confirmação explícita do advogado + hash do estado confirmado. */
   lawyerReviewConfirmedHash?: string | null;
+  /** Fatos de jornada já apurados; se ausente, são derivados do próprio texto. */
+  jornada?: JornadaAnalysis | null;
 }): CompletenessAudit {
   const content = input.content ?? "";
   const placeholders = detectPlaceholders(content);
@@ -377,8 +547,13 @@ export function runCompletenessAudit(input: {
   const hash = contentHash(content);
   const stateHash = reviewedStateHash(content, items);
 
+  const jornada = input.jornada ?? analyzeJornadaFromText(content);
+  const incoherences = detectIncoherences(content, { jornada });
+  const highIncoherences = incoherences.filter((i) => i.severity === "high").length;
+
   const clean =
     summary.placeholder_count === 0 &&
+    highIncoherences === 0 &&
     (caseValue.case_value_status === "complete" || caseValue.case_value_status === "manual");
 
   let readiness: ProtocolReadiness = clean ? "ready_for_legal_review" : "draft_incomplete";
@@ -407,6 +582,10 @@ export function runCompletenessAudit(input: {
     claim_value_sum: caseValue.claim_value_sum,
     case_value_status: caseValue.case_value_status,
     case_value_pending_claims: caseValue.pending_claims,
+    incoherences,
+    incoherence_count: incoherences.length,
+    high_incoherence_count: highIncoherences,
+    jornada_summary: summarizeJornada(jornada),
     protocol_readiness: readiness,
   };
 }

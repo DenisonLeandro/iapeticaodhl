@@ -145,6 +145,40 @@ export default function CompletenessPanel({
         </div>
       )}
 
+      {audit.jornada_summary && (
+        <div className="mt-2 rounded-md border p-2 text-[11px] text-muted-foreground">
+          Jornada apurada: {audit.jornada_summary}
+        </div>
+      )}
+
+      {audit.incoherences.length > 0 && (
+        <div className="mt-3 space-y-1">
+          <div className="text-[11px] font-semibold text-muted-foreground">
+            Incoerências detectadas ({audit.incoherences.length})
+          </div>
+          {audit.incoherences.map((inc, i) => (
+            <div
+              key={`${inc.code}-${i}`}
+              className={`rounded-md border p-2 text-[11px] ${
+                inc.severity === "high"
+                  ? "border-destructive/40 bg-destructive/10"
+                  : "border-amber-500/40 bg-amber-500/10"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{inc.label}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {inc.severity === "high" ? "Grave" : "Atenção"}
+                </Badge>
+              </div>
+              <div className="mt-0.5 text-muted-foreground">{inc.detail}</div>
+              {inc.excerpt && <div className="mt-0.5 italic text-muted-foreground">…{inc.excerpt}…</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+
       {grouped.length > 0 && (
         <div className="mt-3 space-y-1">
           <div className="text-[11px] font-semibold text-muted-foreground">Pendências localizadas</div>
