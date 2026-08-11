@@ -27,7 +27,7 @@ import {
 } from "../_shared/legal-blocks.ts";
 import { runCalculations, contextFromNormalized, annotateWithSources } from "../_shared/calc-engine.ts";
 import { buildCalculationContext } from "../_shared/calc-engine/normalize-context.ts";
-import { runCompletenessAudit, computeCaseValue } from "../_shared/completeness.ts";
+import { runCompletenessAudit, computeCaseValue, detectIncoherences } from "../_shared/completeness.ts";
 import { selectApplicableTheses, renderThesesForPrompt } from "../_shared/legal-theses.ts";
 import {
   analyzeJornadaFromText,
@@ -1019,6 +1019,17 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
 
   // PR-Q1A — Auditoria leve determinística (sem IA)
   const lightAudit = runLightDraftAudit(content, templateExcerpt);
+
+  // PR-JORNADA 1 — guarda de coerência fato ↔ pedido sobre a minuta gerada.
+  const incoherences = detectIncoherences(content, { jornada: analyzeJornadaFromText(content, jornadaOpts) });
+  for (const inc of incoherences) {
+    warnings.push(`Incoerência detectada (${inc.severity === "high" ? "grave" : "atenção"}): ${inc.label} — ${inc.detail}`);
+  }
+  console.log("generate-legal-draft:incoherences", {
+    stage: "incoherence_guard",
+    case_id: caseId,
+    codes: incoherences.map((i) => i.code),
+  });
   if (lightAudit.placeholder_total > 0) {
     const labels = lightAudit.placeholder_hits.map((h) => `${h.label}×${h.count}`).join(", ");
     warnings.push(`Placeholders críticos detectados na minuta: ${labels}. Revisar antes do protocolo.`);
