@@ -202,6 +202,10 @@ const THESIS_TRIGGERS: Record<string, RegExp> = {
   integracao_remuneracao_variavel:
     /comiss[ãa]o|comiss[õo]es|remunera[çc][ãa]o\s+vari[áa]vel|pr[êe]mi|bonifica|produtividade|parte\s+vari[áa]vel|integra[çc][ãa]o/i,
   honorarios_sucumbenciais: /honor[áa]rio|sucumb[êe]nc|791-?A|art\.?\s*85/i,
+  horas_extras_8_44:
+    /hora[s]?\s+extra|sobrejornada|jornada\s+extraordin|excedente[s]?\s+d[ao]\s+(?:8|oitava)|44[ªa]\s*(?:hora)?\s*semanal|prorroga[çc][ãa]o\s+de\s+jornada/i,
+  art71_faixas_intervalo:
+    /intrajornada|intervalo[^.]{0,40}(?:refei[çc][ãa]o|descanso|almo[çc]o)|art\.?\s*71/i,
 };
 
 /**
