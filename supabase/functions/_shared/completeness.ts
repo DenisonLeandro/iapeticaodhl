@@ -8,7 +8,9 @@
 // Não pode importar nada de Deno nem do browser.
 // =============================================================================
 
-export const COMPLETENESS_AUDIT_VERSION = "1.0.0";
+import { analyzeJornadaFromText, type JornadaAnalysis, fmtHm } from "./jornada-engine.ts";
+
+export const COMPLETENESS_AUDIT_VERSION = "1.1.0";
 
 // ---------------------------------------------------------------------------
 // 1. Placeholders
