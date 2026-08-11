@@ -29,6 +29,11 @@ import { runCalculations, contextFromNormalized, annotateWithSources } from "../
 import { buildCalculationContext } from "../_shared/calc-engine/normalize-context.ts";
 import { runCompletenessAudit, computeCaseValue } from "../_shared/completeness.ts";
 import { selectApplicableTheses, renderThesesForPrompt } from "../_shared/legal-theses.ts";
+import {
+  analyzeJornadaFromText,
+  analyzeJornadaSegments,
+  renderJornadaFactsForPrompt,
+} from "../_shared/jornada-engine.ts";
 import { TRABALHISTA_INICIAL_FINAL_REQUESTS_GUIDANCE } from "../_shared/final-requests/trabalhista-inicial.ts";
 import { loadApplicablePlaybook, renderPlaybookForPrompt } from "../_shared/playbooks/load-playbook.ts";
 import { checkPlaybookCompliance } from "../_shared/playbooks/compliance.ts";
