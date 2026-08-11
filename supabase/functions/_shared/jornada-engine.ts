@@ -133,7 +133,7 @@ export function parseIntervalMinutes(after: string): number | null {
     const m = parseInt(onlyMin[1], 10);
     if (m <= 240) return m;
   }
-  const afterWord = a.match(/intervalo[^.]{0,60}?(\d{1,3})\s*(?:minutos?|min)\b/);
+  const afterWord = a.match(/intervalo[^.]{0,60}?(\d{1,3})\s*(?:\([a-zà-ú ]{1,15}\)\s*)?(?:minutos?|min)\b/);
   if (afterWord) {
     const m = parseInt(afterWord[1], 10);
     if (m <= 240) return m;

@@ -371,7 +371,7 @@ export function detectIncoherences(
 
   // 2) Faixa do art. 71 enunciada de forma incorreta ("superior a 4 horas → 1 hora").
   const threshold =
-    /superior\s+a\s+(?:4|quatro)\s+horas[^.]{0,160}?(?:1\s*\(?uma\)?\s*hora|60\s*minutos|uma\s+hora)/i.exec(text);
+    /superior\s+a\s+(?:4|quatro)\s+horas[^.]{0,160}?(?:1\s*(?:\(?uma\)?\s*)?hora|60\s*minutos|uma\s+hora)/i.exec(text);
   if (threshold) {
     out.push({
       code: "interval_threshold_misstated",
