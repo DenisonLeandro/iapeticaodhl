@@ -530,8 +530,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <Label>Parte contrária</Label>
             <Input
               placeholder="Nome ou descrição da parte contrária"
-              {...form.register("opposing_party")}
+              {...form.register("opposing_party", {
+                onChange: () => clearAutoFilled("opposing_party"),
+              })}
             />
+            <AutoFilledHint show={autoFilled.has("opposing_party")} />
+
           </div>
         </div>
       </Block>
