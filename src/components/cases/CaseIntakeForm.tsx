@@ -126,6 +126,20 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     documentSourcedFields: (keyof CaseIntakeFormValues)[];
     sourcesUsed: string[];
   } | null>(null);
+  /** Campos preenchidos por heurística nesta sessão (etiqueta some ao editar). */
+  const [autoFilled, setAutoFilled] = useState<Set<keyof CaseIntakeFormValues>>(
+    new Set(),
+  );
+
+  const clearAutoFilled = (field: keyof CaseIntakeFormValues) =>
+    setAutoFilled((prev) => {
+      if (!prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+
+
 
 
   // Hidrata o form quando intake chega
