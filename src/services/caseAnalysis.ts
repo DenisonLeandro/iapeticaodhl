@@ -51,17 +51,48 @@ export async function getLatestCaseAnalysis(caseId: string): Promise<CaseAnalysi
   return (data as unknown as CaseAnalysis | null) ?? null;
 }
 
+/** Tempo máximo de espera pela edge function antes de liberar a UI. */
+export const ANALYSIS_TIMEOUT_MS = 120_000;
+
 export async function runCaseAnalysis(
   caseId: string,
   force = false,
   opts: { highPrecision?: boolean } = {},
 ): Promise<{ analysis: CaseAnalysis; reused: boolean }> {
   return withInflight(`analyze-case:${caseId}`, async () => {
-    const { data, error } = await supabase.functions.invoke("analyze-case", {
-      body: { caseId, force, highPrecision: opts.highPrecision === true },
+    const call = (async () => {
+      const { data, error } = await supabase.functions.invoke("analyze-case", {
+        body: { caseId, force, highPrecision: opts.highPrecision === true },
+      });
+      if (error) {
+        console.error("analyze-case:invoke_error", error);
+        throw new Error(error.message || "Falha ao gerar análise");
+      }
+      if (!data?.analysis) {
+        console.error("analyze-case:invalid_response", data);
+        throw new Error("Resposta inválida do servidor");
+      }
+      return { analysis: data.analysis as CaseAnalysis, reused: !!data.reused };
+    })();
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              "A análise demorou mais que o esperado e foi interrompida. Tente novamente.",
+            ),
+          ),
+        ANALYSIS_TIMEOUT_MS,
+      );
     });
-    if (error) throw new Error(error.message || "Falha ao gerar análise");
-    if (!data?.analysis) throw new Error("Resposta inválida do servidor");
-    return { analysis: data.analysis as CaseAnalysis, reused: !!data.reused };
+
+    try {
+      return await Promise.race([call, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   });
 }
+
