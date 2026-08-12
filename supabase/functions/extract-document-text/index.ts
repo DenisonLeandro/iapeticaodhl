@@ -33,6 +33,15 @@ const HARD_MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB
 const EXTRACTION_MODEL_MULTIMODAL = "gemini-2.5-flash@multimodal";
 const EXTRACTION_VERSION_MULTIMODAL = "v1-multimodal";
 
+// Mínimo de caracteres úteis por página (descontando marcadores [[PAGE n]])
+// abaixo do qual consideramos o PDF como digitalizado/sem camada de texto.
+const MIN_USEFUL_CHARS_PER_PAGE = 40;
+
+/** Conta caracteres úteis, ignorando marcadores [[PAGE n]] e espaços. */
+function usefulChars(text: string): number {
+  return text.replace(/\[\[PAGE\s+\d+\]\]/g, "").replace(/\s+/g, "").length;
+}
+
 async function signedUrl(storagePath: string): Promise<string> {
   const svc = serviceClient();
   const { data, error } = await svc.storage
@@ -246,7 +255,23 @@ serve(async (req) => {
           extractedText = pages
             .map((p) => `\n\n[[PAGE ${p.page}]]\n${p.text}`)
             .join("");
-          console.log("extract:pdfjs_ok", { pages: totalPages, chars: extractedText.length });
+          const useful = usefulChars(extractedText);
+          const perPage = useful / Math.max(totalPages, 1);
+          console.log("extract:pdfjs_ok", {
+            pages: totalPages,
+            chars: extractedText.length,
+            useful_chars: useful,
+            useful_per_page: Math.round(perPage),
+          });
+          // PDF digitalizado (imagem): pdfjs não lança erro, apenas devolve
+          // marcadores de página vazios. Trata como falha para acionar OCR.
+          if (perPage < MIN_USEFUL_CHARS_PER_PAGE) {
+            console.warn("extract:pdfjs_low_yield_fallback", {
+              useful_chars: useful,
+              pages: totalPages,
+            });
+            extractedText = null;
+          }
         } catch (e) {
           console.warn("extract:pdfjs_failed_fallback", { error: (e as Error).message });
           extractedText = null;
@@ -267,6 +292,10 @@ serve(async (req) => {
         usedVersion = EXTRACTION_VERSION_MULTIMODAL;
       }
 
+      // Mesmo após o OCR o arquivo pode não ter texto legível. Sinaliza para a UI.
+      const finalUseful = usefulChars(extractedText);
+      const noText = finalUseful / Math.max(totalPages, 1) < MIN_USEFUL_CHARS_PER_PAGE;
+
       await svc
         .from("client_files")
         .update({
@@ -276,6 +305,7 @@ serve(async (req) => {
           extraction_model: usedModel,
           extraction_at: new Date().toISOString(),
           pipeline_stage: "extracting",
+          pipeline_last_error: noText ? "sem_texto_reconhecido" : null,
         })
         .eq("id", file.id);
 

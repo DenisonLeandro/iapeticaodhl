@@ -42,16 +42,27 @@ export function useCaseAnalysis(caseId: string | undefined) {
       }
     },
     onError: (e: Error) => {
-      toast.error(e.message || "Falha ao gerar análise");
+      console.error("case-analysis:error", e);
+      toast.error(
+        e.message || "Não foi possível iniciar a análise — tente novamente.",
+      );
     },
   });
+
+  // Uma linha `running` antiga (função interrompida) não pode travar o botão.
+  const runningRow = query.data?.status === "running" ? query.data : null;
+  const staleRunning =
+    !!runningRow &&
+    Date.now() - new Date(runningRow.updated_at ?? runningRow.created_at).getTime() >
+      5 * 60_000;
 
   return {
     analysis: query.data ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    isRunning: mutation.isPending || query.data?.status === "running",
-    generate: (force: boolean) => mutation.mutate(force),
+    isRunning: mutation.isPending || (!!runningRow && !staleRunning),
+    generate: (force: boolean) => mutation.mutateAsync(force),
     error: query.error as Error | null,
   };
 }
+

@@ -172,7 +172,7 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
           icon={FileSearch}
           title={analysis ? "Reanalisar Caso" : "Analisar Caso"}
           description="Resumo, riscos e próximos passos do caso."
-          onClick={() => generate(!!analysis)}
+          onClick={() => void generate(!!analysis).catch(() => {})}
           disabled={isRunning}
         />
 
@@ -230,8 +230,8 @@ export default function CaseWorkbench({ caseData, documents, onOpenChat }: Props
         analysis={analysis}
         isLoading={analysisLoading}
         isRunning={isRunning}
-        onGenerate={() => generate(false)}
-        onRegenerate={() => generate(true)}
+        onGenerate={() => void generate(false).catch(() => {})}
+        onRegenerate={() => void generate(true).catch(() => {})}
       />
 
 
