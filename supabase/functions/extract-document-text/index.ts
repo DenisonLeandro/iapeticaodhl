@@ -292,6 +292,10 @@ serve(async (req) => {
         usedVersion = EXTRACTION_VERSION_MULTIMODAL;
       }
 
+      // Mesmo após o OCR o arquivo pode não ter texto legível. Sinaliza para a UI.
+      const finalUseful = usefulChars(extractedText);
+      const noText = finalUseful / Math.max(totalPages, 1) < MIN_USEFUL_CHARS_PER_PAGE;
+
       await svc
         .from("client_files")
         .update({
@@ -301,6 +305,7 @@ serve(async (req) => {
           extraction_model: usedModel,
           extraction_at: new Date().toISOString(),
           pipeline_stage: "extracting",
+          pipeline_last_error: noText ? "sem_texto_reconhecido" : null,
         })
         .eq("id", file.id);
 
