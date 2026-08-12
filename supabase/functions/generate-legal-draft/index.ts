@@ -229,9 +229,43 @@ function extractJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { /* fenced fallback */ }
   const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  if (m) {
+    try { return JSON.parse(m[0]); } catch { /* truncated fallback */ }
+  }
+  // Resposta truncada (corte por tamanho): recupera "content" de forma tolerante.
+  const start = raw.indexOf('"content"');
+  if (start >= 0) {
+    const after = raw.slice(start + 9).replace(/^\s*:\s*/, "");
+    if (after.startsWith('"')) {
+      let out = "";
+      let i = 1;
+      while (i < after.length) {
+        const ch = after[i];
+        if (ch === "\\") {
+          const nxt = after[i + 1];
+          if (nxt === "n") out += "\n";
+          else if (nxt === "t") out += "\t";
+          else if (nxt === "u") {
+            const hex = after.slice(i + 2, i + 6);
+            out += String.fromCharCode(parseInt(hex, 16) || 32);
+            i += 4;
+          } else out += nxt ?? "";
+          i += 2;
+          continue;
+        }
+        if (ch === '"') break;
+        out += ch;
+        i += 1;
+      }
+      const title = raw.match(/"title"\s*:\s*"([^"]{1,200})"/)?.[1];
+      if (out.trim().length >= 100) {
+        return { title: title ?? "", content: out, warnings: [], missing_information: [], _truncated: true };
+      }
+    }
+  }
+  return null;
 }
+
 
 function truncate(text: string | null | undefined, max: number): string {
   if (!text) return "";
@@ -245,12 +279,12 @@ function stringifyList(v: unknown): string {
   try { return JSON.stringify(v); } catch { return ""; }
 }
 
-async function callLlm(
+async function callLlmOnce(
   apiKey: string,
   model: string,
   system: string,
   userPrompt: string,
-  timeoutMs = 120000,
+  timeoutMs: number,
 ): Promise<LlmResult> {
   const start = Date.now();
   const ctrl = new AbortController();
@@ -292,6 +326,30 @@ async function callLlm(
     clearTimeout(timer);
   }
 }
+
+// Falhas transitórias do provedor (503/502/500/rede) são repetidas com backoff.
+// Não há custo extra: a tentativa anterior falhou sem consumir tokens.
+function isTransient(status: number): boolean {
+  return status === 0 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+async function callLlm(
+  apiKey: string,
+  model: string,
+  system: string,
+  userPrompt: string,
+  timeoutMs = 120000,
+): Promise<LlmResult> {
+  const delays = [2000, 5000];
+  let last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+  for (let i = 0; i < delays.length && isTransient(last.http_status); i++) {
+    console.warn("callLlm:retry", { attempt: i + 1, status: last.http_status, model });
+    await new Promise((r) => setTimeout(r, delays[i]));
+    last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+  }
+  return last;
+}
+
 
 
 // ---------------------------------------------------------------------------
@@ -998,9 +1056,19 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   if (draftRes.http_status === 599) {
     return err("draft", "A geração da minuta demorou demais. Tente novamente em instantes.", "draft_timeout", 504, "draft_timeout");
   }
+  if (!draftRes.parsed && isTransient(draftRes.http_status)) {
+    return err(
+      "draft",
+      "O serviço de IA está temporariamente indisponível. Tente novamente em alguns instantes.",
+      "llm_unavailable",
+      503,
+      "llm_unavailable",
+    );
+  }
   if (!draftRes.parsed) {
     return err("draft", "Resposta inválida da IA ao gerar a minuta.", "invalid_llm_json", 500, "invalid_llm_json");
   }
+
 
   const title = String(draftRes.parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
   const content = String(draftRes.parsed.content ?? "").trim();
