@@ -108,9 +108,14 @@ serve(async (req) => {
           embedding_model: EMBEDDING_MODEL,
           embedding_at: new Date().toISOString(),
           pipeline_stage: "done",
-          pipeline_last_error: null,
         })
         .eq("id", file.id);
+      // Preserva o sinalizador de "sem texto reconhecido" definido na extração.
+      await svc
+        .from("client_files")
+        .update({ pipeline_last_error: null })
+        .eq("id", file.id)
+        .neq("pipeline_last_error", "sem_texto_reconhecido");
       return json({ ok: true, inserted: 0, total_chunks: chunks.length, skipped: chunks.length });
     }
 
@@ -176,9 +181,14 @@ serve(async (req) => {
         embedding_model: EMBEDDING_MODEL,
         embedding_at: new Date().toISOString(),
         pipeline_stage: "done",
-        pipeline_last_error: null,
       })
       .eq("id", file.id);
+    // Preserva o sinalizador de "sem texto reconhecido" definido na extração.
+    await svc
+      .from("client_files")
+      .update({ pipeline_last_error: null })
+      .eq("id", file.id)
+      .neq("pipeline_last_error", "sem_texto_reconhecido");
 
     // PR-3.7: telemetria (best-effort)
     await logAiUsage(svc, {
