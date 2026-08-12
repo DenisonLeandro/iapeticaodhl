@@ -279,12 +279,12 @@ function stringifyList(v: unknown): string {
   try { return JSON.stringify(v); } catch { return ""; }
 }
 
-async function callLlm(
+async function callLlmOnce(
   apiKey: string,
   model: string,
   system: string,
   userPrompt: string,
-  timeoutMs = 120000,
+  timeoutMs: number,
 ): Promise<LlmResult> {
   const start = Date.now();
   const ctrl = new AbortController();
@@ -326,6 +326,30 @@ async function callLlm(
     clearTimeout(timer);
   }
 }
+
+// Falhas transitórias do provedor (503/502/500/rede) são repetidas com backoff.
+// Não há custo extra: a tentativa anterior falhou sem consumir tokens.
+function isTransient(status: number): boolean {
+  return status === 0 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+async function callLlm(
+  apiKey: string,
+  model: string,
+  system: string,
+  userPrompt: string,
+  timeoutMs = 120000,
+): Promise<LlmResult> {
+  const delays = [2000, 5000];
+  let last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+  for (let i = 0; i < delays.length && isTransient(last.http_status); i++) {
+    console.warn("callLlm:retry", { attempt: i + 1, status: last.http_status, model });
+    await new Promise((r) => setTimeout(r, delays[i]));
+    last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+  }
+  return last;
+}
+
 
 
 // ---------------------------------------------------------------------------
