@@ -38,8 +38,10 @@ import {
   URGENCY_OPTIONS,
   caseIntakeFormSchema,
   computeIntakeStatus,
+  intakeFieldLabel,
   type CaseIntakeFormValues,
 } from "@/types/caseIntake";
+
 
 import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
@@ -95,8 +97,18 @@ function Block({
     </section>
   );
 }
+/** Etiqueta discreta em campos preenchidos automaticamente por heurística. */
+function AutoFilledHint({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+      Preenchido automaticamente a partir dos documentos — confira.
+    </p>
+  );
+}
 
 export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
+
   const { intake, isLoading, save, isSaving, suggest, isSuggesting } =
     useCaseIntake(caseData.id, caseData.client_id);
   const { generate, isRunning: isAnalyzing } = useCaseAnalysis(caseData.id);
@@ -114,6 +126,20 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     documentSourcedFields: (keyof CaseIntakeFormValues)[];
     sourcesUsed: string[];
   } | null>(null);
+  /** Campos preenchidos por heurística nesta sessão (etiqueta some ao editar). */
+  const [autoFilled, setAutoFilled] = useState<Set<keyof CaseIntakeFormValues>>(
+    new Set(),
+  );
+
+  const clearAutoFilled = (field: keyof CaseIntakeFormValues) =>
+    setAutoFilled((prev) => {
+      if (!prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+
+
 
 
   // Hidrata o form quando intake chega
@@ -221,8 +247,8 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
   ) {
     const current = form.getValues();
     let applied = 0;
-    const appliedHeuristic: string[] = [];
-    const appliedDocSourced: string[] = [];
+    const appliedHeuristic: (keyof CaseIntakeFormValues)[] = [];
+    const appliedDocSourced: (keyof CaseIntakeFormValues)[] = [];
     (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
       const incoming = values[k];
       if (incoming === undefined || incoming === null || incoming === "") return;
@@ -241,26 +267,31 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
       toast.message("Nenhum campo novo para preencher.");
       return;
     }
+    if (appliedHeuristic.length > 0) {
+      setAutoFilled((prev) => new Set([...prev, ...appliedHeuristic]));
+    }
     const sourcesTxt = sourcesUsed.length ? ` Fontes: ${sourcesUsed.join(", ")}.` : "";
     toast.success(
-      `Importação concluída: ${applied} campo(s) preenchido(s).${sourcesTxt} Revise antes de salvar.`,
+      `Importação concluída: ${applied} campo(s) preenchido(s).${sourcesTxt} Confira antes de salvar.`,
     );
     if (
       appliedDocSourced.includes("client_story") ||
       appliedDocSourced.includes("problem_summary")
     ) {
-      toast.warning(
-        "Relato/Resumo importado de documentos processados — revise antes de salvar.",
+      toast.message(
+        "O resumo e o relato vieram de documentos já processados do caso. Leia e ajuste com suas palavras antes de salvar.",
         { duration: 8000 },
       );
     }
     if (appliedHeuristic.length > 0) {
-      toast.warning(
-        `Atenção: ${appliedHeuristic.join(", ")} extraído(s) de documentos por heurística — revise antes de salvar.`,
+      const labels = appliedHeuristic.map(intakeFieldLabel).join(", ");
+      toast.message(
+        `${appliedHeuristic.length} campo(s) foram preenchidos automaticamente a partir dos documentos: ${labels}. Confira antes de salvar.`,
         { duration: 8000 },
       );
     }
   }
+
 
   async function handleImportExisting() {
     setIsPrefilling(true);
@@ -391,7 +422,10 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <AlertDialogTitle>Substituir campos já preenchidos?</AlertDialogTitle>
             <AlertDialogDescription>
               Encontramos dados existentes para campos que você já preencheu manualmente:
-              <strong className="ml-1">{pendingPrefill?.conflicts.join(", ")}</strong>.
+              <strong className="ml-1">
+                {(pendingPrefill?.conflicts ?? []).map(intakeFieldLabel).join(", ")}
+              </strong>.
+
               <br />
               Você pode preencher apenas os campos vazios (recomendado) ou substituir o conteúdo
               atual pelos dados importados.
@@ -496,8 +530,12 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <Label>Parte contrária</Label>
             <Input
               placeholder="Nome ou descrição da parte contrária"
-              {...form.register("opposing_party")}
+              {...form.register("opposing_party", {
+                onChange: () => clearAutoFilled("opposing_party"),
+              })}
             />
+            <AutoFilledHint show={autoFilled.has("opposing_party")} />
+
           </div>
         </div>
       </Block>
@@ -582,19 +620,35 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label>Período dos fatos</Label>
-            <Input placeholder="Ex.: entre 2022 e 2024" {...form.register("facts_period")} />
+            <Input
+              placeholder="Ex.: entre 2022 e 2024"
+              {...form.register("facts_period", {
+                onChange: () => clearAutoFilled("facts_period"),
+              })}
+            />
+            <AutoFilledHint show={autoFilled.has("facts_period")} />
           </div>
           <div>
             <Label>Local dos fatos</Label>
-            <Input placeholder="Ex.: Londrina/PR" {...form.register("facts_location")} />
+            <Input
+              placeholder="Ex.: Londrina/PR"
+              {...form.register("facts_location", {
+                onChange: () => clearAutoFilled("facts_location"),
+              })}
+            />
+            <AutoFilledHint show={autoFilled.has("facts_location")} />
           </div>
           <div className="md:col-span-2">
             <Label>Valores envolvidos (se houver)</Label>
             <Input
               placeholder="Ex.: R$ 35.000,00 aproximadamente"
-              {...form.register("amount_involved")}
+              {...form.register("amount_involved", {
+                onChange: () => clearAutoFilled("amount_involved"),
+              })}
             />
+            <AutoFilledHint show={autoFilled.has("amount_involved")} />
           </div>
+
         </div>
       </Block>
 
