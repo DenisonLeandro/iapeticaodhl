@@ -176,8 +176,18 @@ export default function DraftGeneratorPage() {
       toast.success("Minuta gerada com sucesso.");
       navigate(`/cases/${caseId}/drafts/${res.draft_id}`);
     } catch (e) {
-      toast.error((e as Error).message || "Falha ao gerar minuta.");
+      const err = e as Error & { retryable?: boolean };
+      if (err.retryable) {
+        toast.error(err.message, {
+          description: "Nenhum crédito foi consumido. Você pode tentar novamente.",
+          action: { label: "Tentar novamente", onClick: () => void runGenerate() },
+          duration: 12000,
+        });
+      } else {
+        toast.error(err.message || "Falha ao gerar minuta.");
+      }
     }
+
   };
 
   const handleGenerate = () => setConfirmOpen(true);
