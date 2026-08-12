@@ -152,3 +152,56 @@ export const INTAKE_STATUS_LABEL: Record<CaseIntakeStatus, string> = {
   partial: "Ficha parcial",
   complete: "Ficha preenchida",
 };
+
+// =============================================================================
+// Rótulos legíveis dos campos (usados em avisos e no tooltip de status)
+// =============================================================================
+export const INTAKE_FIELD_LABEL: Record<keyof CaseIntakeFormValues, string> = {
+  legal_area: "Área jurídica",
+  legal_area_other: "Área jurídica (outra)",
+  represented_party: "Parte representada",
+  opposing_party: "Parte contrária",
+  problem_summary: "Resumo do problema",
+  client_story: "Relato do cliente",
+  client_goal: "Objetivo do cliente",
+  client_goal_other: "Objetivo do cliente (outro)",
+  urgency: "Urgência / prazo",
+  deadline_date: "Data limite",
+  facts_period: "Período dos fatos",
+  facts_location: "Local dos fatos",
+  amount_involved: "Valores envolvidos",
+  has_existing_lawsuit: "Processo judicial existente",
+  existing_case_number: "Número do processo",
+  existing_documents: "Documentos existentes",
+  uploaded_documents_notes: "Observações dos documentos enviados",
+  missing_documents: "Documentos faltantes",
+  witnesses: "Testemunhas",
+  other_evidence: "Outras provas",
+  internal_notes: "Observações internas",
+};
+
+export function intakeFieldLabel(field: string): string {
+  return (
+    INTAKE_FIELD_LABEL[field as keyof CaseIntakeFormValues] ?? field
+  );
+}
+
+/** Campos exigidos para a ficha ser considerada completa. */
+export const INTAKE_REQUIRED_FIELDS: (keyof CaseIntakeFormValues)[] = [
+  "legal_area",
+  "represented_party",
+  "problem_summary",
+  "client_story",
+  "client_goal",
+  "urgency",
+  "existing_documents",
+];
+
+/** Lista os campos que ainda faltam para a ficha ficar completa. */
+export function missingIntakeFields(
+  v: Partial<CaseIntakeFormValues> | null | undefined,
+): (keyof CaseIntakeFormValues)[] {
+  const has = (s: unknown) => typeof s === "string" && s.trim().length > 0;
+  return INTAKE_REQUIRED_FIELDS.filter((f) => !has(v?.[f]));
+}
+
