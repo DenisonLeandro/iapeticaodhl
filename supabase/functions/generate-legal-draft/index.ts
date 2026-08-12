@@ -954,7 +954,7 @@ Seja objetivo — apenas mapear temas, pedidos, riscos, documentos e reflexos ap
 
   let claimMap: Record<string, unknown> = { topics: [] };
   try {
-    const claimMapRes = await callLlm(apiKey, claimTaskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt, 45_000);
+    const claimMapRes = await callLlm(apiKey, claimTaskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt, 30_000);
     totalTokens.input += claimMapRes.input_tokens;
     totalTokens.output += claimMapRes.output_tokens;
     if (claimMapRes.parsed && Array.isArray((claimMapRes.parsed as { topics?: unknown[] }).topics)) {
