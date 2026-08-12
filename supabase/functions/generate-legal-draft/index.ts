@@ -1056,9 +1056,19 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   if (draftRes.http_status === 599) {
     return err("draft", "A geração da minuta demorou demais. Tente novamente em instantes.", "draft_timeout", 504, "draft_timeout");
   }
+  if (!draftRes.parsed && isTransient(draftRes.http_status)) {
+    return err(
+      "draft",
+      "O serviço de IA está temporariamente indisponível. Tente novamente em alguns instantes.",
+      "llm_unavailable",
+      503,
+      "llm_unavailable",
+    );
+  }
   if (!draftRes.parsed) {
     return err("draft", "Resposta inválida da IA ao gerar a minuta.", "invalid_llm_json", 500, "invalid_llm_json");
   }
+
 
   const title = String(draftRes.parsed.title ?? `${draftLabel} — minuta`).slice(0, 200);
   const content = String(draftRes.parsed.content ?? "").trim();
