@@ -247,8 +247,8 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
   ) {
     const current = form.getValues();
     let applied = 0;
-    const appliedHeuristic: string[] = [];
-    const appliedDocSourced: string[] = [];
+    const appliedHeuristic: (keyof CaseIntakeFormValues)[] = [];
+    const appliedDocSourced: (keyof CaseIntakeFormValues)[] = [];
     (Object.keys(values) as (keyof CaseIntakeFormValues)[]).forEach((k) => {
       const incoming = values[k];
       if (incoming === undefined || incoming === null || incoming === "") return;
@@ -267,26 +267,31 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
       toast.message("Nenhum campo novo para preencher.");
       return;
     }
+    if (appliedHeuristic.length > 0) {
+      setAutoFilled((prev) => new Set([...prev, ...appliedHeuristic]));
+    }
     const sourcesTxt = sourcesUsed.length ? ` Fontes: ${sourcesUsed.join(", ")}.` : "";
     toast.success(
-      `Importação concluída: ${applied} campo(s) preenchido(s).${sourcesTxt} Revise antes de salvar.`,
+      `Importação concluída: ${applied} campo(s) preenchido(s).${sourcesTxt} Confira antes de salvar.`,
     );
     if (
       appliedDocSourced.includes("client_story") ||
       appliedDocSourced.includes("problem_summary")
     ) {
-      toast.warning(
-        "Relato/Resumo importado de documentos processados — revise antes de salvar.",
+      toast.message(
+        "O resumo e o relato vieram de documentos já processados do caso. Leia e ajuste com suas palavras antes de salvar.",
         { duration: 8000 },
       );
     }
     if (appliedHeuristic.length > 0) {
-      toast.warning(
-        `Atenção: ${appliedHeuristic.join(", ")} extraído(s) de documentos por heurística — revise antes de salvar.`,
+      const labels = appliedHeuristic.map(intakeFieldLabel).join(", ");
+      toast.message(
+        `${appliedHeuristic.length} campo(s) foram preenchidos automaticamente a partir dos documentos: ${labels}. Confira antes de salvar.`,
         { duration: 8000 },
       );
     }
   }
+
 
   async function handleImportExisting() {
     setIsPrefilling(true);
