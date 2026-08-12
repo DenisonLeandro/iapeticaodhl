@@ -211,13 +211,10 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
     const saved = await handleSave(false);
     if (!saved) return;
     try {
-      generate(true);
-      toast.success("Análise iniciada com base na ficha.");
+      await generate(true);
       onAnalyzed?.();
     } catch (e) {
-      toast.error(
-        "A ficha foi salva, mas a análise falhou. Tente novamente em instantes.",
-      );
+      // O toast de erro já é exibido pelo hook; aqui apenas registramos.
       console.error("intake:analyze_error", e);
     }
   }
