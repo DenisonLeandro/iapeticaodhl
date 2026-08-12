@@ -422,7 +422,10 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
             <AlertDialogTitle>Substituir campos já preenchidos?</AlertDialogTitle>
             <AlertDialogDescription>
               Encontramos dados existentes para campos que você já preencheu manualmente:
-              <strong className="ml-1">{pendingPrefill?.conflicts.join(", ")}</strong>.
+              <strong className="ml-1">
+                {(pendingPrefill?.conflicts ?? []).map(intakeFieldLabel).join(", ")}
+              </strong>.
+
               <br />
               Você pode preencher apenas os campos vazios (recomendado) ou substituir o conteúdo
               atual pelos dados importados.
