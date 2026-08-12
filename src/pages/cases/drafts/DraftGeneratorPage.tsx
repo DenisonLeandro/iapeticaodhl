@@ -180,7 +180,7 @@ export default function DraftGeneratorPage() {
       if (err.retryable) {
         toast.error(err.message, {
           description: "Nenhum crédito foi consumido. Você pode tentar novamente.",
-          action: { label: "Tentar novamente", onClick: () => void runGenerate() },
+          action: { label: "Tentar novamente", onClick: () => void doGenerate() },
           duration: 12000,
         });
       } else {
