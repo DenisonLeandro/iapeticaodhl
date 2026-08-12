@@ -229,9 +229,43 @@ function extractJson(raw: string): Record<string, unknown> | null {
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { /* fenced fallback */ }
   const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  if (m) {
+    try { return JSON.parse(m[0]); } catch { /* truncated fallback */ }
+  }
+  // Resposta truncada (corte por tamanho): recupera "content" de forma tolerante.
+  const start = raw.indexOf('"content"');
+  if (start >= 0) {
+    const after = raw.slice(start + 9).replace(/^\s*:\s*/, "");
+    if (after.startsWith('"')) {
+      let out = "";
+      let i = 1;
+      while (i < after.length) {
+        const ch = after[i];
+        if (ch === "\\") {
+          const nxt = after[i + 1];
+          if (nxt === "n") out += "\n";
+          else if (nxt === "t") out += "\t";
+          else if (nxt === "u") {
+            const hex = after.slice(i + 2, i + 6);
+            out += String.fromCharCode(parseInt(hex, 16) || 32);
+            i += 4;
+          } else out += nxt ?? "";
+          i += 2;
+          continue;
+        }
+        if (ch === '"') break;
+        out += ch;
+        i += 1;
+      }
+      const title = raw.match(/"title"\s*:\s*"([^"]{1,200})"/)?.[1];
+      if (out.trim().length >= 100) {
+        return { title: title ?? "", content: out, warnings: [], missing_information: [], _truncated: true };
+      }
+    }
+  }
+  return null;
 }
+
 
 function truncate(text: string | null | undefined, max: number): string {
   if (!text) return "";
