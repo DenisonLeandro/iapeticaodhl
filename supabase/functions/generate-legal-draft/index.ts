@@ -333,6 +333,13 @@ function isTransient(status: number): boolean {
   return status === 0 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
+// Orçamento global do request: o gateway corta em 150s (IDLE_TIMEOUT).
+// Mantemos uma folga para conseguir responder um erro tratado antes disso.
+let requestDeadlineAt = 0;
+function remainingMs(): number {
+  return requestDeadlineAt ? Math.max(0, requestDeadlineAt - Date.now()) : Number.MAX_SAFE_INTEGER;
+}
+
 async function callLlm(
   apiKey: string,
   model: string,
@@ -340,15 +347,28 @@ async function callLlm(
   userPrompt: string,
   timeoutMs = 120000,
 ): Promise<LlmResult> {
+  const budget = Math.min(timeoutMs, remainingMs());
+  if (budget < 5000) {
+    return { raw: "", parsed: null, input_tokens: 0, output_tokens: 0, ms: 0, http_status: 599 };
+  }
   const delays = [2000, 5000];
-  let last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+  let last = await callLlmOnce(apiKey, model, system, userPrompt, budget);
   for (let i = 0; i < delays.length && isTransient(last.http_status); i++) {
+    // Só repete se ainda houver tempo hábil dentro do orçamento do request.
+    if (remainingMs() < delays[i] + 15000) break;
     console.warn("callLlm:retry", { attempt: i + 1, status: last.http_status, model });
     await new Promise((r) => setTimeout(r, delays[i]));
-    last = await callLlmOnce(apiKey, model, system, userPrompt, timeoutMs);
+    last = await callLlmOnce(
+      apiKey,
+      model,
+      system,
+      userPrompt,
+      Math.min(timeoutMs, remainingMs()),
+    );
   }
   return last;
 }
+
 
 
 
