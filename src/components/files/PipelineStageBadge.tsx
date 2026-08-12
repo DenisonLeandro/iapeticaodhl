@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Clock, FileWarning } from "lucide-react";
 
 type Stage =
   | "pending"
@@ -34,6 +34,17 @@ export function PipelineStageBadge({
   const isRunning = ["queued", "extracting", "chunking", "classifying", "embedding"].includes(s);
 
   if (s === "done") {
+    if (error === "sem_texto_reconhecido") {
+      return (
+        <Badge
+          variant="outline"
+          className="gap-1 border-amber-500/50 text-amber-600 dark:text-amber-400"
+          title="O documento foi processado, mas nenhum texto legível foi reconhecido (provavelmente é uma imagem digitalizada de baixa qualidade)."
+        >
+          <FileWarning className="h-3 w-3" /> Sem texto reconhecido
+        </Badge>
+      );
+    }
     return (
       <Badge variant="secondary" className="gap-1">
         <CheckCircle2 className="h-3 w-3" /> {LABEL.done}
