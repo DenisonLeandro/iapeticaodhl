@@ -38,8 +38,10 @@ import {
   URGENCY_OPTIONS,
   caseIntakeFormSchema,
   computeIntakeStatus,
+  intakeFieldLabel,
   type CaseIntakeFormValues,
 } from "@/types/caseIntake";
+
 
 import { useCaseIntake } from "@/hooks/useCaseIntake";
 import { useCaseAnalysis } from "@/hooks/useCaseAnalysis";
