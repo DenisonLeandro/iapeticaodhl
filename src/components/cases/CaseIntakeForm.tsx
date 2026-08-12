@@ -620,19 +620,35 @@ export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label>Período dos fatos</Label>
-            <Input placeholder="Ex.: entre 2022 e 2024" {...form.register("facts_period")} />
+            <Input
+              placeholder="Ex.: entre 2022 e 2024"
+              {...form.register("facts_period", {
+                onChange: () => clearAutoFilled("facts_period"),
+              })}
+            />
+            <AutoFilledHint show={autoFilled.has("facts_period")} />
           </div>
           <div>
             <Label>Local dos fatos</Label>
-            <Input placeholder="Ex.: Londrina/PR" {...form.register("facts_location")} />
+            <Input
+              placeholder="Ex.: Londrina/PR"
+              {...form.register("facts_location", {
+                onChange: () => clearAutoFilled("facts_location"),
+              })}
+            />
+            <AutoFilledHint show={autoFilled.has("facts_location")} />
           </div>
           <div className="md:col-span-2">
             <Label>Valores envolvidos (se houver)</Label>
             <Input
               placeholder="Ex.: R$ 35.000,00 aproximadamente"
-              {...form.register("amount_involved")}
+              {...form.register("amount_involved", {
+                onChange: () => clearAutoFilled("amount_involved"),
+              })}
             />
+            <AutoFilledHint show={autoFilled.has("amount_involved")} />
           </div>
+
         </div>
       </Block>
 
