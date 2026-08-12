@@ -135,7 +135,7 @@ export async function generateCaseDraft(
   }
 
 
-  // Edge respondeu 2xx mas com success:false (não deve ocorrer, mas por segurança)
+  // Edge respondeu 2xx mas com success:false (falhas transitórias vêm assim)
   if (data && data.success === false) {
     console.error("generateCaseDraft:soft_error", {
       fn: "generate-legal-draft",
@@ -143,8 +143,16 @@ export async function generateCaseDraft(
       stage: data.stage,
       message: data.message,
     });
+    const RETRYABLE_SOFT = new Set(["llm_unavailable", "draft_timeout", "rate_limit"]);
+    if (data.code && RETRYABLE_SOFT.has(data.code)) {
+      const e = new Error(data.message ?? "O serviço de IA está temporariamente indisponível. Tente novamente.");
+      (e as Error & { code?: string; retryable?: boolean }).code = data.code;
+      (e as Error & { retryable?: boolean }).retryable = true;
+      throw e;
+    }
     throw new Error(FRIENDLY);
   }
+
 
   if (!data?.draft_id) {
     console.error("generateCaseDraft:invalid_response", { fn: "generate-legal-draft" });

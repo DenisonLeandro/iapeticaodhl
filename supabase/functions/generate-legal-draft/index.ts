@@ -954,7 +954,7 @@ Seja objetivo — apenas mapear temas, pedidos, riscos, documentos e reflexos ap
 
   let claimMap: Record<string, unknown> = { topics: [] };
   try {
-    const claimMapRes = await callLlm(apiKey, claimTaskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt, 45_000);
+    const claimMapRes = await callLlm(apiKey, claimTaskChoice.model, CLAIM_MAP_SYSTEM, claimMapPrompt, 30_000);
     totalTokens.input += claimMapRes.input_tokens;
     totalTokens.output += claimMapRes.output_tokens;
     if (claimMapRes.parsed && Array.isArray((claimMapRes.parsed as { topics?: unknown[] }).topics)) {
@@ -1076,18 +1076,21 @@ Nível de profundidade: professional_full — a peça DEVE ser longa, técnica, 
   if (draftRes.http_status === 402) {
     return err("draft", "Créditos de IA esgotados. Adicione créditos no workspace.", "payment_required", 402, "payment_required");
   }
+  // Falhas transitórias voltam com HTTP 200 + success:false para o frontend
+  // exibir o retry amigável em vez do overlay genérico de erro.
   if (draftRes.http_status === 599) {
-    return err("draft", "A geração da minuta demorou demais. Tente novamente em instantes.", "draft_timeout", 504, "draft_timeout");
+    return err("draft", "A geração da minuta demorou demais. Tente novamente em instantes.", "draft_timeout", 200, "draft_timeout");
   }
   if (!draftRes.parsed && isTransient(draftRes.http_status)) {
     return err(
       "draft",
       "O serviço de IA está temporariamente indisponível. Tente novamente em alguns instantes.",
       "llm_unavailable",
-      503,
+      200,
       "llm_unavailable",
     );
   }
+
   if (!draftRes.parsed) {
     return err("draft", "Resposta inválida da IA ao gerar a minuta.", "invalid_llm_json", 500, "invalid_llm_json");
   }
