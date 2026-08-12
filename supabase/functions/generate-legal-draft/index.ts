@@ -441,6 +441,9 @@ Deno.serve(async (req) => {
   }
 
   const startedAt = Date.now();
+  // 135s: responde com erro tratado antes do corte de 150s do gateway.
+  requestDeadlineAt = startedAt + 135_000;
+
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
