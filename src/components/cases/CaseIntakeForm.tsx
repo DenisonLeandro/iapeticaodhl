@@ -97,8 +97,18 @@ function Block({
     </section>
   );
 }
+/** Etiqueta discreta em campos preenchidos automaticamente por heurística. */
+function AutoFilledHint({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+      Preenchido automaticamente a partir dos documentos — confira.
+    </p>
+  );
+}
 
 export default function CaseIntakeForm({ caseData, onAnalyzed }: Props) {
+
   const { intake, isLoading, save, isSaving, suggest, isSuggesting } =
     useCaseIntake(caseData.id, caseData.client_id);
   const { generate, isRunning: isAnalyzing } = useCaseAnalysis(caseData.id);
