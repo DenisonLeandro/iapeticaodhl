@@ -118,8 +118,22 @@ export async function generateCaseDraft(
       stage,
       message: message ?? error.message,
     });
+    // Falhas transitórias merecem mensagem específica + retry pelo usuário.
+    const RETRYABLE = new Set(["llm_unavailable", "draft_timeout", "rate_limit"]);
+    if (code && RETRYABLE.has(code)) {
+      const e = new Error(message ?? "O serviço de IA está temporariamente indisponível. Tente novamente.");
+      (e as Error & { code?: string; retryable?: boolean }).code = code;
+      (e as Error & { retryable?: boolean }).retryable = true;
+      throw e;
+    }
+    if (code === "payment_required") {
+      const e = new Error(message ?? "Créditos de IA esgotados.");
+      (e as Error & { code?: string }).code = code;
+      throw e;
+    }
     throw new Error(FRIENDLY);
   }
+
 
   // Edge respondeu 2xx mas com success:false (não deve ocorrer, mas por segurança)
   if (data && data.success === false) {
